@@ -30,7 +30,7 @@ helm install keda kedacore/keda --namespace keda --create-namespace
 |------|-------------|
 | `inference-service.yaml` | KServe InferenceService for OPT-125M model with vLLM backend |
 | `scaled-object.yaml` | KEDA ScaledObject with TTFT, GPU cache, and request-based scaling |
-| `service-monitor.yaml` | PodMonitor and PrometheusRules for vLLM metrics collection |
+| `service-monitor.yaml` | PodMonitor for vLLM metrics collection |
 
 ## Deployment
 
@@ -52,7 +52,7 @@ Apply the PodMonitor to scrape vLLM metrics:
 kubectl apply -f service-monitor.yaml -n <your-namespace>
 ```
 
-**Note:** You may need to update the `namespaceSelector` in `service-monitor.yaml` to match your namespace.
+**Note:** Update the `namespaceSelector` in `service-monitor.yaml` to match your namespace.
 
 ### 3. Deploy KEDA ScaledObject
 
@@ -115,7 +115,7 @@ triggers:
 
 ## vLLM Metrics Reference
 
-vLLM exposes metrics at `/metrics` endpoint. Note that vLLM uses colons in metric names:
+vLLM exposes metrics at the `/metrics` endpoint. Note that vLLM uses colons in metric names (this is unusual but correct):
 
 | Metric | Description |
 |--------|-------------|
@@ -131,7 +131,10 @@ vLLM exposes metrics at `/metrics` endpoint. Note that vLLM uses colons in metri
 Generate load to trigger autoscaling:
 
 ```bash
-# Create a load generator pod
+# First, find the predictor service name
+kubectl get svc -n <your-namespace> | grep opt-125m-vllm
+
+# Create a load generator pod (adjust service name if needed)
 kubectl run load-gen --image=curlimages/curl -n <your-namespace> --restart=Never -- \
   sh -c 'while true; do for i in $(seq 1 10); do curl -s -X POST "http://opt-125m-vllm-predictor-00001.<your-namespace>.svc.cluster.local/openai/v1/completions" -H "Content-Type: application/json" -d "{\"model\": \"opt-125m\", \"prompt\": \"Tell me a story\", \"max_tokens\": 200}" & done; sleep 2; done'
 ```
@@ -158,7 +161,7 @@ kubectl delete pod load-gen -n <your-namespace>
    kubectl describe scaledobject opt-125m-vllm-scaledobject -n <your-namespace>
    ```
 
-2. Verify Prometheus connectivity (note the `/prometheus` path prefix on prokube):
+2. Verify Prometheus connectivity (some deployments use a `/prometheus` path prefix):
    ```bash
    kubectl run curl-test --image=curlimages/curl --rm -it --restart=Never -- \
      curl -s 'http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus/api/v1/query?query=up'

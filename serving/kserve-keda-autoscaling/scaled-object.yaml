@@ -5,8 +5,8 @@
 # - KEDA installed in cluster (https://keda.sh/docs/deploy/)
 # - Prometheus collecting vLLM metrics (see service-monitor.yaml)
 #
-# Note: vLLM metrics use colons in names (e.g., vllm:num_requests_running)
-# which need to be quoted in PromQL queries
+# Note: vLLM uses colons in metric names (e.g., vllm:num_requests_running),
+# which is unusual but correct. Use {"__name__"="..."} syntax in PromQL.
 #
 # TODO: Replace <your-namespace> with your actual namespace in the queries below
 #
@@ -24,7 +24,7 @@ spec:
     name: opt-125m-vllm-predictor-00001-deployment
   # Polling interval for checking metrics (seconds)
   pollingInterval: 15
-  # Cooldown period before scaling down (seconds)  
+  # Cooldown period before scaling down (seconds)
   cooldownPeriod: 60
   # Min/max replicas
   minReplicaCount: 1

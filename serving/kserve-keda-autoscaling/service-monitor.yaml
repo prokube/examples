@@ -3,7 +3,7 @@
 #
 # Prerequisites:
 # - Prometheus Operator installed (kube-prometheus-stack)
-# - vLLM runtime exposes metrics on port 8080 at /metrics endpoint
+# - vLLM runtime exposes metrics at /metrics endpoint
 #
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -21,60 +21,7 @@ spec:
     matchNames:
       - <your-namespace>  # TODO: Replace with your namespace
   podMetricsEndpoints:
-    - port: user-port  # vLLM runtime metrics port
+    - port: user-port
       path: /metrics
       interval: 15s
       scrapeTimeout: 10s
----
-# PrometheusRule for creating recording rules
-# These pre-aggregate metrics for more efficient KEDA queries
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
-metadata:
-  name: opt-125m-vllm-recording-rules
-  labels:
-    app: opt-125m-vllm
-    release: kube-prometheus-stack
-spec:
-  groups:
-    - name: vllm-metrics
-      interval: 15s
-      rules:
-        # Number of running requests
-        - record: vllm:num_requests_running
-          expr: |
-            sum by (model_name, namespace) (
-              vllm_num_requests_running
-            )
-        # Number of waiting requests  
-        - record: vllm:num_requests_waiting
-          expr: |
-            sum by (model_name, namespace) (
-              vllm_num_requests_waiting
-            )
-        # Token generation throughput
-        - record: vllm:generation_tokens_rate
-          expr: |
-            sum by (model_name, namespace) (
-              rate(vllm_generation_tokens_total[1m])
-            )
-        # Prompt tokens throughput
-        - record: vllm:prompt_tokens_rate
-          expr: |
-            sum by (model_name, namespace) (
-              rate(vllm_prompt_tokens_total[1m])
-            )
-        # Average time to first token (TTFT)
-        - record: vllm:time_to_first_token_avg
-          expr: |
-            avg by (model_name, namespace) (
-              rate(vllm_time_to_first_token_seconds_sum[5m])
-              /
-              rate(vllm_time_to_first_token_seconds_count[5m])
-            )
-        # GPU KV cache utilization
-        - record: vllm:gpu_cache_usage_percent
-          expr: |
-            avg by (model_name, namespace) (
-              vllm_gpu_cache_usage_perc
-            )

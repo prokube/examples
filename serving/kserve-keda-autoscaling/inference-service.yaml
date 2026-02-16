@@ -6,6 +6,8 @@ metadata:
     huggingface.co/model-id: facebook/opt-125m
 spec:
   predictor:
+    # Note: When using KEDA, replica limits are managed by the ScaledObject.
+    # These values serve as defaults if KEDA is not deployed.
     minReplicas: 1
     maxReplicas: 10
     model:
