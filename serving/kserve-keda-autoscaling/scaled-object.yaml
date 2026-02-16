@@ -8,7 +8,10 @@
 # Note: vLLM uses colons in metric names (e.g., vllm:num_requests_running),
 # which is unusual but correct. Use {"__name__"="..."} syntax in PromQL.
 #
-# TODO: Replace <your-namespace> with your actual namespace in the queries below
+# TODO: Replace the following before deploying:
+# - <your-namespace>: your actual namespace
+# - <your-prometheus-url>: your Prometheus server URL (may or may not have a path prefix)
+# - opt-125m-vllm: your InferenceService name (in queries and scaleTargetRef)
 #
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -54,28 +57,29 @@ spec:
     # Scale up when P95 TTFT exceeds 200ms (0.2s)
     - type: prometheus
       metadata:
-        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        # Adjust URL to your Prometheus setup (some have /prometheus path prefix)
+        serverAddress: <your-prometheus-url>
         metricName: vllm_ttft_p95
         query: |
-          histogram_quantile(0.95, sum(rate({"__name__"="vllm:time_to_first_token_seconds_bucket", namespace="<your-namespace>"}[2m])) by (le))
+          histogram_quantile(0.95, sum(rate({"__name__"="vllm:time_to_first_token_seconds_bucket", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"}[2m])) by (le))
         threshold: "0.2"
         activationThreshold: "0.1"
     # Scale based on GPU KV-cache usage (for GPU deployments)
     # Scale up when cache usage exceeds 70%
     - type: prometheus
       metadata:
-        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        serverAddress: <your-prometheus-url>
         metricName: vllm_gpu_cache_usage
         query: |
-          avg({"__name__"="vllm:gpu_cache_usage_perc", namespace="<your-namespace>"})
+          avg({"__name__"="vllm:gpu_cache_usage_perc", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"})
         threshold: "0.7"
         activationThreshold: "0.5"
     # Fallback: Scale based on running requests (always works)
     - type: prometheus
       metadata:
-        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        serverAddress: <your-prometheus-url>
         metricName: vllm_num_requests_running
         query: |
-          avg({"__name__"="vllm:num_requests_running", namespace="<your-namespace>"})
+          avg({"__name__"="vllm:num_requests_running", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"})
         threshold: "2"
         activationThreshold: "1"

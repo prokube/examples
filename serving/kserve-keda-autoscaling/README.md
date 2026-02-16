@@ -62,8 +62,10 @@ kubectl get deployments -n <your-namespace> | grep opt-125m-vllm
 ```
 
 Update `scaled-object.yaml` with:
-- The correct deployment name
+- The correct deployment name in `scaleTargetRef`
+- Your Prometheus server URL (e.g., `http://prometheus.monitoring:9090` or with path prefix)
 - Your namespace in the Prometheus queries
+- Your InferenceService name in the pod selector (e.g., `pod=~"opt-125m-vllm-predictor-.*"`)
 
 Then apply:
 ```bash
@@ -78,7 +80,7 @@ kubectl describe scaledobject opt-125m-vllm-scaledobject -n <your-namespace>
 
 ## Autoscaling Strategies
 
-This example uses three triggers (first one to exceed threshold wins):
+This example uses three triggers. KEDA evaluates all triggers and scales based on the highest desired replica count:
 
 ### 1. Time To First Token (TTFT) - P95
 Scales when the 95th percentile TTFT exceeds 200ms:
