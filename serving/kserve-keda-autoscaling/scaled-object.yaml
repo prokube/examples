@@ -1,0 +1,123 @@
+# KEDA ScaledObject for KServe InferenceService
+# Scales based on custom Prometheus metrics from vLLM/HuggingFace serving runtime
+#
+# Prerequisites:
+# - KEDA installed in cluster (https://keda.sh/docs/deploy/)
+# - Prometheus collecting vLLM metrics
+# - ServiceMonitor configured (see service-monitor.yaml)
+#
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: qwen25-05b-scaledobject
+  labels:
+    app: qwen25-05b
+spec:
+  # Target the KServe predictor deployment
+  # KServe creates a deployment with naming pattern: <isvc-name>-predictor-<revision>
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: qwen25-05b-predictor-00001-deployment
+  # Polling interval for checking metrics (seconds)
+  pollingInterval: 15
+  # Cooldown period before scaling down (seconds)  
+  cooldownPeriod: 60
+  # Min/max replicas
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  # Advanced scaling behavior
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 4
+              periodSeconds: 15
+          selectPolicy: Max
+  triggers:
+    # Scale based on average token throughput per second
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        metricName: vllm_avg_generation_throughput
+        # Average tokens generated per second across all pods
+        query: |
+          avg(rate(vllm:generation_tokens_total[1m]))
+        threshold: "100"
+        activationThreshold: "10"
+    # Alternative: Scale based on number of running requests
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        metricName: vllm_num_requests_running
+        # Average number of running requests per pod
+        query: |
+          avg(vllm:num_requests_running{model_name="qwen25-05b"})
+        threshold: "5"
+        activationThreshold: "1"
+---
+# Alternative ScaledObject using GPU utilization (if using GPUs)
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: qwen25-05b-gpu-scaledobject
+  labels:
+    app: qwen25-05b
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: qwen25-05b-predictor-00001-deployment
+  pollingInterval: 15
+  cooldownPeriod: 120
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    # Scale based on GPU memory utilization (requires DCGM exporter)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        metricName: dcgm_gpu_memory_used_percent
+        query: |
+          avg(DCGM_FI_DEV_MEM_COPY_UTIL{pod=~"qwen25-05b-predictor.*"})
+        threshold: "80"
+        activationThreshold: "20"
+---
+# Alternative ScaledObject using Kepler power consumption metrics
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: qwen25-05b-power-scaledobject
+  labels:
+    app: qwen25-05b
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: qwen25-05b-predictor-00001-deployment
+  pollingInterval: 30
+  cooldownPeriod: 180
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    # Scale based on power consumption (requires Kepler)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        metricName: kepler_container_joules
+        query: |
+          sum(rate(kepler_container_joules_total{container_name=~"qwen25-05b.*"}[5m]))
+        threshold: "100"
+        activationThreshold: "10"

@@ -1,0 +1,27 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: distilbert-cpu
+  annotations:
+    # Model info for documentation
+    huggingface.co/model-id: distilbert-base-uncased-finetuned-sst-2-english
+spec:
+  predictor:
+    # KEDA will handle scaling, but we still set bounds
+    minReplicas: 1
+    maxReplicas: 10
+    scaleTarget: 1
+    scaleMetric: concurrency
+    model:
+      modelFormat:
+        name: huggingface
+      args:
+        - --model_name=distilbert
+        - --model_id=distilbert-base-uncased-finetuned-sst-2-english
+      resources:
+        requests:
+          cpu: "2"
+          memory: 4Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi

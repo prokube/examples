@@ -1,0 +1,64 @@
+# ServiceMonitor to scrape HuggingFace runtime metrics from KServe InferenceService
+# This enables Prometheus to collect the metrics used by KEDA for autoscaling
+#
+# Prerequisites:
+# - Prometheus Operator installed (kube-prometheus-stack)
+# - HuggingFace runtime exposes metrics on port 8080 at /metrics endpoint
+#
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: distilbert-cpu-metrics
+  labels:
+    app: distilbert-cpu
+    # Label to match Prometheus Operator's podMonitorSelector
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: distilbert-cpu
+  namespaceSelector:
+    matchNames:
+      - developer1
+  podMetricsEndpoints:
+    - port: user-port  # HuggingFace runtime metrics port
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+# PrometheusRule for creating recording rules
+# These pre-aggregate metrics for more efficient KEDA queries
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: distilbert-cpu-recording-rules
+  labels:
+    app: distilbert-cpu
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: kserve-hf-metrics
+      interval: 15s
+      rules:
+        # Request rate (requests per second)
+        - record: kserve:request_rate
+          expr: |
+            sum by (namespace, pod) (
+              rate(request_predict_seconds_count[1m])
+            )
+        # Average prediction latency
+        - record: kserve:predict_latency_avg
+          expr: |
+            avg by (namespace) (
+              rate(request_predict_seconds_sum[5m])
+              /
+              rate(request_predict_seconds_count[5m])
+            )
+        # P99 prediction latency
+        - record: kserve:predict_latency_p99
+          expr: |
+            histogram_quantile(0.99, 
+              sum by (namespace, le) (
+                rate(request_predict_seconds_bucket[5m])
+              )
+            )
