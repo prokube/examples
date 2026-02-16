@@ -17,7 +17,7 @@ Better metrics for LLM autoscaling include:
 
 ## Prerequisites
 
-On prokube, Prometheus is already installed. You only need to install KEDA:
+Install KEDA in the cluster:
 
 ```bash
 helm repo add kedacore https://kedacore.github.io/charts
