@@ -1,27 +1,27 @@
-# ServiceMonitor to scrape HuggingFace runtime metrics from KServe InferenceService
+# PodMonitor to scrape vLLM metrics from KServe InferenceService
 # This enables Prometheus to collect the metrics used by KEDA for autoscaling
 #
 # Prerequisites:
 # - Prometheus Operator installed (kube-prometheus-stack)
-# - HuggingFace runtime exposes metrics on port 8080 at /metrics endpoint
+# - vLLM runtime exposes metrics on port 8080 at /metrics endpoint
 #
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  name: distilbert-cpu-metrics
+  name: opt-125m-vllm-metrics
   labels:
-    app: distilbert-cpu
+    app: opt-125m-vllm
     # Label to match Prometheus Operator's podMonitorSelector
     release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
-      serving.kserve.io/inferenceservice: distilbert-cpu
+      serving.kserve.io/inferenceservice: opt-125m-vllm
   namespaceSelector:
     matchNames:
       - developer1
   podMetricsEndpoints:
-    - port: user-port  # HuggingFace runtime metrics port
+    - port: user-port  # vLLM runtime metrics port
       path: /metrics
       interval: 15s
       scrapeTimeout: 10s
@@ -31,34 +31,50 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: distilbert-cpu-recording-rules
+  name: opt-125m-vllm-recording-rules
   labels:
-    app: distilbert-cpu
+    app: opt-125m-vllm
     release: kube-prometheus-stack
 spec:
   groups:
-    - name: kserve-hf-metrics
+    - name: vllm-metrics
       interval: 15s
       rules:
-        # Request rate (requests per second)
-        - record: kserve:request_rate
+        # Number of running requests
+        - record: vllm:num_requests_running
           expr: |
-            sum by (namespace, pod) (
-              rate(request_predict_seconds_count[1m])
+            sum by (model_name, namespace) (
+              vllm_num_requests_running
             )
-        # Average prediction latency
-        - record: kserve:predict_latency_avg
+        # Number of waiting requests  
+        - record: vllm:num_requests_waiting
           expr: |
-            avg by (namespace) (
-              rate(request_predict_seconds_sum[5m])
+            sum by (model_name, namespace) (
+              vllm_num_requests_waiting
+            )
+        # Token generation throughput
+        - record: vllm:generation_tokens_rate
+          expr: |
+            sum by (model_name, namespace) (
+              rate(vllm_generation_tokens_total[1m])
+            )
+        # Prompt tokens throughput
+        - record: vllm:prompt_tokens_rate
+          expr: |
+            sum by (model_name, namespace) (
+              rate(vllm_prompt_tokens_total[1m])
+            )
+        # Average time to first token (TTFT)
+        - record: vllm:time_to_first_token_avg
+          expr: |
+            avg by (model_name, namespace) (
+              rate(vllm_time_to_first_token_seconds_sum[5m])
               /
-              rate(request_predict_seconds_count[5m])
+              rate(vllm_time_to_first_token_seconds_count[5m])
             )
-        # P99 prediction latency
-        - record: kserve:predict_latency_p99
+        # GPU KV cache utilization
+        - record: vllm:gpu_cache_usage_percent
           expr: |
-            histogram_quantile(0.99, 
-              sum by (namespace, le) (
-                rate(request_predict_seconds_bucket[5m])
-              )
+            avg by (model_name, namespace) (
+              vllm_gpu_cache_usage_perc
             )
