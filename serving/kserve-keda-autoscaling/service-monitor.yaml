@@ -19,7 +19,7 @@ spec:
       serving.kserve.io/inferenceservice: opt-125m-vllm
   namespaceSelector:
     matchNames:
-      - developer1
+      - <your-namespace>  # TODO: Replace with your namespace
   podMetricsEndpoints:
     - port: user-port  # vLLM runtime metrics port
       path: /metrics

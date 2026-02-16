@@ -8,6 +8,8 @@
 # Note: vLLM metrics use colons in names (e.g., vllm:num_requests_running)
 # which need to be quoted in PromQL queries
 #
+# TODO: Replace <your-namespace> with your actual namespace in the queries below
+#
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -48,24 +50,32 @@ spec:
               periodSeconds: 15
           selectPolicy: Max
   triggers:
-    # Scale based on number of running requests per pod
-    # vLLM uses colons in metric names, so we use the actual metric name
+    # Scale based on Time To First Token (TTFT) - P95
+    # Scale up when P95 TTFT exceeds 200ms (0.2s)
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        metricName: vllm_ttft_p95
+        query: |
+          histogram_quantile(0.95, sum(rate({"__name__"="vllm:time_to_first_token_seconds_bucket", namespace="<your-namespace>"}[2m])) by (le))
+        threshold: "0.2"
+        activationThreshold: "0.1"
+    # Scale based on GPU KV-cache usage (for GPU deployments)
+    # Scale up when cache usage exceeds 70%
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        metricName: vllm_gpu_cache_usage
+        query: |
+          avg({"__name__"="vllm:gpu_cache_usage_perc", namespace="<your-namespace>"})
+        threshold: "0.7"
+        activationThreshold: "0.5"
+    # Fallback: Scale based on running requests (always works)
     - type: prometheus
       metadata:
         serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
         metricName: vllm_num_requests_running
-        # Scale up when average running requests per pod > 2
         query: |
-          avg({"__name__"="vllm:num_requests_running", namespace="developer1"})
+          avg({"__name__"="vllm:num_requests_running", namespace="<your-namespace>"})
         threshold: "2"
         activationThreshold: "1"
-    # Scale based on number of waiting requests (queue depth)
-    - type: prometheus
-      metadata:
-        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
-        metricName: vllm_num_requests_waiting
-        # Scale up when there are waiting requests
-        query: |
-          sum({"__name__"="vllm:num_requests_waiting", namespace="developer1"})
-        threshold: "1"
-        activationThreshold: "0"
