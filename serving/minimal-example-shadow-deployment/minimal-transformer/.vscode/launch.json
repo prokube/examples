@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: Debug custom transformer",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "python": "${workspaceFolder}/.venv/bin/python3",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "args": ["--predictor_host", "localhost", "--model_name", "model"]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: triple-minimal-custom-inference
+  namespace: prokube-demo-profile
+spec:
+  predictor:
+    containers:
+    - name: kserver-container
+      image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-dev/scale-predictor:latest'
+      env:
+      - name: MODEL_NAME
+        value: "model"
+      - name: FACTOR
+        value: "3"
+      - name: COMPONENT_TYPE
+        value: "predictor"
+    serviceAccountName: default-editor
+    imagePullSecrets:
+    - name: regcred-prokube-dev
+  transformer:
+    containers:
+    - image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-dev/persistant-transformer:latest'
+      name: kserve-container
+      imagePullPolicy: Always
+      env:
+      - name: POSTGRES_URI
+        valueFrom:
+          secretKeyRef:
+            name: inferencing-postgres-pguser-transformer-admin
+            key: uri
+      args:
+      - --model_name
+      - model
+    serviceAccountName: default-editor
+    imagePullSecrets:
+    - name: regcred-prokube-dev

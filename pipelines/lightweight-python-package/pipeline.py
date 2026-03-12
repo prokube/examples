@@ -185,14 +185,17 @@ def mobile_price_classification_pipeline(
         minio_train_data_path=minio_train_data_path,
         minio_test_data_path=minio_test_data_path,
     )
+    # Use the cluster internal s3 endpoint
+    read_data_task.set_env_variable('AWS_ENDPOINT_URL',"http://minio.minio")
+    # Use Kubernetes secrets to provide AWS credentials to the read_data component
     kubernetes.use_secret_as_env(
         read_data_task,
-        secret_name="s3creds",
+        secret_name='s3creds',
         secret_key_to_env={
-            "AWS_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
-            "AWS_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
-        },
-    )
+            'AWS_ACCESS_KEY_ID': 'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY': 'AWS_SECRET_ACCESS_KEY',
+        }
+    ) 
 
     # Step 2: Split the data
     split_data_task = split_data(

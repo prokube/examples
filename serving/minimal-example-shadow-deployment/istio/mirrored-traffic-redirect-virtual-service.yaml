@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mirror-traffic-redirect
+  namespace: prokube-demo-profile
+spec:
+  hosts:
+  - public-shastasaurus.prokube.cloud-shadow
+  gateways:
+  - istio-system/cluster-local-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /serving/prokube-demo-profile/double-minimal-custom-inference/
+    - uri:
+        exact: /serving/prokube-demo-profile/double-minimal-custom-inference
+    rewrite:
+      uri: /serving/prokube-demo-profile/triple-minimal-custom-inference/
+    headers:
+      request:
+        set:
+          Host: public-shastasaurus.prokube.cloud
+    route:
+    - destination:
+        host: cluster-local-gateway.istio-system.svc.cluster.local
+        port:
+          number: 80

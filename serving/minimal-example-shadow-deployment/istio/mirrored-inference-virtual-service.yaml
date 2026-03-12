@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: mirrored-inference
+  namespace: prokube-demo-profile
+spec:
+  gateways:
+  - istio-system/cluster-local-gateway
+  hosts:
+  - public-shastasaurus.prokube.cloud
+  http:
+  - match:
+    - uri:
+        prefix: /serving/prokube-demo-profile/mirrored-inference/
+    - uri:
+        exact: /serving/prokube-demo-profile/mirrored-inference
+    mirror:
+      host: cluster-local-gateway.istio-system.svc.cluster.local
+    mirrorPercentage:
+      value: 100
+    rewrite:
+      uri: /serving/prokube-demo-profile/double-minimal-custom-inference/
+    route:
+    - destination:
+        host: cluster-local-gateway.istio-system.svc.cluster.local
+        port:
+          number: 80
