@@ -30,7 +30,7 @@ making it a stable scaling signal.
 ## Quick Start
 
 > [!NOTE]
-> All of the examples below should be run in prokube notebook inside your cluster. The model created with RawDeployment is not accessible from outside the cluster by default.
+> All of the examples below should be run in prokube notebook's terminal inside your cluster. The model created with RawDeployment is not accessible from outside the cluster by default.
 
 ```bash
 # 1. Deploy the InferenceService
@@ -84,14 +84,26 @@ done
 
 ### 3. Observe autoscaling
 
-Watch replicas scale up in response to load:
+You can use dashboards (see below) or check out any of these in terminal while the load is running:
 
 ```bash
-# Watch pods scale up (and later scale down)
-kubectl get pods -l serving.kserve.io/inferenceservice=opt-125m -w
+# Deployment replica count (most direct signal)
+kubectl get deployment opt-125m-predictor -w
 
-# Check KEDA's HPA
-kubectl get hpa -w
+# HPA — shows current metric value vs threshold and desired replica count
+kubectl get hpa keda-hpa-opt-125m-scaledobject -w
+
+# ScaledObject — shows Ready/Active/Paused conditions
+kubectl get scaledobject opt-125m-scaledobject -w
+
+# Pods coming up and terminating
+kubectl get pods -l app=isvc.opt-125m-predictor -w
+```
+
+Or poll a compact summary every 10 seconds:
+
+```bash
+watch -n 10 kubectl get deployment/opt-125m-predictor hpa/keda-hpa-opt-125m-scaledobject
 ```
 
 **Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
