@@ -121,11 +121,14 @@ Why is debugging a challenge?
      python submit_to_cluster_from_kf_notebook.py
      ```
 
-     Submit to the cluster from a remote machine (requires Keycloak admin access):
+     Submit to the cluster from a remote machine (requires Keycloak setup — see [details below](#from-a-remote-machine--keycloak-auth)):
      ```bash
      python submit_to_cluster_from_remote.py
      ```
-     See [Cluster Execution](#3-cluster-execution-in-cluster-debugging) for required environment variables.
+
+     **Don't have Keycloak or remote access set up?** You can still submit to the cluster:
+     - **From a Kubeflow notebook:** clone this repo into a notebook, install deps, and run `python submit_to_cluster_from_kf_notebook.py` — no auth setup needed.
+     - **Compile & upload manually:** `python -c "from kfp.compiler import Compiler; from pipeline import example_pipeline; Compiler().compile(example_pipeline, 'pipeline.yaml')"`, then upload `pipeline.yaml` through the KFP UI.
 
 ## Repository Organization
 
@@ -271,25 +274,79 @@ cd pipelines
 python submit_to_cluster_from_kf_notebook.py
 ```
 
-**From a remote machine** (requires Keycloak admin access):
+#### From a remote machine — Keycloak auth
+
+Remote submission requires an OIDC client in Keycloak that supports the
+Resource Owner Password Credentials (ROPC) grant. This is what lets the
+script exchange a username + password for a token without a browser redirect.
+
+#### Prerequisites: create the OIDC client (once)
+
+A Keycloak admin creates the client once via the **Keycloak Admin Console**:
+
+1. Log in to the Keycloak Admin Console (e.g. `https://<your-domain>/auth/admin/`)
+2. Select the realm where your Kubeflow users are managed (e.g. `prokube`)
+3. Go to **Clients** and click **Create client**
+4. Configure it with these settings:
+   - **Client ID:** `kfp-remote-user` (or any name you prefer)
+   - **Client Protocol:** `openid-connect`
+   - **Client authentication:** `On` (confidential client)
+   - **Authorization:** `Off`
+   - **Authentication flow** — enable **only**:
+     - `Direct access grants` (this is the ROPC grant)
+   - Disable everything else (`Standard flow`, `Implicit flow`, `Service accounts roles`, etc.)
+5. Click **Save**, then go to the **Credentials** tab
+6. Copy the **Client secret** — share this with users securely (e.g. via a secrets manager)
+
+#### User: submit the pipeline
+
+Once the admin has shared the client ID and secret, the user submits with:
+
 ```bash
 cd pipelines
-# Set required environment variables
 export KUBEFLOW_ENDPOINT=https://kubeflow.example.com
 export KUBEFLOW_USERNAME=user@example.com
 export KUBEFLOW_PASSWORD=your-password
-export KEYCLOAK_URL=https://kubeflow.example.com  # Base URL where Keycloak /auth/ is reachable
-export KEYCLOAK_ADMIN_PASSWORD=admin-password
+export KEYCLOAK_URL=https://kubeflow.example.com
+export KFP_CLIENT_SECRET=<secret-from-admin>
 # Optional:
-export KEYCLOAK_REALM=prokube       # default: "prokube"
-export KUBEFLOW_NAMESPACE=my-ns     # default: derived from username
+export KEYCLOAK_REALM=prokube          # default: "prokube"
+export KFP_CLIENT_ID=kfp-remote-user   # default: "kfp-remote-user"
+export KUBEFLOW_NAMESPACE=my-ns        # default: derived from username
 
 python submit_to_cluster_from_remote.py
 ```
 
-> **Note:** Remote submission creates a temporary Keycloak OIDC client to obtain a user token, then deletes it after authentication. This requires Keycloak admin credentials. The token is passed directly to the KFP Client via the `existing_token` parameter.
->
-> `KEYCLOAK_URL` should be the base URL where the Keycloak `/auth/` endpoint is reachable. In many setups, this is the same as `KUBEFLOW_ENDPOINT` (Keycloak is typically exposed at `/auth/` on the same ingress).
+> **Note:** `KEYCLOAK_URL` should be the base URL where the Keycloak `/auth/`
+> endpoint is reachable. In many setups this is the same as `KUBEFLOW_ENDPOINT`.
+
+#### Without Keycloak or remote auth setup
+
+If you don't have Keycloak set up or don't want to deal with remote
+authentication, you can still submit pipelines to the cluster:
+
+**Option A — Clone into a Kubeflow notebook and submit from there:**
+
+From a Kubeflow notebook terminal (no extra auth needed — the notebook
+session is already authenticated):
+
+```bash
+git clone <your-repo-url>
+cd pipelines/pipe-fiction/pipelines
+pip install -r requirements.txt   # or: uv sync && uv pip install -e ../pipe-fiction-codebase/
+python submit_to_cluster_from_kf_notebook.py
+```
+
+**Option B — Compile the pipeline locally and upload via the KFP UI:**
+
+```bash
+cd pipelines
+python -c "from kfp.compiler import Compiler; from pipeline import example_pipeline; Compiler().compile(example_pipeline, 'pipeline.yaml')"
+```
+
+Then open the Kubeflow Pipelines UI, go to **Pipelines > Upload pipeline**,
+and upload the generated `pipeline.yaml` file.
+
 
 **Cluster Execution Workflow**
 
