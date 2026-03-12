@@ -12,6 +12,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── mlflow           # MLflow experiment tracking examples
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
 ├── pipelines        # Kubeflow Pipelines examples
+├── rstudio          # RStudio examples
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
 ```
 
