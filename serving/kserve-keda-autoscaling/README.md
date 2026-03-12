@@ -39,7 +39,7 @@ kubectl apply -f inference-service.yaml
 # 2. Wait for it to become ready
 kubectl get isvc opt-125m -w
 
-# 3. Deploy the KEDA ScaledObject
+# 3. Deploy the KEDA ScaledObject (requires corresponding permissions)
 kubectl apply -f scaled-object.yaml
 
 # 4. Verify
@@ -56,14 +56,13 @@ After deploying, you can trigger autoscaling and observe the full scale-up / sca
 Get the internal cluster address and send a request:
 
 ```bash
-SERVICE_URL="$(kubectl get isvc opt-125m -o jsonpath='{.status.address.url}')"
-
-echo "\nService URL: $SERVICE_URL"
+# inference service name + "-predictor"
+SERVICE_URL=opt-125m-predictor
 
 curl -s "$SERVICE_URL/openai/v1/completions" \
   -H "Content-Type: application/json" \
-  -d '{"model":"opt-125m","prompt":"Hello world","max_tokens":64}' \
-  | python -m json.tool
+  -d '{"model":"opt-125m","prompt":"What is AI?","max_tokens":64}' \
+  | python -c 'import json,sys;print("\n", json.load(sys.stdin)["choices"][0]["text"].strip(), "\n")'
 ```
 
 ### 2. Generate enough load to trigger scale-up
@@ -73,23 +72,20 @@ Run several concurrent workers (in the background!) to push token throughput abo
 
 ```bash
 # 5 parallel workers, each sending requests in a loop
+PIDS=""
 for i in $(seq 1 5); do
-  (
-    while true; do
-      curl -s "$SERVICE_URL/openai/v1/completions" \
-        -H "Content-Type: application/json" \
-        -d '{"model":"opt-125m","prompt":"Write a long story about a dragon","max_tokens":200}' \
-        > /dev/null
-      sleep 1
-    done
-  ) &
+  (while true; do
+    curl -s "$SERVICE_URL/openai/v1/completions" \
+      -H "Content-Type: application/json" \
+      -d '{"model":"opt-125m","prompt":"Write a long story about a dragon","max_tokens":200}' > /dev/null
+  done) &
+  PIDS="$PIDS $!"
 done
 
-echo "Load generation started."
-echo "Stop it with: kill $(jobs -p)"
-
-# Stop the load later with:
-# kill $(jobs -p)
+echo
+echo "Load running (PIDs:$PIDS)"
+echo "Stop with: kill$PIDS"
+echo
 ```
 
 ### 3. Observe autoscaling
@@ -98,7 +94,14 @@ You can use dashboards (recommended, see below) or get a compact summary in term
 
 ```bash
 # polls every 10 seconds
-watch -n 10 kubectl get deployment/opt-125m-predictor hpa/keda-hpa-opt-125m-scaledobject scaledobject/opt-125m-scaledobject
+watch -n10 '
+echo "Deployment:"
+kubectl get deployment opt-125m-predictor
+
+echo
+echo "Autoscaler:"
+kubectl get hpa keda-hpa-opt-125m-scaledobject
+'
 ```
 
 **Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
