@@ -1,85 +1,44 @@
-# KEDA ScaledObject for KServe InferenceService with vLLM backend
-# Scales based on custom Prometheus metrics from vLLM serving runtime
+# KEDA ScaledObject for KServe InferenceService with vLLM backend.
+# Scales based on total token throughput (prompt + generation) from Prometheus.
 #
 # Prerequisites:
-# - KEDA installed in cluster (https://keda.sh/docs/deploy/)
-# - Prometheus collecting vLLM metrics (see service-monitor.yaml)
+# - KEDA installed (https://keda.sh/docs/deploy/)
+# - Prometheus scraping vLLM metrics (prokube includes a cluster-wide PodMonitor)
 #
-# Note: vLLM uses colons in metric names (e.g., vllm:num_requests_running),
-# which is unusual but correct. Use {"__name__"="..."} syntax in PromQL.
-#
-# TODO: Replace the following before deploying:
-# - <your-namespace>: your actual namespace
-# - <your-prometheus-url>: your Prometheus server URL (may or may not have a path prefix)
-# - opt-125m-vllm: your InferenceService name (in queries and scaleTargetRef)
+# Before deploying, replace:
+# - "default" in the Prometheus queries with your namespace
+# - "opt-125m" in model_name with your --model_name value
+# - The serverAddress if your Prometheus uses a different URL
 #
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: opt-125m-vllm-scaledobject
-  labels:
-    app: opt-125m-vllm
+  name: opt-125m-scaledobject
 spec:
-  # Target the KServe predictor deployment
   scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: opt-125m-vllm-predictor-00001-deployment
-  # Polling interval for checking metrics (seconds)
-  pollingInterval: 15
-  # Cooldown period before scaling down (seconds)
-  cooldownPeriod: 60
-  # Min/max replicas
+    # In RawDeployment mode KServe names the Deployment {isvc-name}-predictor.
+    name: opt-125m-predictor
   minReplicaCount: 1
-  maxReplicaCount: 10
-  # Advanced scaling behavior
+  maxReplicaCount: 3
+  pollingInterval: 15          # how often KEDA checks the metric (seconds)
+  cooldownPeriod: 120          # seconds after last trigger activation before scaling to minReplicaCount
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
         scaleDown:
           stabilizationWindowSeconds: 120
           policies:
-            - type: Percent
-              value: 25
-              periodSeconds: 60
-        scaleUp:
-          stabilizationWindowSeconds: 0
-          policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
             - type: Pods
-              value: 4
-              periodSeconds: 15
-          selectPolicy: Max
+              value: 1          # remove at most 1 replica per minute
+              periodSeconds: 60
   triggers:
-    # Scale based on Time To First Token (TTFT) - P95
-    # Scale up when P95 TTFT exceeds 200ms (0.2s)
     - type: prometheus
       metadata:
-        # Adjust URL to your Prometheus setup (some have /prometheus path prefix)
-        serverAddress: <your-prometheus-url>
-        metricName: vllm_ttft_p95
-        query: |
-          histogram_quantile(0.95, sum(rate({"__name__"="vllm:time_to_first_token_seconds_bucket", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"}[2m])) by (le))
-        threshold: "0.2"
-        activationThreshold: "0.1"
-    # Scale based on GPU KV-cache usage (for GPU deployments)
-    # Scale up when cache usage exceeds 70%
-    - type: prometheus
-      metadata:
-        serverAddress: <your-prometheus-url>
-        metricName: vllm_gpu_cache_usage
-        query: |
-          avg({"__name__"="vllm:gpu_cache_usage_perc", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"})
-        threshold: "0.7"
-        activationThreshold: "0.5"
-    # Fallback: Scale based on running requests (always works)
-    - type: prometheus
-      metadata:
-        serverAddress: <your-prometheus-url>
-        metricName: vllm_num_requests_running
-        query: |
-          avg({"__name__"="vllm:num_requests_running", namespace="<your-namespace>", pod=~"opt-125m-vllm-predictor-.*"})
-        threshold: "2"
-        activationThreshold: "1"
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
+        query: >-
+          sum(rate(vllm:prompt_tokens_total{namespace="default",model_name="opt-125m"}[2m]))
+          + sum(rate(vllm:generation_tokens_total{namespace="default",model_name="opt-125m"}[2m]))
+        metricType: AverageValue
+        threshold: "5"
