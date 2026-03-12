@@ -116,10 +116,16 @@ Why is debugging a challenge?
     python run_locally_in_docker.py
     ```
     
-    Submit to the cluster:
-    ```bash
-    python run_in_k8s_cluster.py 
-    ```
+     Submit to the cluster from a Kubeflow notebook:
+     ```bash
+     python submit_to_cluster_from_kf_notebook.py
+     ```
+
+     Submit to the cluster from a remote machine (requires Keycloak admin access):
+     ```bash
+     python submit_to_cluster_from_remote.py
+     ```
+     See [Cluster Execution](#3-cluster-execution-in-cluster-debugging) for required environment variables.
 
 ## Repository Organization
 
@@ -144,12 +150,14 @@ Contains KFP-specific orchestration code:
 
 ```
 pipelines/
-├── components.py           # KFP component definitions (import from base image)
-├── pipeline.py             # Pipeline assembly
-├── run_locally_*.py        # Local execution scripts
-├── run_in_k8s_cluster.py   # Remote execution
-├── .venv/                  # Virtual environment with custom package
-└── utils/                  # KFP utilities and patches
+├── components.py                          # KFP component definitions (import from base image)
+├── pipeline.py                            # Pipeline assembly
+├── run_locally_in_subproc.py              # Local execution using SubprocessRunner
+├── run_locally_in_docker.py               # Local execution using DockerRunner
+├── submit_to_cluster_from_kf_notebook.py  # Submission from a Kubeflow notebook
+├── submit_to_cluster_from_remote.py       # Remote submission (Keycloak auth)
+├── .venv/                                 # Virtual environment with custom package
+└── utils/                                 # KFP utilities, auth, and patches
 ```
 
 **Local Package Installation for IDE Support:**
@@ -193,7 +201,7 @@ A typical workflow using the subprocess runner could look like this:
 4. Build and push Docker image when ready for submission to the cluster (this could also be done in a CI/CD pipeline):
    `docker build -t <your-registry>/<your-image-name>:<your-tag> . && docker push` 
 5. Update image reference in pipeline components if needed
-6. Submit pipeline to cluster: `python submit_to_cluster.py`
+6. Submit pipeline to cluster: `python submit_to_cluster_from_kf_notebook.py` (from a KF notebook) or `python submit_to_cluster_from_remote.py` (from a remote machine)
 
 Note that this workflow also works inside Kubeflow notebooks.
 
@@ -237,7 +245,7 @@ For changes in the custom Python package:
 5. Rebuild the image if needed and push it to your registry:
    `docker push <your-registry>/<your-image-name>:<your-tag>`
 6. Update image reference in pipeline components if needed
-7. Submit pipeline to cluster: `python submit_to_cluster.py`
+7. Submit pipeline to cluster: `python submit_to_cluster_from_kf_notebook.py` or `python submit_to_cluster_from_remote.py`
 
 **Advantages:**
 - Production environment - identical to cluster execution
@@ -257,17 +265,38 @@ For changes in the custom Python package:
 
 Here we use the KFP backend as it runs inside the Kubernetes cluster, as intended.
 
+**From a Kubeflow notebook** (no extra auth needed):
 ```bash
 cd pipelines
-python submit_to_cluster.py
+python submit_to_cluster_from_kf_notebook.py
 ```
+
+**From a remote machine** (requires Keycloak admin access):
+```bash
+cd pipelines
+# Set required environment variables
+export KUBEFLOW_ENDPOINT=https://kubeflow.example.com
+export KUBEFLOW_USERNAME=user@example.com
+export KUBEFLOW_PASSWORD=your-password
+export KEYCLOAK_URL=https://kubeflow.example.com  # Base URL where Keycloak /auth/ is reachable
+export KEYCLOAK_ADMIN_PASSWORD=admin-password
+# Optional:
+export KEYCLOAK_REALM=prokube       # default: "prokube"
+export KUBEFLOW_NAMESPACE=my-ns     # default: derived from username
+
+python submit_to_cluster_from_remote.py
+```
+
+> **Note:** Remote submission creates a temporary Keycloak OIDC client to obtain a user token, then deletes it after authentication. This requires Keycloak admin credentials. The token is passed directly to the KFP Client via the `existing_token` parameter.
+>
+> `KEYCLOAK_URL` should be the base URL where the Keycloak `/auth/` endpoint is reachable. In many setups, this is the same as `KUBEFLOW_ENDPOINT` (Keycloak is typically exposed at `/auth/` on the same ingress).
 
 **Cluster Execution Workflow**
 
 For pipeline-only changes:
 1. Modify files in `pipelines/` directory
 2. Enable remote debugging for the task you want to debug (see remote debugging section for details)
-3. Submit directly to cluster: `python submit_to_cluster.py`
+3. Submit directly to cluster: `python submit_to_cluster_from_kf_notebook.py` or `python submit_to_cluster_from_remote.py`
 
 For custom package changes:
 1. Modify code in `pipe-fiction-codebase/`
@@ -288,9 +317,17 @@ For custom package changes:
 
 ## Remote Debugging
 
-All debugging across environments (SubprocessRunner, DockerRunner, and cluster execution) now uses remote debugging with [debugpy](https://github.com/microsoft/debugpy) for IDE integration. For CLI-based debugging, `breakpoint()` still works directly with the SubprocessRunner.
+All execution environments (SubprocessRunner, DockerRunner, and cluster) support interactive debugging with [debugpy](https://github.com/microsoft/debugpy) for IDE integration. For CLI-based debugging, `breakpoint()` also works directly with the SubprocessRunner.
 
-### Debuggable Component Decorator (Recommended)
+This section is organized as follows:
+1. **Enabling Debugging in Components** - How to add debugging support to your KFP components (decorator or manual setup)
+2. **Local Debugging Workflow** - How to debug pipelines running locally (SubprocessRunner or DockerRunner)
+3. **Cluster Debugging with Port Forwarding** - How to debug pipelines running in a Kubernetes cluster
+4. **IDE Setup** - VS Code configuration for connecting to the remote debugger
+
+### 1. Enabling Debugging in Components
+
+#### Debuggable Component Decorator (Recommended)
 
 The easiest way to enable debugging is using our custom `@lightweight_debuggable_component` decorator that automatically injects debugging code:
 
@@ -326,7 +363,7 @@ def my_component(debug: bool = False): ...
 def my_component(debug: bool = False): ...
 ```
 
-### Manual Component Setup (Alternative)
+#### Manual Component Setup (Alternative)
 
 For manual setup or when not using the decorator, components can be configured with debugging code directly:
 
@@ -341,9 +378,52 @@ def your_component_name(debug: bool = False):
     # Your component logic here...
 ```
 
-### VS Code Setup
+### 2. Local Debugging Workflow
 
-Create `.vscode/launch.json`:
+1. **Enable debug mode** by passing `debug=True` to your component in the pipeline definition:
+   ```python
+   # In pipeline.py
+   task = your_component_name(debug=True)
+   ```
+
+2. **Start the pipeline locally:**
+   
+   SubprocessRunner:
+   ```bash
+   python run_locally_in_subproc.py
+   ```
+   
+   DockerRunner:
+   ```bash
+   python run_locally_in_docker.py
+   ```
+
+3. **Connect your debugger** - The pipeline will pause and wait for a debugger connection on port 5678. Use the appropriate VS Code configuration (see [IDE Setup](#4-ide-setup-vs-code)) to attach:
+   - **SubprocessRunner**: Use "Pipeline: Remote SubprocessRunner" - no path mapping needed since the code runs directly on your machine.
+   - **DockerRunner**: Use "Pipeline: Remote Debugging" - includes path mappings between your local `pipe-fiction-codebase/` and `/app` inside the container.
+
+4. **Debug interactively** - Set breakpoints in your pipeline components or the imported package code, step through execution, and inspect variables.
+
+### 3. Cluster Debugging with Port Forwarding
+
+When debugging pipelines running in the cluster, an additional port-forwarding step is needed to connect your local IDE to the pod:
+
+1. **Enable debug mode** and submit the pipeline to the cluster (see [Cluster Execution](#3-cluster-execution-in-cluster-debugging)).
+
+2. **Set up port forwarding** to the pipeline pod:
+   ```bash
+   # Find your pipeline pod
+   kubectl get pods | grep your-pipeline
+
+   # Forward debug port
+   kubectl port-forward pod/your-pod-name 5678:5678
+   ```
+
+3. **Connect your debugger** using the "Pipeline: Remote Debugging" VS Code configuration.
+
+### 4. IDE Setup (VS Code)
+
+Create `.vscode/launch.json` (this file is already included in the repo):
 
 ```json
 {
@@ -361,7 +441,7 @@ Create `.vscode/launch.json`:
             "subProcess": true
         },
         {
-            "name": "Pipeline: Remote KFP/DockerRunner",
+            "name": "Pipeline: Remote Debugging",
             "type": "debugpy",
             "request": "attach",
             "connect": {
@@ -381,58 +461,7 @@ Create `.vscode/launch.json`:
 }
 ```
 
-### Debugging Workflow
-
-1. **Enable debug mode:**
-   
-   Pass `debug=True` to your component when calling it in the pipeline:
-   ```python
-   # In your pipeline definition
-   task = your_component_name(debug=True)
-   ```
-
-2. **Start the pipeline:**
-   
-   SubprocessRunner:
-   ```bash
-   python run_locally_in_subproc.py
-   ```
-   
-   DockerRunner:
-   ```bash
-   python run_locally_in_docker.py
-   ```
-
-   Cluster:
-   ```bash
-   python run_in_k8s_cluster.py
-   ```
-
-3. **Connect debugger:**
-   - Pipeline will pause and wait for debugger connection
-   - Use the appropriate VS Code configuration to attach:
-     - "Pipeline: Remote SubprocessRunner" for subprocess execution
-     - "Pipeline: Remote KFP/DockerRunner" for Docker and cluster execution
-
-4. **Debug interactively:**
-   - Set breakpoints in your pipeline components or the code package that gets imported
-   - Step through code execution
-   - Inspect variables and data structures
-   - Debug both pipeline logic and imported modules
-
-### Cluster Debugging with Port Forwarding
-
-For cluster execution, you'll need port forwarding:
-
-```bash
-# Find your pipeline pod
-kubectl get pods | grep your-pipeline
-
-# Forward debug port
-kubectl port-forward pod/your-pod-name 5678:5678
-
-# Connect local debugger using the "Pipeline: Remote KFP/DockerRunner" configuration
-```
+> **Note:** While these examples use VS Code with debugpy, any IDE that supports the [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) (DAP) can connect to debugpy — including PyCharm, Neovim (with nvim-dap), and others.
 
 ## Technical Implementation Notes
 
@@ -450,7 +479,7 @@ These patches provide forward compatibility and will be obsolete when upgrading 
 ### Debugging Architecture
 
 The debugging setup works by:
-1. **Injecting debugpy** into pipeline components via the `remote_debugging` parameter
+1. **Injecting debugpy** into pipeline components via the `debug` parameter
 2. **Port forwarding** from container to host (for Docker/cluster execution)
 3. **Path mapping** between local IDE and remote container (for Docker/cluster execution)
 4. **Unified debugging experience** across all execution environments
