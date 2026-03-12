@@ -5,7 +5,7 @@ This module patches older versions of KFP that don't have built-in port/environm
 to match the upstream 2.14+ API. Import this module BEFORE using DockerRunner with ports/environment.
 
 Usage (exactly like upstream KFP 2.14+):
-    from utils import kfp_docker_monkey_patches  # Apply patches
+    from utils import kfp_docker_monkey_patches  # noqa: F401 — Apply patches on import
     from kfp import local
 
     # Explicit ports and environment (upstream-compatible API)
@@ -19,6 +19,7 @@ from kfp import local
 from kfp.local import docker_task_handler
 from kfp.local.config import DockerRunner
 import docker
+from loguru import logger
 
 
 def apply_docker_port_patches():
@@ -81,7 +82,7 @@ def _patch_run_docker_container():
             print(f"Found image {image!r}\n")
         else:
             print(f"Pulling image {image!r}")
-            repository, tag = image.split(":")
+            repository, tag = image.rsplit(":", 1)
             client.images.pull(repository=repository, tag=tag)
             print("Image pull complete\n")
 
@@ -123,13 +124,12 @@ def _patch_docker_task_handler():
             # Get additional container arguments from runner
             extra_args = {}
             if hasattr(self.runner, "container_run_args"):
-                extra_args = self.runner.container_run_args
+                extra_args = dict(self.runner.container_run_args)
             elif hasattr(self.runner, "__dict__"):
-                # Fallback: use all non-private attributes as container args
+                # Fallback: only forward keys that are valid Docker container.run() args
+                allowed = getattr(DockerRunner, "DOCKER_CONTAINER_RUN_ARGS", set())
                 extra_args = {
-                    k: v
-                    for k, v in self.runner.__dict__.items()
-                    if not k.startswith("_") and k != "container_run_args"
+                    k: v for k, v in self.runner.__dict__.items() if k in allowed
                 }
 
             if "volumes" in extra_args:
@@ -163,6 +163,13 @@ def _patch_docker_runner_init():
         """Enhanced DockerRunner constructor that stores container run arguments."""
         import os
 
+        # Call original __init__ if it exists
+        if original_docker_runner_init is not None:
+            try:
+                original_docker_runner_init(self)
+            except TypeError:
+                pass  # Original init may not accept extra args
+
         # Auto-pass debug environment variables to container
         environment = kwargs.get("environment", {})
         if "KFP_DEBUG" not in environment and "KFP_DEBUG" in os.environ:
@@ -187,8 +194,8 @@ def _patch_docker_runner_init():
 # Apply patches immediately when module is imported
 apply_docker_port_patches()
 
-print("✅ KFP Docker port & environment patches applied successfully!")
-print(
-    "   Usage (upstream 2.14+ compatible): DockerRunner(ports={'5678/tcp': 5678}, environment={'DEBUG': 'true'})"
+logger.info("KFP Docker port & environment patches applied successfully")
+logger.debug(
+    "Usage (upstream 2.14+ compatible): DockerRunner(ports={'5678/tcp': 5678}, environment={'DEBUG': 'true'})"
 )
-print("   This patch will be obsolete once you upgrade to KFP 2.14+")
+logger.debug("This patch will be obsolete once you upgrade to KFP 2.14+")

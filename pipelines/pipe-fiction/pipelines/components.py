@@ -7,13 +7,13 @@ from utils.debuggable_component import (
 
 
 BASE_IMAGE = os.getenv("IMAGE_TAG")
-assert (
-    BASE_IMAGE
-), "Please specify image for your component in `IMAGE_TAG` environment variable"
+assert BASE_IMAGE, (
+    "Please specify image for your component in `IMAGE_TAG` environment variable"
+)
 
 
 @lightweight_debuggable_component(base_image=BASE_IMAGE)
-def generate_data_comp(debug: bool = False) -> List:
+def generate_data_comp(debug: bool = False) -> List[str]:
     from pipe_fiction.data_generator import DataGenerator
 
     generator = DataGenerator()

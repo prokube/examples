@@ -34,6 +34,7 @@ def get_user_token(
     password: str,
     realm: str = "prokube",
     client_id: str = _DEFAULT_CLIENT_ID,
+    verify_ssl: bool = False,
 ) -> str:
     """
     Obtain a user-scoped Bearer token for authenticating with Kubeflow.
@@ -49,6 +50,8 @@ def get_user_token(
         password:        User password
         realm:           Keycloak realm name (default: "prokube")
         client_id:       Client ID created by admin (default: "kfp-remote-user")
+        verify_ssl:      Verify TLS certificates (default: False for
+                         internal clusters with self-signed certs)
 
     Returns:
         A Bearer access token string for ``Client(existing_token=...)``.
@@ -63,7 +66,7 @@ def get_user_token(
             "username": username,
             "password": password,
         },
-        verify=False,
+        verify=verify_ssl,
         timeout=30,
     )
     resp.raise_for_status()

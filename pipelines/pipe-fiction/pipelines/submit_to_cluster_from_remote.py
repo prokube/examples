@@ -17,6 +17,8 @@ Optional environment variables:
     KEYCLOAK_REALM:      Keycloak realm name (default: "prokube")
     KFP_CLIENT_ID:       Client ID created by admin (default: "kfp-remote-user")
     KUBEFLOW_NAMESPACE:  KFP namespace (default: derived from username)
+    VERIFY_SSL:          Verify TLS certificates (default: "false" for
+                         internal clusters with self-signed certs)
     IMAGE_TAG:           Docker image for the pipeline components
 """
 
@@ -30,6 +32,8 @@ from utils.auth_session import get_user_token
 
 truststore.inject_into_ssl()
 
+verify_ssl = os.environ.get("VERIFY_SSL", "false").lower() in ("true", "1", "yes")
+
 # Authenticate via Keycloak (requires a pre-created OIDC client — see README)
 token = get_user_token(
     keycloak_url=os.environ["KEYCLOAK_URL"],
@@ -38,6 +42,7 @@ token = get_user_token(
     password=os.environ["KUBEFLOW_PASSWORD"],
     realm=os.environ.get("KEYCLOAK_REALM", "prokube"),
     client_id=os.environ.get("KFP_CLIENT_ID", "kfp-remote-user"),
+    verify_ssl=verify_ssl,
 )
 
 namespace = os.environ.get("KUBEFLOW_NAMESPACE") or os.environ[
@@ -48,7 +53,7 @@ client = Client(
     host=f"{os.environ['KUBEFLOW_ENDPOINT']}/pipeline",
     namespace=namespace,
     existing_token=token,
-    verify_ssl=False,
+    verify_ssl=verify_ssl,
 )
 
 run = client.create_run_from_pipeline_func(
