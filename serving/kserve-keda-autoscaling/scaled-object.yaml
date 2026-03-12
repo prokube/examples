@@ -26,7 +26,7 @@ spec:
     horizontalPodAutoscalerConfig:
       behavior:
         scaleUp:
-          stabilizationWindowSeconds: 0
+          stabilizationWindowSeconds: 30  # short window to absorb metric noise before committing to scale-up
         scaleDown:
           stabilizationWindowSeconds: 120
           policies:
