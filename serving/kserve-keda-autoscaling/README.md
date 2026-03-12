@@ -29,32 +29,99 @@ making it a stable scaling signal.
 
 ## Quick Start
 
-```bash
-export NAMESPACE="default"
+> [!NOTE]
+> All of the examples below should be run in prokube notebook inside your cluster. The model created with RawDeployment is not accessible from outside the cluster by default.
 
+```bash
 # 1. Deploy the InferenceService
-kubectl apply -n $NAMESPACE -f inference-service.yaml
+kubectl apply -f inference-service.yaml
 
 # 2. Wait for it to become ready
-kubectl get isvc opt-125m -n $NAMESPACE -w
+kubectl get isvc opt-125m -w
 
 # 3. Deploy the KEDA ScaledObject
-kubectl apply -n $NAMESPACE -f scaled-object.yaml
+kubectl apply -f scaled-object.yaml
 
 # 4. Verify
-kubectl get scaledobject -n $NAMESPACE
-kubectl get hpa -n $NAMESPACE
+kubectl get scaledobject
+kubectl get hpa
 ```
+
+## See It in Action
+
+After deploying, you can trigger autoscaling and observe the full scale-up / scale-down cycle.
+
+### 1. Send inference requests
+
+Get the service URL and send a request:
+
+```bash
+SERVICE_URL=$(kubectl get isvc opt-125m -o jsonpath='{.status.url}')
+
+curl -s "$SERVICE_URL/openai/v1/completions" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "opt-125m", "prompt": "Hello world", "max_tokens": 64}'
+```
+
+### 2. Generate enough load to trigger scale-up
+
+Run several concurrent workers to push token throughput above the threshold
+(5 tokens/second per replica by default):
+
+```bash
+# 5 parallel workers, each sending requests in a loop
+for i in $(seq 1 5); do
+  (while true; do
+    curl -s "$SERVICE_URL/openai/v1/completions" \
+      -H "Content-Type: application/json" \
+      -d '{"model": "opt-125m", "prompt": "Write a long story about a dragon", "max_tokens": 200}' > /dev/null
+  done) &
+done
+
+# Stop the load later with:
+# kill $(jobs -p)
+```
+
+### 3. Observe autoscaling
+
+Watch replicas scale up in response to load:
+
+```bash
+# Watch pods scale up (and later scale down)
+kubectl get pods -l serving.kserve.io/inferenceservice=opt-125m -w
+
+# Check KEDA's HPA
+kubectl get hpa -w
+```
+
+**Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
+- vLLM Performance Statistics: https://<YOUR_DOMAIN>/grafana/d/performance-statistics/vllm-performance-statistics
+- vLLM Query Statistics: https://<YOUR_DOMAIN>/grafana/d/query-statistics4/vllm-query-statistics
+- Replica count: https://<YOUR_DOMAIN>/grafana/d/demqj48/kubernetes-compute-resources-workload-copy
+
+In our testing, the full cycle looked like:
+1. **1 replica** at rest
+2. Load applied (5 workers, ~55 tok/s total) — KEDA detects threshold breach
+3. **Scaled to 3 replicas** within ~30 seconds
+4. Load removed — metric drops to 0 — stabilization window (120s)
+5. **Scaled back down** 3 → 2 → 1 gracefully (1 pod removed per minute)
 
 ## Customization
 
-**Namespace and model name**: replace `default` and `opt-125m` in the
-Prometheus queries inside `scaled-object.yaml`.
+**Model name**: the `model_name="opt-125m"` filter in the Prometheus queries inside
+`scaled-object.yaml` must match the `--model_name` argument in `inference-service.yaml`.
 
 **Threshold**: the `threshold: "5"` value means "scale up when each replica
 handles more than 5 tokens/second on average" (`AverageValue` divides the
 query result by replica count). Tune this based on load testing for your
 model and hardware.
+
+**Multi-tenant clusters**: if multiple users may deploy models with the same
+name, add a `namespace` filter to the Prometheus queries:
+
+```promql
+sum(rate(vllm:prompt_tokens_total{namespace="my-namespace",model_name="opt-125m"}[2m]))
+```
 
 **GPU deployments**: remove `--dtype=float32` and `--max-model-len=512`
 from the InferenceService args, add GPU resource requests, and consider
@@ -66,7 +133,7 @@ adding a second trigger for GPU KV-cache utilization:
   metadata:
     serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
     query: >-
-      avg(vllm:gpu_cache_usage_perc{namespace="my-namespace",model_name="my-model"})
+      avg(vllm:gpu_cache_usage_perc{model_name="my-model"})
     metricType: AverageValue
     threshold: "0.75"
 ```
