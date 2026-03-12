@@ -1,15 +1,21 @@
+# KServe InferenceService for OPT-125M with vLLM backend.
+# Uses RawDeployment mode — required when scaling with KEDA.
+#
+# This example runs on CPU. For GPU, remove --dtype=float32 and
+# --max-model-len, and adjust resources to request nvidia.com/gpu.
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: opt-125m-vllm
+  name: opt-125m
   annotations:
-    huggingface.co/model-id: facebook/opt-125m
+    # RawDeployment mode — creates a plain Deployment instead of a Knative Revision.
+    serving.kserve.io/deploymentMode: "RawDeployment"
+    # Tell KServe not to create its own HPA (KEDA will manage scaling).
+    serving.kserve.io/autoscalerClass: "external"
 spec:
   predictor:
-    # Note: When using KEDA, replica limits are managed by the ScaledObject.
-    # These values serve as defaults if KEDA is not deployed.
     minReplicas: 1
-    maxReplicas: 10
+    maxReplicas: 3
     model:
       modelFormat:
         name: huggingface
@@ -18,7 +24,13 @@ spec:
         - --model_id=facebook/opt-125m
         - --backend=vllm
         - --dtype=float32
-        - --device=cpu
+        - --max-model-len=512
+      # Explicit port declaration is required in RawDeployment mode
+      # for the cluster-wide PodMonitor to discover the metrics endpoint.
+      ports:
+        - name: user-port
+          containerPort: 8080
+          protocol: TCP
       resources:
         requests:
           cpu: "2"
