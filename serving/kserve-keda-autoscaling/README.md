@@ -53,30 +53,40 @@ After deploying, you can trigger autoscaling and observe the full scale-up / sca
 
 ### 1. Send inference requests
 
-Get the service URL and send a request:
+Get the internal cluster address and send a request:
 
 ```bash
-SERVICE_URL=$(kubectl get isvc opt-125m -o jsonpath='{.status.url}')
+SERVICE_URL="$(kubectl get isvc opt-125m -o jsonpath='{.status.address.url}')"
+
+echo "\nService URL: $SERVICE_URL"
 
 curl -s "$SERVICE_URL/openai/v1/completions" \
   -H "Content-Type: application/json" \
-  -d '{"model": "opt-125m", "prompt": "Hello world", "max_tokens": 64}'
+  -d '{"model":"opt-125m","prompt":"Hello world","max_tokens":64}' \
+  | python -m json.tool
 ```
 
 ### 2. Generate enough load to trigger scale-up
 
-Run several concurrent workers to push token throughput above the threshold
+Run several concurrent workers (in the background!) to push token throughput above the threshold
 (5 tokens/second per replica by default):
 
 ```bash
 # 5 parallel workers, each sending requests in a loop
 for i in $(seq 1 5); do
-  (while true; do
-    curl -s "$SERVICE_URL/openai/v1/completions" \
-      -H "Content-Type: application/json" \
-      -d '{"model": "opt-125m", "prompt": "Write a long story about a dragon", "max_tokens": 200}' > /dev/null
-  done) &
+  (
+    while true; do
+      curl -s "$SERVICE_URL/openai/v1/completions" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"opt-125m","prompt":"Write a long story about a dragon","max_tokens":200}' \
+        > /dev/null
+      sleep 1
+    done
+  ) &
 done
+
+echo "Load generation started."
+echo "Stop it with: kill $(jobs -p)"
 
 # Stop the load later with:
 # kill $(jobs -p)
@@ -84,26 +94,11 @@ done
 
 ### 3. Observe autoscaling
 
-You can use dashboards (see below) or check out any of these in terminal while the load is running:
+You can use dashboards (recommended, see below) or get a compact summary in terminal:
 
 ```bash
-# Deployment replica count (most direct signal)
-kubectl get deployment opt-125m-predictor -w
-
-# HPA — shows current metric value vs threshold and desired replica count
-kubectl get hpa keda-hpa-opt-125m-scaledobject -w
-
-# ScaledObject — shows Ready/Active/Paused conditions
-kubectl get scaledobject opt-125m-scaledobject -w
-
-# Pods coming up and terminating
-kubectl get pods -l app=isvc.opt-125m-predictor -w
-```
-
-Or poll a compact summary every 10 seconds:
-
-```bash
-watch -n 10 kubectl get deployment/opt-125m-predictor hpa/keda-hpa-opt-125m-scaledobject
+# polls every 10 seconds
+watch -n 10 kubectl get deployment/opt-125m-predictor hpa/keda-hpa-opt-125m-scaledobject scaledobject/opt-125m-scaledobject
 ```
 
 **Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
