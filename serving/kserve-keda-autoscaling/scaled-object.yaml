@@ -5,10 +5,9 @@
 # - KEDA installed (https://keda.sh/docs/deploy/)
 # - Prometheus scraping vLLM metrics (prokube includes a cluster-wide PodMonitor)
 #
-# Before deploying, replace:
-# - "default" in the Prometheus queries with your namespace
-# - "opt-125m" in model_name with your --model_name value
-# - The serverAddress if your Prometheus uses a different URL
+# Customization:
+# - "opt-125m" in model_name must match the --model_name arg in inference-service.yaml
+# - The serverAddress must match your Prometheus URL
 #
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -38,7 +37,7 @@ spec:
       metadata:
         serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus
         query: >-
-          sum(rate(vllm:prompt_tokens_total{namespace="default",model_name="opt-125m"}[2m]))
-          + sum(rate(vllm:generation_tokens_total{namespace="default",model_name="opt-125m"}[2m]))
+          sum(rate(vllm:prompt_tokens_total{model_name="opt-125m"}[2m]))
+          + sum(rate(vllm:generation_tokens_total{model_name="opt-125m"}[2m]))
         metricType: AverageValue
         threshold: "5"
