@@ -17,7 +17,7 @@ making it a stable scaling signal.
 
 ## Prerequisites
 
-- KEDA installed in the cluster (`helm install keda kedacore/keda -n keda --create-namespace`)
+- KEDA installed in the cluster — not available in all prokube clusters by default; see step 3 below
 - Prometheus scraping vLLM metrics (prokube clusters include a cluster-wide PodMonitor)
 
 ## Files
@@ -39,13 +39,29 @@ kubectl apply -f inference-service.yaml
 # 2. Wait for it to become ready
 kubectl get isvc opt-125m -w
 
-# 3. Deploy the KEDA ScaledObject (requires corresponding permissions)
+# 3. Deploy the KEDA ScaledObject
 kubectl apply -f scaled-object.yaml
 
 # 4. Verify
 kubectl get scaledobject
 kubectl get hpa
 ```
+
+> [!WARNING]
+> If step 3 fails with `no matches for kind "ScaledObject"`, KEDA is not installed in your cluster.
+> Ask your admin to enable it.
+
+> [!WARNING]
+> The Prometheus query in `scaled-object.yaml` has no `namespace` filter, so it aggregates token
+> throughput across **all namespaces**. This is fine for testing, but if multiple users deploy a
+> model named `opt-125m` at the same time, their metrics will interfere and autoscaling will be
+> incorrect for both. For any real use, add a namespace filter to both queries in `scaled-object.yaml`:
+>
+> ```yaml
+> query: >-
+>   sum(rate(vllm:prompt_tokens_total{namespace="<your-namespace>",model_name="opt-125m"}[2m]))
+>   + sum(rate(vllm:generation_tokens_total{namespace="<your-namespace>",model_name="opt-125m"}[2m]))
+> ```
 
 ## See It in Action
 
@@ -125,13 +141,6 @@ In our testing, the full cycle looked like:
 handles more than 5 tokens/second on average" (`AverageValue` divides the
 query result by replica count). Tune this based on load testing for your
 model and hardware.
-
-**Multi-tenant clusters**: if multiple users may deploy models with the same
-name, add a `namespace` filter to the Prometheus queries:
-
-```promql
-sum(rate(vllm:prompt_tokens_total{namespace="my-namespace",model_name="opt-125m"}[2m]))
-```
 
 **GPU deployments**: remove `--dtype=float32` and `--max-model-len=512`
 from the InferenceService args, add GPU resource requests, and consider
