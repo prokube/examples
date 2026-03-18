@@ -6,7 +6,7 @@ spec:
   predictor:
     containers:
       - name: kserve-container
-        image: <YOUR IMAGE>
+        image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-custom-kserve-predictor:latest # REPLACE ME if you don't have access to the prokube registry
         env:
         - name: MODEL_NAME
           value: "capitalizer"

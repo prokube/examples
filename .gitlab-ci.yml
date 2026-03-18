@@ -52,3 +52,17 @@ mnsist-katib-build:
   rules:
     - changes:
         - images/minimal-mnist/**/*
+
+minimal-custom-kserve-predictor-build:
+  stage: build-image
+  script:
+    - >
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}/serving/minimal-custom-kserve-predictor/"
+      --dockerfile "${CI_PROJECT_DIR}/serving/minimal-custom-kserve-predictor/Dockerfile"
+      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}/minimal-custom-kserve-predictor:latest"
+      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}/minimal-custom-kserve-predictor:${CI_COMMIT_SHORT_SHA}"
+
+  rules:
+    - changes:
+        - serving/minimal-custom-kserve-predictor/**/*
