@@ -48,11 +48,12 @@ kubectl get scaledobject
 kubectl get hpa
 ```
 
-> [!WARNING]
+> **NOTE 1.**  
 > If step 3 fails with `no matches for kind "ScaledObject"`, KEDA is not installed in your cluster.
 > Ask your admin to enable it.
 
-> [!WARNING]
+  
+> **NOTE 2.**  
 > The Prometheus query in `scaled-object.yaml` has no `namespace` filter, so it aggregates token
 > throughput across **all namespaces**. This is fine for testing, but if multiple users deploy a
 > model named `opt-125m` at the same time, their metrics will interfere and autoscaling will be
@@ -123,9 +124,20 @@ kubectl get hpa keda-hpa-opt-125m-scaledobject
 ```
 
 **Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
-- vLLM Performance Statistics: https://<YOUR_DOMAIN>/grafana/d/performance-statistics/vllm-performance-statistics
-- vLLM Query Statistics: https://<YOUR_DOMAIN>/grafana/d/query-statistics4/vllm-query-statistics
-- Replica count: https://<YOUR_DOMAIN>/grafana/d/demqj48/kubernetes-compute-resources-workload-copy
+
+- General vLLM Dashboard:  
+  https://YOUR_DOMAIN/grafana/d/b281712d-8bff-41ef-9f3f-71ad43c05e9b/vllm
+
+- vLLM Performance Statistics:  
+  https://YOUR_DOMAIN/grafana/d/performance-statistics/vllm-performance-statistics
+
+- vLLM Query Statistics:  
+  https://YOUR_DOMAIN/grafana/d/query-statistics4/vllm-query-statistics
+
+- Replica count:  
+  https://YOUR_DOMAIN/grafana/d/a164a7f0339f99e89cea5cb47e9be617/kubernetes-compute-resources-workload
+
+Replace `YOUR_DOMAIN` with your cluster domain.
 
 ### Expected behavior
 
