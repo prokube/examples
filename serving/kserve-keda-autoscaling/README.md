@@ -26,6 +26,7 @@ making it a stable scaling signal.
 |------|-------------|
 | `inference-service.yaml` | KServe InferenceService (OPT-125M, RawDeployment mode) |
 | `scaled-object.yaml` | KEDA ScaledObject — scales on token throughput |
+| `load-generator.py` | Python load generator with presets for different scaling scenarios |
 
 ## Quick Start
 
@@ -67,7 +68,7 @@ kubectl get hpa
 
 After deploying, you can trigger autoscaling and observe the full scale-up / scale-down cycle.
 
-### 1. Send inference requests
+### 1. Send a test inference request
 
 Get the internal cluster address and send a request:
 
@@ -81,28 +82,29 @@ curl -s "$SERVICE_URL/openai/v1/completions" \
   | python -c 'import json,sys;print("\n", json.load(sys.stdin)["choices"][0]["text"].strip(), "\n")'
 ```
 
-### 2. Generate enough load to trigger scale-up
+### 2. Generate load to trigger scale-up
 
-Run several concurrent workers (in the background!) to push token throughput above the threshold
-(5 tokens/second per replica by default):
+Use the included load generator to produce controlled, sustained load.
+It has two presets calibrated for the opt-125m model on CPU:
+
+| Mode | Workers | Sleep | Throughput | Scaling behavior |
+|------|---------|-------|------------|------------------|
+| `stable-2` | 1 | 8s | ~8 tok/s | Scales to 2 replicas and holds |
+| `stable-3` | 2 | 2s | ~22 tok/s | Scales to 3 replicas and holds |
 
 ```bash
-# 5 parallel workers, each sending requests in a loop
-PIDS=""
-for i in $(seq 1 5); do
-  (while true; do
-    curl -s "$SERVICE_URL/openai/v1/completions" \
-      -H "Content-Type: application/json" \
-      -d '{"model":"opt-125m","prompt":"Write a long story about a dragon","max_tokens":200}' > /dev/null
-  done) &
-  PIDS="$PIDS $!"
-done
+# Scale to 2 replicas (moderate load)
+python load-generator.py --mode stable-2
 
-echo
-echo "Load running (PIDs:$PIDS)"
-echo "Stop with: kill$PIDS"
-echo
+# Scale to 3 replicas (heavy load)
+python load-generator.py --mode stable-3
+
+# Custom: pick your own concurrency and pacing
+python load-generator.py --mode custom --workers 3 --sleep 1.0
 ```
+
+Press `Ctrl+C` to stop the load at any time. By default the script runs for
+10 minutes; override with `--duration`.
 
 ### 3. Observe autoscaling
 
@@ -125,12 +127,37 @@ kubectl get hpa keda-hpa-opt-125m-scaledobject
 - vLLM Query Statistics: https://<YOUR_DOMAIN>/grafana/d/query-statistics4/vllm-query-statistics
 - Replica count: https://<YOUR_DOMAIN>/grafana/d/demqj48/kubernetes-compute-resources-workload-copy
 
-In our testing, the full cycle looked like:
+### Expected behavior
+
+**Stable-2 mode** (~8 tok/s):
 1. **1 replica** at rest
-2. Load applied (5 workers, ~55 tok/s total) — KEDA detects threshold breach
-3. **Scaled to 3 replicas** within ~30 seconds
-4. Load removed — metric drops to 0 — stabilization window (120s)
-5. **Scaled back down** 3 → 2 → 1 gracefully (1 pod removed per minute)
+2. Load applied — metric rises to ~8 tok/s — `ceil(8/5) = 2` replicas needed
+3. **Scaled to 2 replicas** within ~1 minute
+4. Metric stabilizes at ~4 tok/s per replica (below threshold) — stays at 2
+5. Load removed — metric drops to 0 — cooldown period (120s) + stabilization window (120s)
+6. **Scaled back to 1** replica
+
+**Stable-3 mode** (~22 tok/s):
+1. **1 replica** at rest
+2. Load applied — metric rises quickly — `ceil(22/5) = 5`, capped at `maxReplicas=3`
+3. **Scaled to 3 replicas** within ~1-2 minutes
+4. Load removed — gradual scale-down: 3 → 2 → 1 (one pod removed per minute)
+
+## Scaling Math
+
+The ScaledObject uses `metricType: AverageValue` with `threshold: 5`. For
+external metrics, HPA computes:
+
+```
+desiredReplicas = ceil(totalMetricValue / threshold)
+```
+
+| Total tok/s | Desired replicas | Actual (capped 1-3) |
+|-------------|------------------|---------------------|
+| 0-5         | 1                | 1                   |
+| 5.1-10      | 2                | 2                   |
+| 10.1-15     | 3                | 3                   |
+| 15+         | 4+               | 3 (maxReplicas)     |
 
 ## Customization
 
@@ -141,6 +168,17 @@ In our testing, the full cycle looked like:
 handles more than 5 tokens/second on average" (`AverageValue` divides the
 query result by replica count). Tune this based on load testing for your
 model and hardware.
+
+**Load generator presets**: the presets in `load-generator.py` are calibrated for
+opt-125m on CPU. If you change the model, hardware, or threshold, you'll need to
+recalibrate. Use `--mode custom` to experiment, and watch the Prometheus metric:
+
+```bash
+# Check the actual metric value KEDA sees
+kubectl run prom-check --rm -it --restart=Never --image=curlimages/curl -- \
+  -s 'http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/prometheus/api/v1/query' \
+  --data-urlencode 'query=sum(rate(vllm:prompt_tokens_total{model_name="opt-125m"}[2m])) + sum(rate(vllm:generation_tokens_total{model_name="opt-125m"}[2m]))'
+```
 
 **GPU deployments**: remove `--dtype=float32` and `--max-model-len=512`
 from the InferenceService args, add GPU resource requests, and consider
