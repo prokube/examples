@@ -8,6 +8,57 @@ which is better suited for LLM inference workloads.
 For full documentation, see the
 [prokube autoscaling docs](https://docs.prokube.cloud/user_docs/model_serving_autoscaling/#keda-kubernetes-event-driven-autoscaling).
 
+## Architecture
+
+```mermaid
+flowchart LR
+
+%% ---------- STYLES ----------
+classDef kserve fill:#E8F0FE,stroke:#1A73E8,stroke-width:2px,color:#0B3D91
+classDef pod fill:#F1F8E9,stroke:#558B2F,stroke-width:2px
+classDef infra fill:#FFF8E1,stroke:#FF8F00,stroke-width:2px
+classDef traffic fill:#FCE4EC,stroke:#C2185B,stroke-width:2px
+
+%% ---------- KSERVE ----------
+subgraph KServe["<b> KServe </b>"]
+    direction TB
+
+    ISVC["<b>InferenceService</b><br/>opt-125m"]:::kserve
+    DEP["<b>Deployment</b><br/>opt-125m-predictor"]:::kserve
+
+    subgraph POD["Predictor <b>Pod</b> ×1–3"]
+        CTR["<b>kserve-container</b><br/>HuggingFace runtime · vLLM engine<br/>facebook/opt-125m :8080"]:::pod
+    end
+
+    ISVC -->|creates| DEP
+    DEP -->|manages| CTR
+end
+
+%% ---------- OBSERVABILITY ----------
+subgraph Observability["<b> Observability </b>"]
+    PROM[("Prometheus")]:::infra
+end
+
+%% ---------- KEDA ----------
+subgraph KEDA["<b> KEDA Autoscaling </b>"]
+    direction TB
+    SO["<b>ScaledObject</b><br/>Prometheus trigger<br/>threshold: 5 tok/s"]:::infra
+    HPA["<b>HorizontalPodAutoscaler</b>"]:::infra
+
+    SO -->|creates & drives| HPA
+end
+
+%% ---------- LOAD ----------
+LG["⚡ load-generator.py"]:::traffic
+
+%% ---------- FLOWS ----------
+CTR -->|/metrics| PROM
+PROM -->|query every 15s| SO
+HPA -->|scales| DEP
+SO -. targets .-> DEP
+LG -->|POST /completions| CTR
+```
+
 ## Why Token Throughput?
 
 LLM requests vary wildly in duration depending on prompt and output length.
