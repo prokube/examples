@@ -177,7 +177,7 @@ kubectl get hpa keda-hpa-opt-125m-scaledobject
 **Grafana dashboards** (prokube clusters): to visualize token throughput and replica count over time, see:
 
 - General vLLM Dashboard:  
-  https://YOUR_DOMAIN/grafana/d/b281712d-8bff-41ef-9f3f-71ad43c05e9b/vllm
+  https://YOUR_DOMAIN/grafana/d/vllm-general/vllm
 
 - vLLM Performance Statistics:  
   https://YOUR_DOMAIN/grafana/d/performance-statistics/vllm-performance-statistics
@@ -185,7 +185,7 @@ kubectl get hpa keda-hpa-opt-125m-scaledobject
 - vLLM Query Statistics:  
   https://YOUR_DOMAIN/grafana/d/query-statistics4/vllm-query-statistics
 
-- Replica count:  
+- Replica count and CPU load (you have to select your namespace/workload manually):  
   https://YOUR_DOMAIN/grafana/d/a164a7f0339f99e89cea5cb47e9be617/kubernetes-compute-resources-workload
 
 Replace `YOUR_DOMAIN` with your cluster domain.
