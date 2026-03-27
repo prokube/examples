@@ -1,0 +1,12 @@
+apiVersion: "serving.kserve.io/v1beta1"
+kind: "InferenceService"
+metadata:
+  name: "v1-mobile-price-classification-inference"
+  namespace: "<workspace-name>"
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: sklearn
+      protocolVersion: v1
+      storageUri: "mlflow://models/mobile-price-svm-<username>/1"
