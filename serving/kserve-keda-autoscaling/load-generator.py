@@ -294,7 +294,11 @@ def run_calibrate(args: argparse.Namespace) -> None:
         delta_sum = snap_after["latency_sum"] - snap_before["latency_sum"]
         mean_lat = f"{delta_sum / delta_count:.2f}" if delta_count > 0 else "n/a"
 
-        # Flag plateau: throughput grew less than 15% despite adding concurrency
+        # Flag plateau: throughput grew less than 15% despite doubling concurrency.
+        # 15% is deliberately conservative — on GPU the plateau is usually near-zero
+        # growth, so a higher threshold would still catch it.  On CPU, sub-linear
+        # growth at high concurrency (scheduling overhead, Amdahl's law) can trigger
+        # a false plateau; the `concurrency >= 4` guard on early exit mitigates this.
         note = ""
         plateau = prev_rate > 0 and (rate - prev_rate) / prev_rate < 0.15
         if plateau:
