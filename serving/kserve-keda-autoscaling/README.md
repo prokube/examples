@@ -291,13 +291,13 @@ python load-generator.py \
 kubectl apply -f scaled-object.yaml
 ```
 
-Example output on 2× H100 NVL with Qwen2.5-72B (FP8):
+Example output for opt-125m on CPU (the model used in this example):
 
 ```
 === vLLM single-replica throughput calibration ===
-  URL:        http://qwen25-72b-predictor/openai/v1/completions
-  Model:      qwen25-72b
-  Metrics:    http://qwen25-72b-predictor/metrics
+  URL:        http://opt-125m-predictor/openai/v1/completions
+  Model:      opt-125m
+  Metrics:    http://opt-125m-predictor/metrics
   Duration:   30s per concurrency step
   Max tokens: 200
 
@@ -306,20 +306,29 @@ The ScaledObject (if deployed) should be deleted or paused first.
 
   Concurrency  Throughput (tok/s)     Mean latency (s)     Note
   -----------  ------------------     ----------------     ----
-  1            310.4                  0.65
-  2            891.2                  0.82
-  4            1843.7                 1.74
-  8            2491.3                 3.21
-  16           2538.9                 6.40                 <-- plateau, saturation likely here
+  1            20.1                   6.06
+  2            35.6                   9.75
+  4            56.6                   9.03
+  8            81.6                   14.25
+  16           133.1                  13.71
 
 Find the last step where throughput was still growing.
 Set your KEDA threshold to ~80% of its tok/s value.
 
-  Suggested threshold (80% of last pre-plateau rate): 1993 tok/s
+  Suggested threshold (80% of last pre-plateau rate): 106 tok/s
 ```
 
-In this example the threshold would be set to ~2000 (rounding up to a round number).
-The `threshold: "2500"` in the prokube autoscaling docs was derived from a similar run.
+No plateau was detected — throughput kept growing linearly all the way to 16 concurrent
+workers. This is expected for a small model on CPU: it can always absorb more concurrency
+by queuing, so you won't see a clean saturation point. The suggestion of 106 tok/s
+(80% of 133 tok/s at 16 workers) is used as a conservative upper bound.
+
+On GPU hardware with a large model, you will typically see a clear plateau where adding
+more concurrency stops increasing throughput — that is the meaningful saturation point.
+
+The `threshold: "5"` in `scaled-object.yaml` was chosen to produce visible scaling with
+this small CPU model at low load. For your own deployment, run the calibration on the
+actual hardware and use the suggested threshold as your starting point.
 
 **How this connects to the ScaledObject threshold:**
 
