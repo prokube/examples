@@ -291,98 +291,16 @@ python load-generator.py \
 kubectl apply -f scaled-object.yaml
 ```
 
-### CPU vs GPU: why the plateau looks different
+### CPU vs GPU: what to expect
 
-On **CPU**, token throughput tends to grow linearly with concurrency. The model processes
-requests in batches, and adding more concurrent workers just increases the batch size.
-There is no hard memory ceiling that causes throughput to flatten — you can keep increasing
-concurrency indefinitely, at the cost of ever-growing latency. A clean saturation plateau
-rarely appears. The calibration tool will reach the end of its concurrency steps and
-suggest a threshold based on the highest observed rate, but that number is somewhat
-arbitrary — the model was not truly saturated.
+On **GPU**, throughput plateaus sharply once the KV cache fills — the tool will detect this
+as a clear saturation point. On **CPU**, there is no hard memory ceiling, so throughput
+tends to grow linearly with concurrency and the tool may not find a clean plateau. In that
+case, use the suggested value as a conservative starting point and adjust based on observed
+latency.
 
-On **GPU**, VRAM is a hard limit. Once the KV cache fills up, new requests queue and are
-not batched into the current forward pass — throughput plateaus sharply while latency
-climbs steeply. This is the signal to look for. The plateau is real and the threshold
-derived from it has a clear physical meaning: "one replica is compute-saturated; bring up
-another."
-
-The `threshold: "5"` in `scaled-object.yaml` was chosen to produce visible scaling with
-opt-125m at low load for demo purposes. For production GPU deployments, use the plateau
-value from your own calibration run.
-
-### Example: opt-125m on CPU (this example's model)
-
-Real output — no plateau, as expected:
-
-```
-=== vLLM single-replica throughput calibration ===
-  URL:        http://opt-125m-predictor/openai/v1/completions
-  Model:      opt-125m
-  Metrics:    http://opt-125m-predictor/metrics
-  Duration:   30s per concurrency step
-  Max tokens: 200
-
-Make sure only ONE replica is running and there is no other traffic.
-The ScaledObject (if deployed) should be deleted or paused first.
-
-  Concurrency  Throughput (tok/s)     Mean latency (s)     Note
-  -----------  ------------------     ----------------     ----
-  1            20.1                   6.06
-  2            35.6                   9.75
-  4            56.6                   9.03
-  8            81.6                   14.25
-  16           133.1                  13.71
-
-Find the last step where throughput was still growing.
-Set your KEDA threshold to ~80% of its tok/s value.
-
-  Suggested threshold (80% of last pre-plateau rate): 106 tok/s
-```
-
-Throughput kept growing linearly — no saturation point. The suggestion of 106 tok/s is a
-conservative upper bound rather than a true saturation threshold.
-
-### Example: large model on GPU (illustrative)
-
-The output below is illustrative — actual numbers depend on the model, GPU, and request
-pattern. This is what to look for: throughput grows quickly at low concurrency, then
-flattens while latency climbs, producing a clear plateau marker.
-
-```
-=== vLLM single-replica throughput calibration ===
-  URL:        http://llama3-8b-predictor/openai/v1/completions
-  Model:      llama3-8b
-  Metrics:    http://llama3-8b-predictor/metrics
-  Duration:   30s per concurrency step
-  Max tokens: 200
-
-Make sure only ONE replica is running and there is no other traffic.
-The ScaledObject (if deployed) should be deleted or paused first.
-
-  Concurrency  Throughput (tok/s)     Mean latency (s)     Note
-  -----------  ------------------     ----------------     ----
-  1            480.2                  0.41
-  2            921.7                  0.43
-  4            1738.4                 0.46
-  8            2190.5                 0.73
-  16           2281.3                 1.44                 <-- plateau, saturation likely here
-
-Find the last step where throughput was still growing.
-Set your KEDA threshold to ~80% of its tok/s value.
-
-  Suggested threshold (80% of last pre-plateau rate): 1752 tok/s
-```
-
-In this example the threshold would be set to ~1750 (or round to 2000 for comfort margin).
-
-**How this connects to the ScaledObject threshold:**
-
-With `metricType: AverageValue`, KEDA divides the total cluster-wide tok/s by the current
-replica count to get a per-replica average, then scales up when that average exceeds the
-threshold. Setting the threshold to the saturation tok/s of one replica means: "add a
-replica when the existing ones are working as hard as a single replica can sustain." The
-80% headroom ensures scale-up happens before latency actually degrades.
+The `threshold: "5"` in `scaled-object.yaml` is a demo value chosen for opt-125m on CPU.
+For production GPU deployments, use the plateau value from your own calibration run.
 
 ## References
 
