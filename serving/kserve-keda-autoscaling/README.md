@@ -77,7 +77,7 @@ making it a stable scaling signal.
 |------|-------------|
 | `inference-service.yaml` | KServe InferenceService (OPT-125M, RawDeployment mode) |
 | `scaled-object.yaml` | KEDA ScaledObject — scales on token throughput |
-| `load-generator.py` | Python load generator with presets for different scaling scenarios |
+| `load-generator.py` | Python load generator and calibration tool (see [Calibrating the Threshold](#calibrating-the-threshold)) |
 
 ## Quick Start
 
@@ -146,13 +146,13 @@ It has two presets calibrated for the opt-125m model on CPU:
 
 ```bash
 # Scale to 2 replicas (moderate load)
-python load-generator.py --mode stable-2
+python load-generator.py --mode stable-2 --url http://opt-125m-predictor/openai/v1/completions --model opt-125m
 
 # Scale to 3 replicas (heavy load)
-python load-generator.py --mode stable-3
+python load-generator.py --mode stable-3 --url http://opt-125m-predictor/openai/v1/completions --model opt-125m
 
 # Custom: pick your own concurrency and pacing
-python load-generator.py --mode custom --workers 3 --sleep 1.0
+python load-generator.py --mode custom --workers 3 --sleep 1.0 --url http://opt-125m-predictor/openai/v1/completions --model opt-125m
 ```
 
 Press `Ctrl+C` to stop the load at any time. By default the script runs for
@@ -257,6 +257,77 @@ adding a second trigger for GPU KV-cache utilization:
     metricType: AverageValue
     threshold: "0.75"
 ```
+
+## Calibrating the Threshold
+
+The `threshold` in `scaled-object.yaml` is model- and hardware-specific — there is no
+universal default. A threshold that is too low causes unnecessary scale-ups; one that is
+too high means the replica is already saturated before a new one is requested.
+
+The `load-generator.py` script has a `calibrate` mode that steps through increasing
+concurrency levels, measures token throughput and mean end-to-end latency at each level,
+and prints a table. When throughput stops growing while latency keeps rising, you have
+found the saturation point. Set your threshold to ~80% of that tok/s value to leave
+headroom for the new replica to start up.
+
+**Prerequisites:**
+- Run this against a **single replica with no other traffic**
+- Delete or pause the ScaledObject first (otherwise KEDA may scale up mid-calibration)
+
+```bash
+# 1. Remove the ScaledObject so KEDA doesn't interfere
+kubectl delete scaledobject opt-125m-scaledobject --ignore-not-found
+
+# 2. Scale to exactly 1 replica
+kubectl scale deployment opt-125m-predictor --replicas=1
+
+# 3. Run calibration from a notebook terminal (replace with your model name and service URL)
+python load-generator.py \
+  --mode calibrate \
+  --url http://opt-125m-predictor/openai/v1/completions \
+  --model opt-125m
+
+# 4. Re-apply the ScaledObject with the threshold you determined
+kubectl apply -f scaled-object.yaml
+```
+
+Example output on 2× H100 NVL with Qwen2.5-72B (FP8):
+
+```
+=== vLLM single-replica throughput calibration ===
+  URL:        http://qwen25-72b-predictor/openai/v1/completions
+  Model:      qwen25-72b
+  Metrics:    http://qwen25-72b-predictor/metrics
+  Duration:   30s per concurrency step
+  Max tokens: 200
+
+Make sure only ONE replica is running and there is no other traffic.
+The ScaledObject (if deployed) should be deleted or paused first.
+
+  Concurrency  Throughput (tok/s)     Mean latency (s)     Note
+  -----------  ------------------     ----------------     ----
+  1            310.4                  0.65
+  2            891.2                  0.82
+  4            1843.7                 1.74
+  8            2491.3                 3.21
+  16           2538.9                 6.40                 <-- plateau, saturation likely here
+
+Find the last step where throughput was still growing.
+Set your KEDA threshold to ~80% of its tok/s value.
+
+  Suggested threshold (80% of last pre-plateau rate): 1993 tok/s
+```
+
+In this example the threshold would be set to ~2000 (rounding up to a round number).
+The `threshold: "2500"` in the prokube autoscaling docs was derived from a similar run.
+
+**How this connects to the ScaledObject threshold:**
+
+With `metricType: AverageValue`, KEDA divides the total cluster-wide tok/s by the current
+replica count to get a per-replica average, then scales up when that average exceeds the
+threshold. Setting the threshold to the saturation tok/s of one replica means: "add a
+replica when the existing ones are working as hard as a single replica can sustain." The
+80% headroom ensures scale-up happens before latency actually degrades.
 
 ## References
 
