@@ -35,6 +35,14 @@ Many S3 libraries use environment variables for their configuration — those ar
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `S3_ENDPOINT`. They are likely already
 available in your environment. You can also ask your admin about them.
 
+## Platform compatibility
+
+Some examples require a minimum prokube platform version. If an example is not listed, no specific version requirement is known.
+
+| Example | Min platform version | Notes |
+|---|---|---|
+| `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
+
 ## Contributing
 All code contributions should go via pull requests. Make sure your code is clearly documented and that it adheres
 to established standards (e.g. PEP).
