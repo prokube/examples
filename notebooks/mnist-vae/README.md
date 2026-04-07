@@ -6,13 +6,12 @@ of a Variational Autoencoder (VAE) designed to generate MNIST images as a genera
 
 ## Installation
 
-This example uses [Poetry](https://python-poetry.org/) to set up an environment. You can install it with 
-`pip install poetry`.  
-Ensure that you have Python version 3.9 or higher installed on your system. To
-install the dependencies, run the following command in this directory:
+This example uses [uv](https://docs.astral.sh/uv/) to manage the environment. You can install it with
+`pip install uv` or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/).
+Python 3.11 or higher is required. To install the dependencies, run the following command in this directory:
 
 ```sh
-poetry install
+uv sync
 ```
 
 ## Run Training
@@ -20,7 +19,7 @@ poetry install
 Also, from the location where this README is located, run:
 
 ```sh
-poetry run python run_training.py --hidden_dim=400 --latent_dim=2
+uv run python run_training.py --hidden_dim=400 --latent_dim=2
 ```
 
 Now sit back, relax, and wait for the training to complete.
@@ -30,7 +29,7 @@ Now sit back, relax, and wait for the training to complete.
 To use the training environment within a Jupyter notebook, install the kernel:
 
 ```sh
-poetry run ipython kernel install --name "mnist-env" --user
+uv run ipython kernel install --name "mnist-env" --user
 ```
 
 ## Run Visualization
@@ -41,7 +40,7 @@ To visualize the training results:
 2. Run:
 
 ```sh
-poetry run jupyter-notebook
+uv run jupyter-notebook
 ```
 
 3. Open the notebook ./visualizations.ipynb.
