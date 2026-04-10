@@ -77,7 +77,8 @@ making it a stable scaling signal.
 |------|-------------|
 | `inference-service.yaml` | KServe InferenceService (OPT-125M, RawDeployment mode) |
 | `scaled-object.yaml` | KEDA ScaledObject — scales on token throughput |
-| `load-generator.py` | Python load generator and calibration tool (see [Calibrating the Threshold](#calibrating-the-threshold)) |
+| `load-generator.py` | Python load generator for sustained load modes |
+| `calibrate.py` | Throughput/latency calibration script for threshold tuning |
 
 ## Quick Start
 
@@ -264,9 +265,9 @@ The `threshold` in `scaled-object.yaml` is model- and hardware-specific — ther
 universal default. A threshold that is too low causes unnecessary scale-ups; one that is
 too high means the replica is already saturated before a new one is requested.
 
-The `load-generator.py` script has a `calibrate` mode that steps through increasing
-concurrency levels, measures token throughput and mean end-to-end latency at each level,
-and prints a table. When throughput stops growing while latency keeps rising, you have
+The `calibrate.py` script steps through increasing concurrency levels, measures token
+throughput and mean end-to-end latency at each level, and prints a table. When
+throughput stops growing while latency keeps rising, you have
 found the saturation point. Set your threshold to ~80% of that tok/s value to leave
 headroom for the new replica to start up.
 
@@ -282,8 +283,7 @@ kubectl delete scaledobject opt-125m-scaledobject --ignore-not-found
 kubectl scale deployment opt-125m-predictor --replicas=1
 
 # 3. Run calibration from a notebook terminal (replace with your model name and service URL)
-python load-generator.py \
-  --mode calibrate \
+python calibrate.py \
   --url http://opt-125m-predictor/openai/v1/completions \
   --model opt-125m
 
