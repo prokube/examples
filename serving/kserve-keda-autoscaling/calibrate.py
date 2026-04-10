@@ -84,21 +84,33 @@ def fetch_metrics(metrics_url: str) -> str:
         return ""
 
 
-def parse_metric(metrics_text: str, prefix: str) -> float:
+def parse_metric(metrics_text: str, metric_name: str) -> float:
+    """Sum all samples whose metric name (before any '{') matches metric_name.
+
+    Handles both labeled (metric{label="v"} 1.0) and unlabeled (metric 1.0)
+    forms, and correctly aggregates across multiple label combinations.
+    """
+    total = 0.0
     for line in metrics_text.splitlines():
-        if line.startswith(prefix) and not line.startswith("# "):
-            try:
-                return float(line.split()[-1])
-            except ValueError:
-                pass
-    return 0.0
+        if not line or line.startswith("#"):
+            continue
+        sample, *rest = line.split()
+        if not rest:
+            continue
+        if sample.split("{", 1)[0] != metric_name:
+            continue
+        try:
+            total += float(rest[-1])
+        except ValueError:
+            pass
+    return total
 
 
 def snapshot_metrics(metrics_url: str) -> dict:
     text = fetch_metrics(metrics_url)
     return {
-        "latency_count": parse_metric(text, "vllm:e2e_request_latency_seconds_count{"),
-        "latency_sum": parse_metric(text, "vllm:e2e_request_latency_seconds_sum{"),
+        "latency_count": parse_metric(text, "vllm:e2e_request_latency_seconds_count"),
+        "latency_sum": parse_metric(text, "vllm:e2e_request_latency_seconds_sum"),
     }
 
 
