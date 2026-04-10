@@ -3,9 +3,12 @@
 
 Modes:
 
-  stable-2   - Sustained moderate load (~8 tok/s) that scales to 2 replicas and holds
-  stable-3   - Sustained heavy load (~22 tok/s) that scales to 3 replicas and holds
+  stable-2   - Sustained moderate load (~8 tok/s*) that scales to 2 replicas and holds
+  stable-3   - Sustained heavy load (~22 tok/s*) that scales to 3 replicas and holds
   custom     - Specify your own --workers and --sleep values
+
+* Rates are calibrated for opt-125m on CPU with the default prompt and max-tokens.
+  Use --mode custom with your own --workers/--sleep for other models.
 
 Usage (run from a notebook terminal inside the cluster):
     python load-generator.py --mode stable-2
