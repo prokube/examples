@@ -72,15 +72,15 @@ def worker_loop(
 
 def metrics_url_from_completions_url(completions_url: str) -> str:
     parsed = urlparse(completions_url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
-    return f"{base}/metrics"
+    return f"{parsed.scheme}://{parsed.netloc}/metrics"
 
 
 def fetch_metrics(metrics_url: str) -> str:
     try:
         with urllib.request.urlopen(metrics_url, timeout=10) as resp:
             return resp.read().decode("utf-8")
-    except (urllib.error.URLError, OSError):
+    except (urllib.error.URLError, OSError) as e:
+        print(f"WARNING: could not fetch metrics from {metrics_url}: {e}")
         return ""
 
 

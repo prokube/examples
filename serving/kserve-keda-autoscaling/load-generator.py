@@ -93,7 +93,6 @@ def send_request(url: str, model: str, prompt: str, max_tokens: int) -> dict | N
 
 
 def worker_loop(
-    worker_id: int,
     url: str,
     model: str,
     prompt: str,
@@ -238,7 +237,6 @@ def main():
         t = threading.Thread(
             target=worker_loop,
             args=(
-                i,
                 args.url,
                 args.model,
                 args.prompt,
