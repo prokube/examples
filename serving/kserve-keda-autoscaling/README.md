@@ -90,7 +90,7 @@ making it a stable scaling signal.
 kubectl apply -f inference-service.yaml
 
 # 2. Wait for it to become ready
-kubectl get isvc opt-125m -w
+kubectl wait inferenceservice opt-125m --for=condition=Ready --timeout=300s
 
 # 3. Deploy the KEDA ScaledObject
 kubectl apply -f scaled-object.yaml
