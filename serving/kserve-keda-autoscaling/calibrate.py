@@ -32,6 +32,7 @@ DEFAULT_PROMPT = (
 
 
 def send_request(url: str, model: str, prompt: str, max_tokens: int) -> dict | None:
+    """Send a single completion request and return the parsed JSON response, or None on error."""
     payload = json.dumps(
         {
             "model": model,
@@ -61,6 +62,7 @@ def worker_loop(
     totals: dict,
     lock: threading.Lock,
 ) -> None:
+    """Continuously send requests until stop is set, updating totals with token count and errors."""
     while not stop.is_set():
         result = send_request(url, model, prompt, max_tokens)
         with lock:
@@ -71,11 +73,13 @@ def worker_loop(
 
 
 def metrics_url_from_completions_url(completions_url: str) -> str:
+    """Derive the metrics endpoint URL from the completions endpoint URL."""
     parsed = urlparse(completions_url)
     return f"{parsed.scheme}://{parsed.netloc}/metrics"
 
 
 def fetch_metrics(metrics_url: str) -> str:
+    """Fetch the raw text from the metrics endpoint, or return an empty string on error."""
     try:
         with urllib.request.urlopen(metrics_url, timeout=10) as resp:
             return resp.read().decode("utf-8")
@@ -107,6 +111,7 @@ def parse_metric(metrics_text: str, metric_name: str) -> float:
 
 
 def snapshot_metrics(metrics_url: str) -> dict:
+    """Fetch and parse the relevant metrics, returning a dict with latency count and sum."""
     text = fetch_metrics(metrics_url)
     return {
         "latency_count": parse_metric(text, "vllm:e2e_request_latency_seconds_count"),
@@ -115,6 +120,7 @@ def snapshot_metrics(metrics_url: str) -> dict:
 
 
 def run_calibration(args: argparse.Namespace) -> None:
+    """Run the calibration process with the given arguments."""
     metrics_url = metrics_url_from_completions_url(args.url)
 
     print("=== vLLM single-replica throughput calibration ===")

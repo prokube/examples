@@ -65,12 +65,12 @@ DEFAULT_PROMPT = (
 # ---------------------------------------------------------------------------
 # Globals for stats (used by load generation modes)
 # ---------------------------------------------------------------------------
-stats_lock = threading.Lock()
-total_requests = 0
-total_tokens = 0
-total_errors = 0
-start_time: float = 0.0
-stop_event = threading.Event()
+STATS_LOCK = threading.Lock()
+TOTAL_REQUESTS = 0
+TOTAL_TOKENS = 0
+TOTAL_ERRORS = 0
+START_TIME: float = 0.0
+STOP_EVENT = threading.Event()
 
 
 def send_request(url: str, model: str, prompt: str, max_tokens: int) -> dict | None:
@@ -104,17 +104,17 @@ def worker_loop(
     stop: threading.Event,
 ):
     """Continuously send requests with a sleep between each."""
-    global total_requests, total_tokens, total_errors
+    global TOTAL_REQUESTS, TOTAL_TOKENS, TOTAL_ERRORS
 
     while not stop.is_set():
         result = send_request(url, model, prompt, max_tokens)
 
-        with stats_lock:
+        with STATS_LOCK:
             if result and "usage" in result:
-                total_requests += 1
-                total_tokens += result["usage"].get("total_tokens", 0)
+                TOTAL_REQUESTS += 1
+                TOTAL_TOKENS += result["usage"].get("total_tokens", 0)
             else:
-                total_errors += 1
+                TOTAL_ERRORS += 1
 
         if sleep_sec > 0 and not stop.is_set():
             stop.wait(timeout=sleep_sec)
@@ -122,17 +122,17 @@ def worker_loop(
 
 def print_stats():
     """Periodically print cumulative throughput stats (load generation modes)."""
-    while not stop_event.is_set():
-        stop_event.wait(timeout=10)
-        if stop_event.is_set():
+    while not STOP_EVENT.is_set():
+        STOP_EVENT.wait(timeout=10)
+        if STOP_EVENT.is_set():
             break
-        elapsed = time.time() - start_time
-        with stats_lock:
-            tok_rate = total_tokens / elapsed if elapsed > 0 else 0
-            req_rate = total_requests / elapsed if elapsed > 0 else 0
+        elapsed = time.time() - START_TIME
+        with STATS_LOCK:
+            tok_rate = TOTAL_TOKENS / elapsed if elapsed > 0 else 0
+            req_rate = TOTAL_REQUESTS / elapsed if elapsed > 0 else 0
             print(
-                f"  [{elapsed:6.0f}s] requests={total_requests}  "
-                f"tokens={total_tokens}  errors={total_errors}  "
+                f"  [{elapsed:6.0f}s] requests={TOTAL_REQUESTS}  "
+                f"tokens={TOTAL_TOKENS}  errors={TOTAL_ERRORS}  "
                 f"avg_tok/s={tok_rate:.1f}  avg_req/s={req_rate:.2f}"
             )
 
@@ -143,7 +143,7 @@ def print_stats():
 
 
 def main():
-    global start_time
+    global START_TIME
 
     parser = argparse.ArgumentParser(
         description="Load generator for KServe + KEDA autoscaling",
@@ -223,20 +223,20 @@ def main():
     print("Starting load... (Ctrl+C to stop)")
     print()
 
-    def signal_handler(sig, frame):
+    def signal_handler(_sig, _frame):
         print("\n\nStopping load...")
-        stop_event.set()
+        STOP_EVENT.set()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    start_time = time.time()
+    START_TIME = time.time()
 
     stats_thread = threading.Thread(target=print_stats, daemon=True)
     stats_thread.start()
 
     threads = []
-    for i in range(workers):
+    for _ in range(workers):
         t = threading.Thread(
             target=worker_loop,
             args=(
@@ -245,7 +245,7 @@ def main():
                 args.prompt,
                 args.max_tokens,
                 sleep_sec,
-                stop_event,
+                STOP_EVENT,
             ),
             daemon=True,
         )
@@ -253,26 +253,26 @@ def main():
         threads.append(t)
 
     try:
-        stop_event.wait(timeout=args.duration)
+        STOP_EVENT.wait(timeout=args.duration)
     except KeyboardInterrupt:
         pass
 
-    stop_event.set()
+    STOP_EVENT.set()
 
     for t in threads:
         t.join(timeout=5)
 
-    elapsed = time.time() - start_time
-    with stats_lock:
-        tok_rate = total_tokens / elapsed if elapsed > 0 else 0
-        req_rate = total_requests / elapsed if elapsed > 0 else 0
+    elapsed = time.time() - START_TIME
+    with STATS_LOCK:
+        tok_rate = TOTAL_TOKENS / elapsed if elapsed > 0 else 0
+        req_rate = TOTAL_REQUESTS / elapsed if elapsed > 0 else 0
 
     print()
     print("=== Final Stats ===")
     print(f"  Duration:   {elapsed:.1f}s")
-    print(f"  Requests:   {total_requests}")
-    print(f"  Tokens:     {total_tokens}")
-    print(f"  Errors:     {total_errors}")
+    print(f"  Requests:   {TOTAL_REQUESTS}")
+    print(f"  Tokens:     {TOTAL_TOKENS}")
+    print(f"  Errors:     {TOTAL_ERRORS}")
     print(f"  Avg tok/s:  {tok_rate:.1f}")
     print(f"  Avg req/s:  {req_rate:.2f}")
 
