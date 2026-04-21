@@ -2,12 +2,11 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: double-minimal-custom-inference
-  namespace: prokube-demo-profile
 spec:
   predictor:
     containers:
     - name: kserver-container
-      image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-dev/scale-predictor:latest'
+      image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-predictor:latest'
       env:
       - name: MODEL_NAME
         value: "model"
@@ -15,12 +14,12 @@ spec:
         value: "2"
       - name: COMPONENT_TYPE
         value: "predictor"
+    # in prokube deployments, this can pull the images above
+    # adjust to your service account with image pull secret capabilities when pulling from private registry
     serviceAccountName: default-editor
-    imagePullSecrets:
-    - name: regcred-prokube-dev
   transformer:
     containers:
-    - image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-dev/persistant-transformer:latest'
+    - image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-transformer:latest'
       name: kserve-container
       imagePullPolicy: Always
       env:
@@ -32,6 +31,6 @@ spec:
       args:
       - --model_name
       - model
+    # in prokube deployments, this can pull the images above
+    # adjust to your service account with image pull secret capabilities when pulling from private registry
     serviceAccountName: default-editor
-    imagePullSecrets:
-    - name: regcred-prokube-dev

@@ -2,24 +2,27 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: mirror-traffic-redirect
-  namespace: prokube-demo-profile
 spec:
   hosts:
-  - public-shastasaurus.prokube.cloud-shadow
+  # Update hostname to match your deployment
+  - <domain.example.com>
   gateways:
   - istio-system/cluster-local-gateway
   http:
   - match:
+    # Update <namespace> to match your deployment
     - uri:
-        prefix: /serving/prokube-demo-profile/double-minimal-custom-inference/
+        prefix: /serving/<namespace>/double-minimal-custom-inference/
     - uri:
-        exact: /serving/prokube-demo-profile/double-minimal-custom-inference
+        exact: /serving/<namespace>/double-minimal-custom-inference
+    # Update <namespace>to match your deployment
     rewrite:
-      uri: /serving/prokube-demo-profile/triple-minimal-custom-inference/
+      uri: /serving/<namespace>/triple-minimal-custom-inference/
     headers:
       request:
         set:
-          Host: public-shastasaurus.prokube.cloud
+          # Update hostname to match your deployment
+          Host: <domain.example.com>
     route:
     - destination:
         host: cluster-local-gateway.istio-system.svc.cluster.local
