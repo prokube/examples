@@ -2,24 +2,29 @@ apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
   name: mirrored-inference
-  namespace: prokube-demo-profile
 spec:
   gateways:
   - istio-system/cluster-local-gateway
   hosts:
-  - public-shastasaurus.prokube.cloud
+  # Update hostname to match your deployment
+  - <domain.example.com>
   http:
   - match:
+    # Update <namespace> to match your deployment
     - uri:
-        prefix: /serving/prokube-demo-profile/mirrored-inference/
+        prefix: /serving/<namespace>/mirrored-inference/
     - uri:
-        exact: /serving/prokube-demo-profile/mirrored-inference
+        exact: /serving/<namespace>/mirrored-inference
     mirror:
+      # Istio will append "-shadow" to the Host header on the mirrored copy,
+      # which causes mirrored-traffic-redirect-virtual-service.yaml to intercept
+      # it and forward it to the shadow ISVC
       host: cluster-local-gateway.istio-system.svc.cluster.local
     mirrorPercentage:
       value: 100
+    # Update <namespace> to match your deployment
     rewrite:
-      uri: /serving/prokube-demo-profile/double-minimal-custom-inference/
+      uri: /serving/<namespace>/double-minimal-custom-inference/
     route:
     - destination:
         host: cluster-local-gateway.istio-system.svc.cluster.local
