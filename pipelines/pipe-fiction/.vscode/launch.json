@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Pipeline: Remote SubprocessRunner",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "justMyCode": false,
+            "subProcess": true
+        },
+        {
+            "name": "Pipeline: Remote Debugging",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}/pipe-fiction-codebase",
+                    "remoteRoot": "/app"
+                }
+            ],
+            "justMyCode": false,
+            "subProcess": true
+        }
+    ]
+}
