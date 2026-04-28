@@ -1,0 +1,45 @@
+# Example FeatureStore CR for prokube.
+# Edit the namespace to match your Kubeflow profile.
+#
+# The operator will create:
+#   - A Feast deployment + service (online feature server)
+#   - PVCs for online and offline stores
+#   - A ConfigMap (feast-<name>-client) with client connection info
+#
+# Prerequisites:
+#   - feast-registry-config secret must exist in your namespace
+#     (provisioned by admin or the user-management operator)
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: my-store
+  namespace: <your-namespace>  # <-- change this
+spec:
+  feastProject: my_features
+  services:
+    registry:
+      local:
+        persistence:
+          store:
+            type: sql
+            secretRef:
+              name: feast-registry-config
+    onlineStore:
+      persistence:
+        file:
+          pvc:
+            create:
+              storageClassName: mayastor-no-redundancy  # adjust for your cluster
+              resources:
+                requests:
+                  storage: 5Gi
+    offlineStore:
+      persistence:
+        file:
+          type: dask
+          pvc:
+            create:
+              storageClassName: mayastor-no-redundancy  # adjust for your cluster
+              resources:
+                requests:
+                  storage: 10Gi
