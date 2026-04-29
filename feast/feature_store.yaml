@@ -1,0 +1,19 @@
+# Template — fill in your Redis connection details.
+# Get the Redis host and password from your admin.
+#
+# For workflows running inside the cluster, you can use /tmp/registry.db
+# as the registry path (ephemeral, single-run). For persistent registry
+# access, mount the registry PVC and use /data/registry/registry.db.
+project: my_features
+provider: local
+offline_store:
+    type: file
+online_store:
+    type: redis
+    connection_string: "<redis-host>:6379,password=<password>"
+registry:
+    registry_type: file
+    path: /tmp/registry.db
+auth:
+    type: no_auth
+entity_key_serialization_version: 3
