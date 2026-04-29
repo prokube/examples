@@ -1,22 +1,19 @@
-# Template — fill in your namespace and registry credentials.
-# The operator-generated ConfigMap (feast-<name>-client) only has online_store
-# config. For full functionality (apply, materialize, historical features),
-# you need registry access too.
+# Template — fill in your Redis connection details.
+# Get the Redis host and password from your admin.
 #
-# Get your registry URI from the feast-registry-config secret:
-#   kubectl get secret feast-registry-config -n <ns> -o jsonpath='{.data.sql}' | base64 -d
+# For workflows running inside the cluster, you can use /tmp/registry.db
+# as the registry path (ephemeral, single-run). For persistent registry
+# access, mount the registry PVC and use /data/registry/registry.db.
 project: my_features
 provider: local
-registry:
-    registry_type: sql
-    # paste your registry URI here (from feast-registry-config secret)
-    path: "mysql+pymysql://USER:PASSWORD@mariadb-feast.NAMESPACE.svc.cluster.local:3306/feast_NAMESPACE"
-    cache_ttl_seconds: 60
-online_store:
-    path: http://feast-my-store-online.NAMESPACE.svc.cluster.local:80
-    type: remote
 offline_store:
-    type: dask
+    type: file
+online_store:
+    type: redis
+    connection_string: "<redis-host>:6379,password=<password>"
+registry:
+    registry_type: file
+    path: /tmp/registry.db
 auth:
     type: no_auth
 entity_key_serialization_version: 3

@@ -6,14 +6,27 @@ for feature management in ML workflows.
 ## Prerequisites
 
 - Feast must be enabled on your cluster (ask your admin)
-- A `FeatureStore` CR must be created in your workspace (see below)
-- The `feast-registry-config` secret must exist in your namespace
+- A `feast-redis-config` secret must exist in your namespace (see step 1)
+- A `FeatureStore` CR must be created in your workspace (see step 2)
 
 ## Quick Start
 
-### 1. Create a FeatureStore in your workspace
+### 1. Create the Redis secret
 
-Apply the example CR (edit the namespace):
+Ask your admin for the Redis host and password, then:
+
+```bash
+kubectl create secret generic feast-redis-config \
+  -n <your-namespace> \
+  --from-literal=redis='connection_string: "<redis-host>:6379,password=<password>"'
+```
+
+> **Note:** The secret key must be named `redis` and the value must be a YAML map.
+> Use `host:port,password=...` format — **not** a `redis://` URI.
+
+### 2. Create a FeatureStore in your workspace
+
+Edit `featurestore.yaml` to set your namespace, then apply:
 
 ```bash
 kubectl apply -f featurestore.yaml
@@ -25,21 +38,12 @@ Wait for it to become ready:
 kubectl get featurestore -n <your-namespace> -w
 ```
 
-### 2. Get your client configuration
+### 3. Configure your feature_store.yaml
 
-The operator creates a ConfigMap with connection info:
+Edit `feature_store.yaml` with your Redis connection details. Use this file in
+your notebooks or scripts to run `feast apply`, `materialize`, and retrieve features.
 
-```bash
-kubectl get configmap feast-<name>-client -n <your-namespace> \
-  -o jsonpath='{.data.feature_store\.yaml}'
-```
-
-Save this as `feature_store.yaml` in your working directory. This config only
-contains the **online store** endpoint (remote HTTP). For operations that need
-registry access (`feast apply`, `get_historical_features`, `materialize`), you
-need to build a full config — see the notebook example.
-
-### 3. Run the notebook
+### 4. Run the notebook
 
 Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
 
@@ -48,7 +52,7 @@ Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
 | File | Description |
 |------|-------------|
 | `featurestore.yaml` | FeatureStore CR to deploy in your namespace |
-| `feature_store.yaml` | Client config template (fill in your namespace + registry) |
+| `feature_store.yaml` | Client config template (fill in Redis details) |
 | `features.py` | Feature definitions — entities, sources, feature views |
 | `feast_example.ipynb` | End-to-end notebook: define, apply, materialize, train, serve |
 
@@ -58,12 +62,13 @@ Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
                     ┌─────────────────────────────────┐
                     │        Your Namespace            │
                     │                                  │
-  feast apply ──────▶  MariaDB (registry)              │
+  feast apply ──────▶  SQLite on PVC (registry)       │
                     │    - feature definitions          │
                     │    - entity schemas               │
                     │                                  │
-  materialize ──────▶  SQLite on PVC (online store)    │
+  materialize ──────▶  Redis (online store)            │
                     │    - latest feature values        │
+                    │    - sub-ms latency               │
                     │                                  │
   historical  ──────▶  Parquet on PVC (offline store)  │
   features          │    - time-series feature data     │
@@ -73,9 +78,9 @@ Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
                     └─────────────────────────────────┘
 ```
 
-- **Registry** (MariaDB): stores metadata — what features exist, their schemas,
-  data sources. Shared across all Feast processes in your namespace.
-- **Online store** (SQLite/PVC): key-value store with the *latest* feature values
+- **Registry** (SQLite/PVC): stores metadata — what features exist, their schemas,
+  data sources. Accessible from within your namespace.
+- **Online store** (Redis): key-value store with the *latest* feature values
   per entity. Updated by `feast materialize`. Used for real-time inference.
 - **Offline store** (Dask/file/PVC): historical feature data in parquet files.
   Used for training dataset generation with point-in-time correctness.
