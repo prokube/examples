@@ -6,55 +6,77 @@ for feature management in ML workflows.
 ## Prerequisites
 
 - Feast must be enabled on your cluster (ask your admin)
-- A `feast-redis-config` secret must exist in your namespace (see step 1)
-- A `FeatureStore` CR must be created in your workspace (see step 2)
+- You have `kubectl` access to your Kubeflow profile namespace
 
 ## Quick Start
 
-### 1. Create the Redis secret
+### 1. Deploy a Redis instance
 
-Ask your admin for the Redis host and password, then:
+Create a password secret and a Redis CR in your namespace:
 
 ```bash
-kubectl create secret generic feast-redis-config \
+# Generate a random password
+kubectl create secret generic redis-feast \
   -n <your-namespace> \
-  --from-literal=redis='connection_string: "<redis-host>:6379,password=<password>"'
+  --from-literal=password=$(openssl rand -base64 24 | tr -d '/')
+
+# Deploy the Redis CR
+kubectl apply -f redis-cr.yaml   # see file below — edit namespace first
+kubectl get redis -n <your-namespace> -w
 ```
 
-> **Note:** The secret key must be named `redis` and the value must be a YAML map.
-> Use `host:port,password=...` format — **not** a `redis://` URI.
+`redis-cr.yaml` is a plain Kubernetes manifest for the OpsTree Redis operator.
+Create it with the contents shown in the prokube [user docs](https://docs.prokube.ai/user_docs/feast/).
 
-### 2. Create a FeatureStore in your workspace
-
-Edit `featurestore.yaml` to set your namespace, then apply:
+### 2. Create the Feast Redis secret
 
 ```bash
-kubectl apply -f featurestore.yaml
+NAMESPACE=<your-namespace>
+PASSWORD=$(kubectl get secret redis-feast -n $NAMESPACE \
+  -o jsonpath='{.data.password}' | base64 -d)
+
+cat > /tmp/redis-config.yaml << EOF
+connection_string: "redis-feast.${NAMESPACE}.svc.cluster.local:6379,password=${PASSWORD}"
+EOF
+
+kubectl create secret generic feast-redis-config \
+  -n $NAMESPACE \
+  --from-file=redis=/tmp/redis-config.yaml
+
+rm /tmp/redis-config.yaml
 ```
 
-Wait for it to become ready:
+### 3. Deploy a FeatureStore
+
+Edit `feast-cr.yaml` to set your namespace, then:
 
 ```bash
-kubectl get featurestore -n <your-namespace> -w
+kubectl apply -f feast-cr.yaml
+kubectl get featurestore -n <your-namespace> -w   # wait until Ready
 ```
-
-### 3. Configure your feature_store.yaml
-
-Edit `feature_store.yaml` with your Redis connection details. Use this file in
-your notebooks or scripts to run `feast apply`, `materialize`, and retrieve features.
 
 ### 4. Run the notebook
 
-Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
+Open `feast_example.ipynb` in your Kubeflow notebook. The notebook reads the
+`feast-redis-config` secret automatically and builds `feature_store.yaml` for you.
 
-## Examples
+## Files
 
-| File | Description |
-|------|-------------|
-| `featurestore.yaml` | FeatureStore CR to deploy in your namespace |
-| `feature_store.yaml` | Client config template (fill in Redis details) |
-| `features.py` | Feature definitions — entities, sources, feature views |
-| `feast_example.ipynb` | End-to-end notebook: define, apply, materialize, train, serve |
+| File | What it is |
+|------|------------|
+| `feast-cr.yaml` | Kubernetes manifest — deploys the FeatureStore CR |
+| `feature_store.yaml` | Feast SDK config — tells the Python client where registry and stores are |
+| `features.py` | Feature definitions — entities, data sources, feature views |
+| `feast_example.ipynb` | End-to-end notebook: generate data, apply, train, materialize, serve |
+
+### Why two YAML files?
+
+`feast-cr.yaml` is a **Kubernetes resource** (`kind: FeatureStore`) that the operator
+reads to provision PVCs and the Feast server pod. You apply it once with `kubectl`.
+
+`feature_store.yaml` is a **Feast SDK config file** (fixed filename — Feast convention)
+that the Python client and CLI read to know how to connect to the registry and stores.
+You use it in notebooks and scripts.
 
 ## Architecture
 
@@ -62,25 +84,28 @@ Open `feast_example.ipynb` in your Kubeflow notebook and follow the steps.
                     ┌─────────────────────────────────┐
                     │        Your Namespace            │
                     │                                  │
-  feast apply ──────▶  SQLite on PVC (registry)       │
-                    │    - feature definitions          │
+                    │  Redis CR (redis-feast)           │
+                    │    - your private Redis instance  │
+                    │                                  │
+  feast apply ──────▶  SQLite /tmp/registry.db        │
+  (notebook)        │    - feature definitions          │
                     │    - entity schemas               │
                     │                                  │
-  materialize ──────▶  Redis (online store)            │
+  materialize ──────▶  Redis online store              │
                     │    - latest feature values        │
                     │    - sub-ms latency               │
+                    │    - persistent across sessions   │
                     │                                  │
   historical  ──────▶  Parquet on PVC (offline store)  │
   features          │    - time-series feature data     │
                     │                                  │
-                    │  Feast Server (deployment)        │
-                    │    - serves online features       │
+                    │  Feast Server pod                │
+                    │    - HTTP API for online features │
+                    │    - registry on PVC (/data/...)  │
                     └─────────────────────────────────┘
 ```
 
-- **Registry** (SQLite/PVC): stores metadata — what features exist, their schemas,
-  data sources. Accessible from within your namespace.
-- **Online store** (Redis): key-value store with the *latest* feature values
-  per entity. Updated by `feast materialize`. Used for real-time inference.
-- **Offline store** (Dask/file/PVC): historical feature data in parquet files.
-  Used for training dataset generation with point-in-time correctness.
+- **Redis** (per-namespace): your private online store. You own and manage it.
+- **Registry** (SQLite): feature definitions. In notebook workflows, uses `/tmp/registry.db`.
+  The Feast server pod uses the registry PVC at `/data/registry/registry.db`.
+- **Offline store** (parquet/PVC): historical feature data for training.

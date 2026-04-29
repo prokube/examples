@@ -33,7 +33,7 @@ spec:
     offlineStore:
       persistence:
         file:
-          type: dask
+          type: file
           pvc:
             mountPath: /data/offline
             create:
