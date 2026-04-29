@@ -80,6 +80,18 @@ You use it in notebooks and scripts.
 
 ## Architecture
 
+Feast has three stores. Here is what each one does and which backend prokube uses:
+
+| Store | Purpose | Prokube default | Alternatives |
+|-------|---------|-----------------|--------------|
+| **Registry** | Stores feature definitions (entities, feature views, sources). Written on `feast apply`, read at startup. | SQLite on PVC | SQL databases (PostgreSQL, etc.) for multi-replica or shared setups |
+| **Online store** | Holds the *latest* feature value per entity. Read on every inference request — latency critical. | Redis (your `Redis` CR) | SQLite on PVC (dev/test only; not multi-replica safe) |
+| **Offline store** | Historical feature records for point-in-time joins during training. Batch workload, not on serving path. | Parquet/file on PVC | Dask (same parquet files, distributed compute — use only if data exceeds pod memory); cloud warehouses (BigQuery, Snowflake, Redshift) |
+
+The offline store default is `type: file` (pandas). You can switch to `type: dask` in
+`feast-cr.yaml` if your datasets are too large to fit in memory, but it adds complexity
+and is rarely needed.
+
 ```
                     ┌─────────────────────────────────┐
                     │        Your Namespace            │
