@@ -1,7 +1,17 @@
-# Feast Feature Store Examples
+# Feast Feature Store Example
 
-These examples demonstrate how to use [Feast](https://docs.feast.dev/) on prokube
-for feature management in ML workflows.
+A complete example of using [Feast](https://docs.feast.dev/) on prokube for
+feature management in ML workflows.
+
+**Scenario:** An online retailer wants to predict whether a customer will
+return their next order. The notebook walks through defining customer features,
+training a return-risk model, and serving predictions in real time.
+
+> **Note:** This example uses SQLite (registry), single-replica Redis (online
+> store), and local parquet files (offline store). This is fine for development
+> and experimentation. For production, use PostgreSQL-backed registry, Redis
+> Cluster, and a proper data warehouse. See the "Production Setup" section in
+> the notebook for details.
 
 ## Prerequisites
 
@@ -64,7 +74,7 @@ Open `feast_example.ipynb` in your Kubeflow notebook. The notebook reads the
 | `redis-cr.yaml` | Kubernetes manifest — deploys a Redis instance (OpsTree operator) |
 | `feast-cr.yaml` | Kubernetes manifest — deploys the FeatureStore CR |
 | `feature_store.yaml` | Feast SDK config template — the notebook generates this automatically |
-| `feast_example.ipynb` | End-to-end notebook: define features, register, train, materialize, serve |
+| `feast_example.ipynb` | End-to-end notebook: retail return prediction with Feast |
 
 ### Why two YAML files?
 

@@ -14,7 +14,7 @@ metadata:
   name: my-store
   namespace: <your-namespace>  # <-- change this
 spec:
-  feastProject: my_features
+  feastProject: retail_features
   services:
     runFeastApplyOnInit: false
     securityContext:
