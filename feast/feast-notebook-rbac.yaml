@@ -1,0 +1,16 @@
+# Grants Kubeflow notebook users (default-editor SA in profile namespaces)
+# read access to FeatureStore CRs in their own namespace.
+#
+# Apply this once at cluster install time. It piggybacks on the
+# `kubeflow-edit` aggregated ClusterRole, so any namespace where
+# default-editor is bound to kubeflow-edit picks it up automatically.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aggregate-to-kubeflow-edit-feast
+  labels:
+    rbac.authorization.kubeflow.org/aggregate-to-kubeflow-edit: "true"
+rules:
+- apiGroups: ["feast.dev"]
+  resources: ["featurestores"]
+  verbs: ["get", "list", "watch"]
