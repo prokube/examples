@@ -26,7 +26,7 @@ spec:
             pvc:
               mountPath: /data/registry
               create:
-                storageClassName: mayastor-no-redundancy  # adjust for your cluster
+                # storageClassName: default  # omit to use cluster default
                 resources:
                   requests:
                     storage: 1Gi
