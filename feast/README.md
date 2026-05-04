@@ -63,9 +63,8 @@ Open `feast_example.ipynb` in your Kubeflow notebook. The notebook reads the
 |------|------------|
 | `redis-cr.yaml` | Kubernetes manifest — deploys a Redis instance (OpsTree operator) |
 | `feast-cr.yaml` | Kubernetes manifest — deploys the FeatureStore CR |
-| `feature_store.yaml` | Feast SDK config — tells the Python client where registry and stores are |
-| `features.py` | Feature definitions — entities, data sources, feature views |
-| `feast_example.ipynb` | End-to-end notebook: generate data, apply, define new features, materialize, serve |
+| `feature_store.yaml` | Feast SDK config template — the notebook generates this automatically |
+| `feast_example.ipynb` | End-to-end notebook: define features, register, train, materialize, serve |
 
 ### Why two YAML files?
 
@@ -97,7 +96,7 @@ and is rarely needed.
                     │  Redis CR (redis-feast)           │
                     │    - your private Redis instance  │
                     │                                  │
-  feast apply ──────▶  SQLite /tmp/registry.db        │
+store.apply() ─────▶  SQLite /tmp/registry.db        │
   (notebook)        │    - feature definitions          │
                     │    - entity schemas               │
                     │                                  │
