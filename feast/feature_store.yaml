@@ -4,7 +4,7 @@
 # For workflows running inside the cluster, you can use /tmp/registry.db
 # as the registry path (ephemeral, single-run). For persistent registry
 # access, mount the registry PVC and use /data/registry/registry.db.
-project: my_features
+project: retail_features
 provider: local
 offline_store:
     type: file
