@@ -16,8 +16,6 @@ client in the namespace.
 
 - Feast must be enabled on your cluster (ask your admin)
 - You have `kubectl` access to your Kubeflow profile namespace
-- A cluster admin has applied `feast-notebook-rbac.yaml` once per cluster
-  (grants notebook ServiceAccounts read access to FeatureStore CRs)
 
 ## Quick Start
 
@@ -84,7 +82,6 @@ registry and the local Redis online store.
 |------|------------|
 | `redis-cr.yaml` | Kubernetes manifest — deploys a Redis instance (OpsTree operator) |
 | `feast-cr.yaml` | Kubernetes manifest — deploys the FeatureStore CR with registry server enabled |
-| `feast-notebook-rbac.yaml` | ClusterRole granting notebook SAs read access to FeatureStore CRs (apply once per cluster; not needed on prokube — already in `kubeflow-roles`) |
 | `feature_store.yaml` | Feast SDK config template — the notebook generates this automatically |
 | `feast_example.ipynb` | End-to-end notebook: retail return prediction with Feast |
 
@@ -149,5 +146,5 @@ Feast has three stores. Here is what each one does and which backend prokube use
   view names, data source paths), so the impact is small. Feature *values* in
   Redis and on the offline-store PVC are unaffected. Rely on NetworkPolicy at
   the namespace level for cross-namespace isolation.
-- **Notebook RBAC** for FeatureStore CRs comes from `kubeflow-roles` on
-  prokube. On other Kubeflow installs, apply `feast-notebook-rbac.yaml`.
+- **Notebook RBAC** for FeatureStore CRs must be granted by the platform. On
+  prokube this is already in place.
