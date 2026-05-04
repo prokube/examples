@@ -7,11 +7,10 @@ feature management in ML workflows.
 return their next order. The notebook walks through defining customer features,
 training a return-risk model, and serving predictions in real time.
 
-> **Note:** This example uses SQLite (registry), single-replica Redis (online
-> store), and local parquet files (offline store). This is fine for development
-> and experimentation. For production, use PostgreSQL-backed registry, Redis
-> Cluster, and a proper data warehouse. See the "Production Setup" section in
-> the notebook for details.
+> **Note:** This example uses a SQLite registry on `/tmp` which does not survive
+> pod restarts. Redis (managed by the OpsTree operator) and the parquet offline
+> store are production-ready. For a persistent registry, switch to PostgreSQL —
+> see the "Production Setup" section in the notebook.
 
 ## Prerequisites
 
