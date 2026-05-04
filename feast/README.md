@@ -7,9 +7,19 @@ feature management in ML workflows.
 return their next order. The notebook walks through defining customer features,
 training a return-risk model, and serving predictions in real time.
 
-> **Note:** This example uses a SQLite registry on `/tmp` which does not survive
-> pod restarts. For a persistent registry, switch to PostgreSQL — see the
+> **Note:** This example uses a SQLite SQL registry at `/tmp` which does not survive
+> pod restarts. SQLite SQL gives proper transactional semantics over the plain file
+> registry with identical maintenance burden — no server, just a file. For persistence
+> across sessions, mount the registry PVC and set `path: sqlite:////data/registry/registry.db`.
+> For multi-replica or high-availability setups, switch to PostgreSQL — see the
 > "Production Setup" section in the notebook.
+>
+> **Known issue (Feast ≤ 0.53):** `feast apply` deadlocks with SQLite SQL because
+> `_apply_object` calls `apply_project` while holding an open write transaction,
+> opening a second connection that can't acquire the write lock. Fixed in Feast 0.54.0
+> ([upstream PR #5588](https://github.com/feast-dev/feast/pull/5588)). On older versions,
+> or if the deadlock recurs, the notebook applies a `StaticPool` workaround — see the
+> `store.apply` cell for details.
 
 ## Prerequisites
 
@@ -89,7 +99,7 @@ Feast has three stores. Here is what each one does and which backend prokube use
 
 | Store | Purpose | Prokube default | Alternatives |
 |-------|---------|-----------------|--------------|
-| **Registry** | Stores feature definitions (entities, feature views, sources). Written on `feast apply`, read at startup. | SQLite on PVC | SQL databases (PostgreSQL, etc.) for multi-replica or shared setups |
+| **Registry** | Stores feature definitions (entities, feature views, sources). Written on `feast apply`, read at startup. | SQLite SQL on PVC (`registry_type: sql`) | Plain file (`registry_type: file`); PostgreSQL/MySQL for multi-replica |
 | **Online store** | Holds the *latest* feature value per entity. Read on every inference request — latency critical. | Redis (your `Redis` CR) | SQLite on PVC (dev/test only; not multi-replica safe) |
 | **Offline store** | Historical feature records for point-in-time joins during training. Batch workload, not on serving path. | Parquet/file on PVC | Dask (same parquet files, distributed compute — use only if data exceeds pod memory); cloud warehouses (BigQuery, Snowflake, Redshift) |
 
@@ -104,9 +114,9 @@ and is rarely needed.
                     │  Redis CR (redis-feast)           │
                     │    - your private Redis instance  │
                     │                                  │
-store.apply() ─────▶  SQLite /tmp/registry.db        │
+store.apply() ─────▶  SQLite SQL /tmp/registry.db  │
   (notebook)        │    - feature definitions          │
-                    │    - entity schemas               │
+                    │    - transactional writes         │
                     │                                  │
   materialize ──────▶  Redis online store              │
                     │    - latest feature values        │
@@ -123,6 +133,7 @@ store.apply() ─────▶  SQLite /tmp/registry.db        │
 ```
 
 - **Redis** (per-namespace): your private online store. You own and manage it.
-- **Registry** (SQLite): feature definitions. In notebook workflows, uses `/tmp/registry.db`.
+- **Registry** (SQLite SQL): feature definitions. In notebook workflows, uses `sqlite:////tmp/registry.db`
+  (ephemeral). Mount the registry PVC for persistence at `sqlite:////data/registry/registry.db`.
   The Feast server pod uses the registry PVC at `/data/registry/registry.db`.
 - **Offline store** (parquet/PVC): historical feature data for training.

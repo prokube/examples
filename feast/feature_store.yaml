@@ -1,9 +1,18 @@
 # Template — fill in your Redis connection details.
 # Get the Redis host and password from your admin.
 #
-# For workflows running inside the cluster, you can use /tmp/registry.db
-# as the registry path (ephemeral, single-run). For persistent registry
-# access, mount the registry PVC and use /data/registry/registry.db.
+# Registry uses SQLite SQL backend — same maintenance burden as the plain file
+# registry (just a file on disk, no server) but with proper transactional
+# semantics. This matters when materializing multiple feature views concurrently.
+#
+# Path options:
+#   Ephemeral (in-pod, survives the session): sqlite:////tmp/registry.db
+#   Persistent (registry PVC mounted):        sqlite:////data/registry/registry.db
+#
+# Note: four slashes = absolute path (SQLAlchemy convention for SQLite).
+#
+# To use the persistent path, mount the registry PVC in your notebook:
+#   PVC name: feast-<store-name>-registry   mountPath: /data/registry
 project: retail_features
 provider: local
 offline_store:
@@ -12,8 +21,9 @@ online_store:
     type: redis
     connection_string: "<redis-host>:6379,password=<password>"
 registry:
-    registry_type: file
-    path: /tmp/registry.db
+    registry_type: sql
+    path: sqlite:////tmp/registry.db
+    cache_ttl_seconds: 60
 auth:
     type: no_auth
 entity_key_serialization_version: 3

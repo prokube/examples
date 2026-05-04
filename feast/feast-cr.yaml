@@ -3,11 +3,18 @@
 #
 # The operator will create:
 #   - A Feast deployment + service (online feature server)
-#   - PVCs for the SQLite registry and offline data store
+#   - PVCs for the registry and offline data store
 #   - A ConfigMap (feast-<name>-client) with client connection info
 #
 # Prerequisites:
 #   - feast-redis-config secret must exist in your namespace (see README)
+#
+# Registry note:
+#   The Feast operator CRD only supports a file-based local registry
+#   (registry.local). It does not expose registry_type: sql in the CR spec.
+#   The PVC below is identical either way — SQLite SQL is still just a file.
+#   The notebook patches the SQLAlchemy engine directly to use SQL SQLite;
+#   see feature_store.yaml and the notebook for details.
 apiVersion: feast.dev/v1
 kind: FeatureStore
 metadata:
