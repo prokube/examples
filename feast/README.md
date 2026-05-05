@@ -63,12 +63,23 @@ kubectl get featurestore -n <your-namespace> -w   # wait until Ready
 
 This CR enables the **registry gRPC server** (`services.registry.local.server`)
 so the notebook can read and write feature definitions remotely. It also sets
-`sidecar.istio.io/inject: "false"` on the feast-server pod — the registry only
-carries feature *metadata*, and istio's protocol detection mis-classifies the
-operator's registry Service as HTTP/1.1, breaking gRPC. See "Known limitations"
-below for details.
+`traffic.sidecar.istio.io/excludeInboundPorts: "6570"` on the feast-server
+pod — one part of the three-part istio workaround described under "Known
+limitations" below.
 
-### 4. Run the notebook
+### 4. Apply the istio workaround
+
+The operator-generated Service has port name `http` and no `appProtocol`,
+so istio mis-classifies gRPC traffic as HTTP/1.1 and breaks it. The fix
+requires three pieces — the pod annotation in `feast-cr.yaml` plus an
+alt-Service and a DestinationRule from `feast-istio-workaround.yaml`:
+
+```bash
+sed 's/<name>/my-store/g; s/<namespace>/<your-namespace>/g' \
+  feast-istio-workaround.yaml | kubectl apply -f -
+```
+
+### 5. Run the notebook
 
 Open `feast_example.ipynb` in your Kubeflow notebook. The first cell
 auto-discovers the FeatureStore CR in the current namespace, reads the
@@ -82,6 +93,7 @@ registry and the local Redis online store.
 |------|------------|
 | `redis-cr.yaml` | Kubernetes manifest — deploys a Redis instance (OpsTree operator) |
 | `feast-cr.yaml` | Kubernetes manifest — deploys the FeatureStore CR with registry server enabled |
+| `feast-istio-workaround.yaml` | Kubernetes manifests — alt-Service + DestinationRule for istio gRPC fix |
 | `feature_store.yaml` | Feast SDK config template — the notebook generates this automatically |
 | `feast_example.ipynb` | End-to-end notebook: retail return prediction with Feast |
 
@@ -132,19 +144,13 @@ Feast has three stores. Here is what each one does and which backend prokube use
 
 ## Known limitations
 
-- **No on-demand feature views.** Feast 0.63 has a bug where ODFVs round-tripped
-  through a remote registry hang on invocation (the deserialized UDF object
-  gets stuck somewhere in the typeguard-instrumented code path). Until that's
-  fixed upstream, the notebook computes derived columns in plain pandas after
-  `get_historical_features` / `get_online_features`. Switch to a local registry
-  if you need ODFVs.
-- **Istio sidecar disabled on the feast-server pod.** The operator generates
-  the registry Service with port name `http` and no `appProtocol`, so istio
-  mis-classifies gRPC traffic and breaks it. The simplest fix — used in
-  `feast-cr.yaml` — is `sidecar.istio.io/inject: "false"` on the feast-server
-  pod. The registry only carries feature *metadata* (entity schemas, feature
-  view names, data source paths), so the impact is small. Feature *values* in
-  Redis and on the offline-store PVC are unaffected. Rely on NetworkPolicy at
-  the namespace level for cross-namespace isolation.
+- **Istio gRPC workaround required.** The operator generates the registry
+  Service with port name `http` and no `appProtocol`, causing istio to
+  mis-classify gRPC traffic as HTTP/1.1. Three pieces are required:
+  (1) `traffic.sidecar.istio.io/excludeInboundPorts: "6570"` in `feast-cr.yaml`
+  to exclude the registry port from sidecar inbound interception,
+  (2) an alt-Service with `appProtocol: grpc` so the client-side envoy sends
+  HTTP/2, and (3) a DestinationRule with `tls: DISABLE` so the client envoy
+  skips mTLS. All three are bundled in `feast-istio-workaround.yaml`.
 - **Notebook RBAC** for FeatureStore CRs must be granted by the platform. On
   prokube this is already in place.
