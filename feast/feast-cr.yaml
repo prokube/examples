@@ -20,12 +20,12 @@ spec:
     securityContext:
       runAsUser: 0
     # The operator-generated registry Service uses port name "http" with no
-    # appProtocol, which makes istio mis-classify gRPC traffic as HTTP/1.1
-    # and break it. The registry only carries feature *metadata* (schemas,
-    # data source paths), not feature values, so the simplest fix is to skip
-    # sidecar injection on the feast-server pod.
+    # appProtocol, causing istio to mis-classify gRPC traffic as HTTP/1.1.
+    # Fix: exclude port 6570 from sidecar inbound interception so plain h2
+    # from the alt-Service reaches the container directly. See README for the
+    # required alt-Service + DestinationRule (feast-istio-workaround.yaml).
     podAnnotations:
-      sidecar.istio.io/inject: "false"
+      traffic.sidecar.istio.io/excludeInboundPorts: "6570"
     registry:
       local:
         # Expose the registry as a gRPC server so notebooks/clients can read

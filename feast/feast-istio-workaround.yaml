@@ -1,0 +1,63 @@
+# Istio workaround for the Feast registry gRPC service.
+#
+# Problem
+# -------
+# The operator creates a Service for the registry with port name "http" and no
+# appProtocol. Istio's protocol detection then classifies traffic as HTTP/1.1,
+# which breaks gRPC (which requires HTTP/2).
+#
+# Three-part fix
+# --------------
+# 1. feast-cr.yaml: add `traffic.sidecar.istio.io/excludeInboundPorts: "6570"`
+#    to the feast-server pod so its sidecar does NOT intercept inbound traffic
+#    on the registry port — plain h2 reaches the container directly.
+#
+# 2. This file — alt-Service: a second Service pointing at the same feast-server
+#    pod but with `appProtocol: grpc` and port name `grpc`. This tells the
+#    *client-side* envoy to use gRPC (HTTP/2) when sending to the registry.
+#
+# 3. This file — DestinationRule: disable mTLS for the alt-Service so the
+#    client envoy sends plain gRPC (no TLS handshake) — compatible with a
+#    server-side sidecar that does not intercept port 6570.
+#
+# Usage
+# -----
+# Replace <name> with your FeatureStore CR name and <namespace> with your
+# Kubeflow profile namespace, then apply:
+#
+#   sed 's/<name>/my-store/g; s/<namespace>/my-namespace/g' \
+#     feast-istio-workaround.yaml | kubectl apply -f -
+#
+# In feature_store.yaml, point the registry at the alt-Service:
+#
+#   registry:
+#     registry_type: remote
+#     path: grpc://feast-<name>-registry-grpc.<namespace>.svc.cluster.local:80
+#
+# The operator-published feast-<name>-client ConfigMap uses the default Service
+# (port 6570). The notebook overrides this with the alt-Service URL above.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-<name>-registry-grpc
+  namespace: <namespace>
+spec:
+  selector:
+    app: feast-<name>   # operator labels the feast-server pod with this
+  ports:
+    - name: grpc
+      port: 80
+      targetPort: 6570
+      appProtocol: grpc
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: feast-<name>-registry-grpc-no-mtls
+  namespace: <namespace>
+spec:
+  host: feast-<name>-registry-grpc.<namespace>.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
