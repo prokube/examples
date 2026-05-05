@@ -62,17 +62,16 @@ kubectl get featurestore -n <your-namespace> -w   # wait until Ready
 ```
 
 This CR enables the **registry gRPC server** (`services.registry.local.server`)
-so the notebook can read and write feature definitions remotely. It also sets
-`traffic.sidecar.istio.io/excludeInboundPorts: "6570"` on the feast-server
-pod — one part of the three-part istio workaround described under "Known
-limitations" below.
+so the notebook can read and write feature definitions remotely. It also adds
+`traffic.sidecar.istio.io/excludeInboundPorts: "6570"` — see "Known
+limitations" for why this is required.
 
 ### 4. Apply the istio workaround
 
 The operator-generated Service has port name `http` and no `appProtocol`,
-so istio mis-classifies gRPC traffic as HTTP/1.1 and breaks it. The fix
-requires three pieces — the pod annotation in `feast-cr.yaml` plus an
-alt-Service and a DestinationRule from `feast-istio-workaround.yaml`:
+so istio mis-classifies gRPC traffic as HTTP/1.1 and breaks it. This
+misleads **both** envoy sidecars — see `feast-istio-workaround.yaml` for
+a full explanation. The fix requires three pieces:
 
 ```bash
 sed 's/<name>/my-store/g; s/<namespace>/<your-namespace>/g' \
@@ -144,13 +143,16 @@ Feast has three stores. Here is what each one does and which backend prokube use
 
 ## Known limitations
 
-- **Istio gRPC workaround required.** The operator generates the registry
-  Service with port name `http` and no `appProtocol`, causing istio to
-  mis-classify gRPC traffic as HTTP/1.1. Three pieces are required:
-  (1) `traffic.sidecar.istio.io/excludeInboundPorts: "6570"` in `feast-cr.yaml`
-  to exclude the registry port from sidecar inbound interception,
-  (2) an alt-Service with `appProtocol: grpc` so the client-side envoy sends
-  HTTP/2, and (3) a DestinationRule with `tls: DISABLE` so the client envoy
-  skips mTLS. All three are bundled in `feast-istio-workaround.yaml`.
+- **Istio gRPC workaround required.** The operator creates the registry Service
+  with `name: http` and no `appProtocol`. This misleads *both* envoy sidecars:
+  the client-side envoy downgrades to HTTP/1.1, and the server-side envoy
+  builds its inbound listener as HTTP/1.1 and rejects HTTP/2 with a protocol
+  error. The workaround bypasses the server-side envoy entirely
+  (`excludeInboundPorts: "6570"` in `feast-cr.yaml`), fixes the client-side
+  envoy via an alt-Service with `appProtocol: grpc`, and disables mTLS
+  (`tls: DISABLE` DestinationRule) since the server-side envoy is no longer
+  in the path to terminate it. All three are needed and explained in
+  `feast-istio-workaround.yaml`. Once the operator sets `appProtocol: grpc`
+  on its own Service upstream, all three workarounds become unnecessary.
 - **Notebook RBAC** for FeatureStore CRs must be granted by the platform. On
   prokube this is already in place.

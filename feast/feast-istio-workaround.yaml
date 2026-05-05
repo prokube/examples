@@ -1,24 +1,35 @@
 # Istio workaround for the Feast registry gRPC service.
 #
-# Problem
-# -------
-# The operator creates a Service for the registry with port name "http" and no
-# appProtocol. Istio's protocol detection then classifies traffic as HTTP/1.1,
-# which breaks gRPC (which requires HTTP/2).
+# Root cause
+# ----------
+# The operator creates the registry Service with port name "http" and no
+# appProtocol. This single omission misleads BOTH envoy sidecars:
 #
-# Three-part fix
-# --------------
-# 1. feast-cr.yaml: add `traffic.sidecar.istio.io/excludeInboundPorts: "6570"`
-#    to the feast-server pod so its sidecar does NOT intercept inbound traffic
-#    on the registry port — plain h2 reaches the container directly.
+#   CLIENT-side envoy: sees "http" → classifies traffic as HTTP/1.1,
+#     downgrading gRPC (which requires HTTP/2).
 #
-# 2. This file — alt-Service: a second Service pointing at the same feast-server
-#    pod but with `appProtocol: grpc` and port name `grpc`. This tells the
-#    *client-side* envoy to use gRPC (HTTP/2) when sending to the registry.
+#   SERVER-side envoy: builds its inbound listener for port 6570 from the
+#     same Service → classifies port 6570 as HTTP/1.1 → receives gRPC
+#     (HTTP/2) → sends RST ("protocol error").
 #
-# 3. This file — DestinationRule: disable mTLS for the alt-Service so the
-#    client envoy sends plain gRPC (no TLS handshake) — compatible with a
-#    server-side sidecar that does not intercept port 6570.
+# Three-part workaround (until operator sets appProtocol: grpc upstream)
+# -----------------------------------------------------------------------
+# 1. feast-cr.yaml: excludeInboundPorts: "6570"
+#    Bypass the server-side envoy entirely for port 6570. Since the server
+#    envoy's inbound listener is misconfigured (HTTP/1.1), we skip it so
+#    gRPC reaches the feast container directly.
+#
+# 2. This file — alt-Service with appProtocol: grpc:
+#    Fix the CLIENT-side envoy's protocol detection so it sends HTTP/2.
+#
+# 3. This file — DestinationRule tls: DISABLE:
+#    Since the server-side envoy is bypassed (no mTLS termination), the
+#    client must not attempt mTLS. Plain HTTP/2 goes directly to the
+#    feast container.
+#
+# When the operator sets appProtocol: grpc on its own Service, all three
+# workarounds become unnecessary: both envoys detect the protocol correctly
+# and normal mTLS flows end-to-end.
 #
 # Usage
 # -----
@@ -34,8 +45,6 @@
 #     registry_type: remote
 #     path: grpc://feast-<name>-registry-grpc.<namespace>.svc.cluster.local:80
 #
-# The operator-published feast-<name>-client ConfigMap uses the default Service
-# (port 6570). The notebook overrides this with the alt-Service URL above.
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: Service
@@ -54,7 +63,7 @@ spec:
 apiVersion: networking.istio.io/v1beta1
 kind: DestinationRule
 metadata:
-  name: feast-<name>-registry-grpc-no-mtls
+  name: feast-<name>-registry-grpc
   namespace: <namespace>
 spec:
   host: feast-<name>-registry-grpc.<namespace>.svc.cluster.local

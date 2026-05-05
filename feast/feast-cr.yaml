@@ -19,11 +19,12 @@ spec:
     runFeastApplyOnInit: false
     securityContext:
       runAsUser: 0
-    # The operator-generated registry Service uses port name "http" with no
-    # appProtocol, causing istio to mis-classify gRPC traffic as HTTP/1.1.
-    # Fix: exclude port 6570 from sidecar inbound interception so plain h2
-    # from the alt-Service reaches the container directly. See README for the
-    # required alt-Service + DestinationRule (feast-istio-workaround.yaml).
+    # The operator-generated registry Service has port name "http" and no
+    # appProtocol. This misleads the SERVER-side envoy into classifying port
+    # 6570 as HTTP/1.1. Bypassing server-side envoy interception entirely
+    # (excludeInboundPorts) is the only workaround until the operator sets
+    # appProtocol: grpc on its own Service. See feast-istio-workaround.yaml
+    # for the client-side alt-Service + DestinationRule.
     podAnnotations:
       traffic.sidecar.istio.io/excludeInboundPorts: "6570"
     registry:
