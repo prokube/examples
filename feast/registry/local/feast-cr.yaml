@@ -1,10 +1,13 @@
-# Example FeatureStore CR for prokube.
-# Edit the namespace to match your Kubeflow profile.
+# FeatureStore CR — local registry mode.
 #
 # The operator will create:
 #   - A Feast deployment + service (online feature server)
-#   - PVCs for the SQLite registry and offline data store
+#   - PVCs for the registry and offline data store
 #   - A ConfigMap (feast-<name>-client) with client connection info
+#
+# The registry PVC is provisioned but the notebook talks to it directly
+# via a local SQLite SQL file (not through the gRPC server). No Istio
+# workaround is needed.
 #
 # Prerequisites:
 #   - feast-redis-config secret must exist in your namespace (see README)
@@ -19,19 +22,9 @@ spec:
     runFeastApplyOnInit: false
     securityContext:
       runAsUser: 0
-    # The operator-generated registry Service has port name "http" and no
-    # appProtocol. This misleads the SERVER-side envoy into classifying port
-    # 6570 as HTTP/1.1. Bypassing server-side envoy interception entirely
-    # (excludeInboundPorts) is the only workaround until the operator sets
-    # appProtocol: grpc on its own Service. See feast-istio-workaround.yaml
-    # for the client-side alt-Service + DestinationRule.
-    podAnnotations:
-      traffic.sidecar.istio.io/excludeInboundPorts: "6570"
     registry:
       local:
-        # Expose the registry as a gRPC server so notebooks/clients can read
-        # and write feature definitions remotely (production pattern).
-        server: {}
+        # No server: {} here — the notebook uses the SQLite file directly.
         persistence:
           file:
             pvc:

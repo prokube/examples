@@ -1,0 +1,29 @@
+# Registry: local SQLite SQL on /tmp (ephemeral) or PVC (persistent).
+#
+# SQLite SQL gives proper transactional semantics over the plain file registry
+# with identical maintenance burden — no server, just a file.
+#
+# Path options:
+#   Ephemeral (survives the notebook session, lost on pod restart):
+#     sqlite:////tmp/registry.db
+#   Persistent (mount the registry PVC at /data/registry first):
+#     sqlite:////data/registry/registry.db
+#
+# Note: four slashes = absolute path (SQLAlchemy convention for SQLite).
+# PVC name: feast-<store-name>-registry
+#
+# The notebook writes this file automatically — you don't need to edit it.
+project: retail_features
+provider: local
+offline_store:
+    type: file
+online_store:
+    type: redis
+    connection_string: "<redis-host>:6379,password=<password>"
+registry:
+    registry_type: sql
+    path: sqlite:////tmp/registry.db
+    cache_ttl_seconds: 60
+auth:
+    type: no_auth
+entity_key_serialization_version: 3
