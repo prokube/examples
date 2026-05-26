@@ -24,8 +24,9 @@ summary(iris_df)
 # 2. Upload to S3/MinIO
 # ==============================================================================
 
-# Add your bucket here (e.g. <workspace-name>-data)
-bucket_name  <- ""
+# Uses the default prokube bucket for this namespace: <namespace>-data
+namespace    <- trimws(readLines("/var/run/secrets/kubernetes.io/serviceaccount/namespace", warn = FALSE))
+bucket_name  <- paste0(namespace, "-data")
 s3_key_csv   <- "iris-classification/iris.csv"
 endpoint     <- Sys.getenv("AWS_S3_ENDPOINT")
 
@@ -154,5 +155,3 @@ ggplot(results_df, aes(x = Petal.Length, y = Petal.Width,
        subtitle = "X marks misclassifications",
        x = "Petal Length (cm)", y = "Petal Width (cm)") +
   theme_minimal()
-
-

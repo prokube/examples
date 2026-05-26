@@ -4,11 +4,10 @@ from pipeline import mobile_price_classification_pipeline
 
 
 if __name__ == "__main__":
-    # Configuration - update these values
-    s3_bucket = ""  # e.g., "my-namespace-data"
-    if not s3_bucket:
-        raise ValueError("Please set the 's3_bucket' variable to your MinIO bucket name.")
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r", encoding="utf-8") as namespace_file:
+        namespace = namespace_file.read().strip()
 
+    s3_bucket = f"{namespace}-data"
     s3_dataset_path = f"{s3_bucket}/mobile-price-classification"
 
     client = Client()

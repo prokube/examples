@@ -2,8 +2,9 @@ library(tidyverse)
 library(aws.s3)
 library(readr)
 
-# Add your bucket here (e.g. <workspace-name>-data)
-bucket_name      <- ""
+# Uses the default prokube bucket for this namespace: <namespace>-data
+namespace        <- trimws(readLines("/var/run/secrets/kubernetes.io/serviceaccount/namespace", warn = FALSE))
+bucket_name      <- paste0(namespace, "-data")
 s3_key_train_csv <- "mobile-price-classification/train.csv"
 s3_key_test_csv  <- "mobile-price-classification/test.csv"
 endpoint         <- Sys.getenv("AWS_S3_ENDPOINT")
@@ -68,5 +69,3 @@ ggplot(train_df, aes(x = battery_power, fill = factor(price_range))) +
   geom_histogram(position = "identity", alpha = 0.4, bins = 30) +
   labs(title = "Battery power distribution", x = "battery_power (mAh)", fill = "price_range") +
   theme_minimal()
-
-

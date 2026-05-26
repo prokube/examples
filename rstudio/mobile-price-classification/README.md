@@ -13,8 +13,8 @@ The included `mobile-price-classification.r` script performs the following steps
    - Extracts the downloaded zip file into a local temporary directory.
 
 3. **Upload to S3/MinIO:**
-   - Optionally uploads the extracted CSV files (`train.csv`, `test.csv`) to a specified S3 or MinIO bucket for reuse.
-   - Requires appropriate S3 endpoint and bucket configuration (already set up in the RStudio environment).
+   - Optionally uploads the extracted CSV files (`train.csv`, `test.csv`) to the default prokube bucket for the current namespace (`<namespace>-data`) for reuse.
+   - Requires the S3 endpoint configuration already set up in the RStudio environment.
 
 4. **Load Data:**
    - Loads the training and test data into R tibbles for further demonstration.
@@ -24,4 +24,3 @@ The included `mobile-price-classification.r` script performs the following steps
 
 6. **Exploratory Visualizations:**
    - Generates basic plots to illustrate class balance and feature relationships.
-
