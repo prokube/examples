@@ -26,7 +26,7 @@ unzip(zip_path, exdir = unzip_dir)
 train_path <- file.path(unzip_dir, "train.csv")
 test_path  <- file.path(unzip_dir, "test.csv")
 
-# Optional: push the CSVs to S3/MinIO so you can reuse them from there later.
+# Optional: push the CSVs to object storage so you can reuse them from there later.
 # Safe the s3 config.
 s3_cfg <- list(use_https = FALSE, region = "", use_path_style = TRUE)
 

@@ -21,7 +21,7 @@ glimpse(iris_df)
 summary(iris_df)
 
 # ==============================================================================
-# 2. Upload to S3/MinIO
+# 2. Upload to Object Storage
 # ==============================================================================
 
 # Uses the default prokube bucket for this namespace: <namespace>-data
@@ -34,7 +34,7 @@ endpoint     <- Sys.getenv("AWS_S3_ENDPOINT")
 csv_path <- tempfile(fileext = ".csv")
 write_csv(iris_df, csv_path)
 
-# S3 config for MinIO (HTTP, path-style, no region).
+# S3-compatible object storage config (HTTP, path-style, no region).
 s3_cfg <- list(use_https = FALSE, region = "", use_path_style = TRUE)
 
 if (!bucket_exists(bucket_name, base_url = endpoint,

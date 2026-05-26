@@ -1,7 +1,7 @@
-# Minimal KServe + MinIO Model Serving Example
+# Minimal KServe + Object Storage Model Serving Example
 
-This example demonstrates end-to-end model serving on prokube from a MinIO bucket: training a simple sklearn model,
-uploading it to MinIO, deploying it as a KServe InferenceService, and testing it with a prediction request.
+This example demonstrates end-to-end model serving on prokube from an object storage bucket: training a simple sklearn model,
+uploading it to object storage, deploying it as a KServe InferenceService, and testing it with a prediction request.
 
 **Requires prokube platform v1.7.0+.** To check your version, run the following in your notebook:
 
@@ -12,6 +12,6 @@ uploading it to MinIO, deploying it as a KServe InferenceService, and testing it
 ## What the notebook does
 
 1. Trains a small SVM classifier on the Iris dataset and serializes it with `joblib`.
-2. Uploads the model to your MinIO bucket using `s3fs`.
+2. Uploads the model to your bucket using `s3fs`.
 3. Generates and deploys a KServe `InferenceService` manifest via `kubectl`.
 4. Tests the deployed service using both the internal cluster URL and the external URL.
