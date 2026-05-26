@@ -12,7 +12,7 @@ The included `iris-classification.r` script performs the following steps:
    - Loads the built-in Iris dataset and converts it to a tibble for tidy processing.
 
 2. **Upload to S3/MinIO:**
-   - Exports the dataset as CSV and uploads it to an S3-compatible bucket for persistence and reuse.
+   - Exports the dataset as CSV and uploads it to the default prokube bucket for the current namespace (`<namespace>-data`) for persistence and reuse.
 
 3. **Exploratory Data Analysis (EDA):**
    - Summary statistics, class distribution, and feature distributions by species.
