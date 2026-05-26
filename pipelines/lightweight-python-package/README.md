@@ -76,7 +76,7 @@ COMPONENTS_IMAGE = "<your-registry>/mobile-price-classification:v1"
 
 Follow the same dataset preparation steps as in the lightweight components example:
 1. Download the dataset from Kaggle
-2. Upload to your default MinIO bucket (`<namespace>-data`)
+2. Upload to your default object storage bucket (`<namespace>-data`)
 
 ### 4. Run the Pipeline
 

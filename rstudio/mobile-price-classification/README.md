@@ -12,7 +12,7 @@ The included `mobile-price-classification.r` script performs the following steps
 2. **Unzip Dataset:**
    - Extracts the downloaded zip file into a local temporary directory.
 
-3. **Upload to S3/MinIO:**
+3. **Upload to Object Storage:**
    - Optionally uploads the extracted CSV files (`train.csv`, `test.csv`) to the default prokube bucket for the current namespace (`<namespace>-data`) for reuse.
    - Requires the S3 endpoint configuration already set up in the RStudio environment.
 

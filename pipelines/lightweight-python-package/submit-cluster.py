@@ -16,8 +16,8 @@ if __name__ == "__main__":
         mobile_price_classification_pipeline,
         enable_caching=True,
         arguments={
-            "minio_train_data_path": f"s3://{s3_dataset_path}/train.csv",
-            "minio_test_data_path": f"s3://{s3_dataset_path}/test.csv",
+            "train_data_path": f"s3://{s3_dataset_path}/train.csv",
+            "test_data_path": f"s3://{s3_dataset_path}/test.csv",
             "test_size": 0.2,
             "C": [1, 0.1, 0.25, 0.5, 2, 0.75],
             "kernel": ["linear", "rbf"],

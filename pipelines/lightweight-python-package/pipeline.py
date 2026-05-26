@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List
 
 from kfp import dsl
@@ -9,8 +10,8 @@ COMPONENTS_IMAGE = "europe-west3-docker.pkg.dev/prokube-internal/prokube-custome
 
 @dsl.component(base_image=COMPONENTS_IMAGE)
 def read_data(
-    minio_train_data_path: str,
-    minio_test_data_path: str,
+    train_data_path: str,
+    test_data_path: str,
     train_df: Output[Dataset],
     test_df: Output[Dataset],
 ):
@@ -18,8 +19,8 @@ def read_data(
     from mobile_price_classification import read_data as _read_data
 
     _read_data(
-        minio_train_data_path=minio_train_data_path,
-        minio_test_data_path=minio_test_data_path,
+        train_data_path=train_data_path,
+        test_data_path=test_data_path,
         train_output_path=train_df.path,
         test_output_path=test_df.path,
     )
@@ -155,8 +156,8 @@ def test_model(
 
 @dsl.pipeline
 def mobile_price_classification_pipeline(
-    minio_train_data_path: str,
-    minio_test_data_path: str,
+    train_data_path: str,
+    test_data_path: str,
     test_size: float = 0.5,
     C: List = [1, 0.1, 0.25, 0.5, 2, 0.75],
     kernel: List = ["linear", "rbf"],
@@ -182,11 +183,11 @@ def mobile_price_classification_pipeline(
 
     # Step 1: Read the data
     read_data_task = read_data(
-        minio_train_data_path=minio_train_data_path,
-        minio_test_data_path=minio_test_data_path,
+        train_data_path=train_data_path,
+        test_data_path=test_data_path,
     )
-    # Use the cluster internal s3 endpoint
-    read_data_task.set_env_variable('AWS_ENDPOINT_URL',"http://minio.minio")
+    # Use the cluster internal object storage endpoint
+    read_data_task.set_env_variable('AWS_ENDPOINT_URL', f'http://{os.environ["S3_ENDPOINT"]}')
     # Use Kubernetes secrets to provide AWS credentials to the read_data component
     kubernetes.use_secret_as_env(
         read_data_task,

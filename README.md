@@ -30,7 +30,7 @@ extensively to store intermediate and final task/pipeline artifacts. Furthermore
 to serve models directly from object storage.
 
 prokube.ai comes pre-configured with integrated object storage. Alternatively, admins can configure pipelines
-to use other instances of object storage (e.g. self-hosted MinIO, AWS S3, GCS, etc.).
+to use other instances of object storage (e.g. self-hosted S3-compatible storage, AWS S3, GCS, etc.).
 Many S3 libraries use environment variables for their configuration — those are usually:
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `S3_ENDPOINT`. They are likely already
 available in your environment. You can also ask your admin about them.
