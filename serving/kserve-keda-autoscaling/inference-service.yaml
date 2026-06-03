@@ -25,6 +25,13 @@ spec:
         - --backend=vllm
         - --dtype=float32
         - --max-model-len=512
+      env:
+        # vLLM CPU defaults to using all available memory for the KV cache,
+        # which will OOM the container. Set an explicit budget (in GiB) that
+        # fits within the memory limit below, leaving headroom for model weights
+        # and runtime overhead.
+        - name: VLLM_CPU_KVCACHE_SPACE
+          value: "4"
       # Explicit port declaration is required in RawDeployment mode
       # for the cluster-wide PodMonitor to discover the metrics endpoint.
       ports:
