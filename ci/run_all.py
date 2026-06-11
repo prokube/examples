@@ -144,6 +144,7 @@ def _run_notebook(nb_path: Path, output_dir: Path, timeout: int) -> Path:
             kernel_name="python3",
             execution_timeout=timeout,
             cwd=str(nb_path.parent),
+            progress_bar=False,  # avoid interleaved tqdm bars from parallel threads
         )
     except PapermillExecutionError as exc:
         raise RuntimeError(_format_papermill_error(exc)) from exc
@@ -233,6 +234,7 @@ def _submit_notebook(
 ) -> Future:
     result = Result(name=name)
     results[name] = result
+    print(f"  [START  ] {name}")
 
     def _run():
         t0 = time.time()
@@ -258,6 +260,7 @@ def _submit_script(
 ) -> Future:
     result = Result(name=name)
     results[name] = result
+    print(f"  [START  ] {name}")
 
     def _run():
         t0 = time.time()
@@ -379,10 +382,10 @@ def run_all(
                 )
                 phase1_futures[name] = f
 
-            # wait for all phase 1
-            for name, f in phase1_futures.items():
-                f.result()
-                print(f"  [{results[name].status}] {name}")
+            # wait for all phase 1, printing results as each finishes
+            _future_to_name = {v: k for k, v in phase1_futures.items()}
+            for f in as_completed(phase1_futures.values()):
+                _print_result(results[_future_to_name[f]])
 
             # ── Phase 2: pipeline submissions (return fast) ───────────────────
             print("\nPhase 2: submitting pipelines...")
@@ -412,11 +415,8 @@ def run_all(
             phase2_futures["pipelines/lightweight-python-package"] = lpp_future
 
             # Wait only for mlflow-mobile-price before launching phase 3
-            mlflow_mobile_future = phase2_futures["mlflow/mobile-price-classification"]
-            mlflow_mobile_future.result()
-            print(
-                f"  [{results['mlflow/mobile-price-classification'].status}] mlflow/mobile-price-classification"
-            )
+            phase2_futures["mlflow/mobile-price-classification"].result()
+            _print_result(results["mlflow/mobile-price-classification"])
 
             # ── Phase 3: MLflow KServe examples (need registered model) ───────
             print("\nPhase 3: deploying MLflow KServe InferenceServices...")
@@ -440,16 +440,19 @@ def run_all(
                     f = _submit_script(executor, results, name, path, timeout_notebook)
                 phase3_futures[name] = f
 
-            # Wait for remaining phase 2 futures while phase 3 runs
-            for name, f in phase2_futures.items():
-                if name != "mlflow/mobile-price-classification":
-                    f.result()
-                    print(f"  [{results[name].status}] {name}")
-
-            # Wait for phase 3
-            for name, f in phase3_futures.items():
-                f.result()
-                print(f"  [{results[name].status}] {name}")
+            # Phase 2 remaining + phase 3 run concurrently; print as each finishes
+            print("\nPhase 2 (remaining) + Phase 3 running concurrently...")
+            remaining = {
+                **{
+                    k: v
+                    for k, v in phase2_futures.items()
+                    if k != "mlflow/mobile-price-classification"
+                },
+                **phase3_futures,
+            }
+            _future_to_name2 = {v: k for k, v in remaining.items()}
+            for f in as_completed(remaining.values()):
+                _print_result(results[_future_to_name2[f]])
 
             # ── Phase 4: KFP run polling ──────────────────────────────────────
             all_run_ids: list[str] = []
