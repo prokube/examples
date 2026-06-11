@@ -298,7 +298,11 @@ def _print_result(r: Result) -> None:
             print(f"         {line}")
 
 
-def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> None:
+def _print_report(
+    results: dict[str, Result],
+    poll_results: dict[str, str],
+    run_id_to_name: dict[str, str],
+) -> None:
     col = 50
     passed = failed = 0
     for r in results.values():
@@ -323,7 +327,8 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
                     print(f"  {line}")
         for run_id, status in poll_results.items():
             if status.upper() != "SUCCEEDED":
-                print(f"\nKFP run {run_id[:8]}...: {status}")
+                source = run_id_to_name.get(run_id, "unknown")
+                print(f"\nKFP run {run_id[:8]}... (from {source}): {status}")
 
     # Summary table last — easy to see final verdict at a glance
     print("\n" + "=" * 70)
@@ -334,10 +339,12 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
         print(f"{r.name:<{col}} {r.status:<10} {dur}")
     if poll_results:
         print()
-        print(f"{'KFP PIPELINE POLL':<{col}} {'STATUS':<10}")
+        print(f"{'KFP RUN (source notebook)':<{col}} {'STATUS':<10}")
         print("-" * 70)
         for run_id, status in poll_results.items():
-            print(f"{run_id[:8] + '...':<{col}} {status:<10}")
+            source = run_id_to_name.get(run_id, "unknown")
+            label = f"{run_id[:8]}... ({source})"
+            print(f"{label:<{col}} {status:<10}")
     print("=" * 70)
     print(f"PASSED: {passed}   FAILED: {failed}   TOTAL: {passed + failed}")
     print()
@@ -518,7 +525,13 @@ def run_all(
             for f in as_completed(futs):
                 f.result()  # already swallows exceptions inside _run_cleanup
 
-    _print_report(results, poll_results)
+    # Build run_id → source notebook name map from all results
+    run_id_to_name: dict[str, str] = {}
+    for r in results.values():
+        for run_id in r.kfp_run_ids:
+            run_id_to_name[run_id] = r.name
+
+    _print_report(results, poll_results, run_id_to_name)
     return results
 
 
