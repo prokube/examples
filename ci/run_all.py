@@ -190,6 +190,9 @@ def _extract_run_ids_from_stdout(stdout: str) -> list[str]:
     return ids
 
 
+_KFP_TERMINAL_STATES = {"SUCCEEDED", "FAILED", "ERROR", "CANCELED", "SKIPPED"}
+
+
 def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> str:
     """Poll a KFP run until terminal state. Returns final status string."""
     try:
@@ -200,8 +203,14 @@ def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> str:
     deadline = time.time() + timeout
     while time.time() < deadline:
         run = client.get_run(run_id)
-        state = run.run.status
-        if state in ("Succeeded", "Failed", "Error", "Skipped"):
+        # KFP v2 SDK: state is on the run object directly as a string
+        # KFP v1 SDK: state is on run.run.status
+        state = str(
+            getattr(run, "state", None)
+            or getattr(getattr(run, "run", None), "status", None)
+            or "UNKNOWN"
+        ).upper()
+        if state in _KFP_TERMINAL_STATES:
             return state
         time.sleep(interval)
     return f"TIMEOUT after {timeout}s"
@@ -308,10 +317,10 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
         print("-" * 70)
         for run_id, status in poll_results.items():
             short = run_id[:8] + "..."
-            if status != "Succeeded":
-                failed += 1
-            else:
+            if status.upper() == "SUCCEEDED":
                 passed += 1
+            else:
+                failed += 1
             print(f"{short:<{col}} {status:<10}")
     print("=" * 70)
     print(f"PASSED: {passed}   FAILED: {failed}   TOTAL: {passed + failed}")
@@ -466,8 +475,12 @@ def run_all(
                     for run_id in all_run_ids
                 }
                 for run_id, f in poll_futures.items():
-                    poll_results[run_id] = f.result()
-                    print(f"  [{poll_results[run_id]}] {run_id[:8]}...")
+                    try:
+                        poll_results[run_id] = f.result()
+                    except Exception as exc:  # noqa: BLE001
+                        poll_results[run_id] = f"POLL_ERROR: {exc}"
+                    state = poll_results[run_id]
+                    print(f"  [{state}] {run_id[:8]}...")
             else:
                 print("\nPhase 4: no KFP run IDs found, skipping poll.")
 
