@@ -45,9 +45,7 @@ Prerequisites
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
-import os
 import re
 import subprocess
 import sys
@@ -55,12 +53,29 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+
 
 # ── Repo root ─────────────────────────────────────────────────────────────────
 _REPO_ROOT = Path(
     subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
 )
+
+
+# ── Prerequisite: papermill ───────────────────────────────────────────────────
+
+
+def _ensure_papermill() -> None:
+    """Install papermill if it is not already available."""
+    try:
+        import papermill  # noqa: F401
+    except ImportError:
+        print("papermill not found — installing...")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "papermill"],
+            check=True,
+        )
+        print("papermill installed.")
+
 
 # ── KFP run ID pattern (UUID v4) ─────────────────────────────────────────────
 _RUN_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -86,23 +101,53 @@ def _namespace() -> str:
         return fh.read().strip()
 
 
-def _run_notebook(nb_path: Path, output_dir: Path, timeout: int) -> tuple[Path, str]:
-    """Execute a notebook with papermill. Returns (output_path, stderr)."""
+def _format_papermill_error(exc: Exception) -> str:
+    """Extract a human-readable summary from a PapermillExecutionError."""
     try:
-        import papermill as pm
+        from papermill.exceptions import PapermillExecutionError
+
+        if not isinstance(exc, PapermillExecutionError):
+            return str(exc)
     except ImportError:
-        raise RuntimeError("papermill is not installed. Run: pip install papermill")
+        return str(exc)
+
+    lines = [
+        f"Cell {exc.exec_count} raised {exc.ename}: {exc.evalue}",
+    ]
+    # Show the failing cell source (first 5 lines)
+    if exc.source:
+        src_lines = exc.source.strip().splitlines()[:5]
+        lines.append("  Cell source:")
+        for src_line in src_lines:
+            lines.append(f"    {src_line}")
+        if len(exc.source.strip().splitlines()) > 5:
+            lines.append("    ...")
+    # Show the innermost traceback frame (last non-empty line)
+    if exc.traceback:
+        tb_lines = [l for l in exc.traceback if l.strip()]
+        if tb_lines:
+            lines.append(f"  Traceback (last): {tb_lines[-1].strip()}")
+    return "\n".join(lines)
+
+
+def _run_notebook(nb_path: Path, output_dir: Path, timeout: int) -> Path:
+    """Execute a notebook with papermill. Returns the output notebook path."""
+    import papermill as pm
+    from papermill.exceptions import PapermillExecutionError
 
     output_path = output_dir / nb_path.name
     output_dir.mkdir(parents=True, exist_ok=True)
-    pm.execute_notebook(
-        str(nb_path),
-        str(output_path),
-        kernel_name="python3",
-        execution_timeout=timeout,
-        cwd=str(nb_path.parent),
-    )
-    return output_path, ""
+    try:
+        pm.execute_notebook(
+            str(nb_path),
+            str(output_path),
+            kernel_name="python3",
+            execution_timeout=timeout,
+            cwd=str(nb_path.parent),
+        )
+    except PapermillExecutionError as exc:
+        raise RuntimeError(_format_papermill_error(exc)) from exc
+    return output_path
 
 
 def _run_script(script_path: Path, timeout: int) -> tuple[str, str]:
@@ -115,7 +160,9 @@ def _run_script(script_path: Path, timeout: int) -> tuple[str, str]:
         cwd=str(script_path.parent),
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr)
+        # Include both stderr and stdout for full context
+        detail = (result.stderr or result.stdout or "(no output)").strip()
+        raise RuntimeError(detail)
     return result.stdout, result.stderr
 
 
@@ -190,12 +237,12 @@ def _submit_notebook(
     def _run():
         t0 = time.time()
         try:
-            out, _ = _run_notebook(nb_path, output_dir, timeout)
+            out = _run_notebook(nb_path, output_dir, timeout)
             result.status = "PASS"
             result.kfp_run_ids = _extract_run_ids_from_notebook(out)
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
-            result.error = str(exc)[:300]
+            result.error = str(exc)
         finally:
             result.duration = time.time() - t0
 
@@ -220,7 +267,7 @@ def _submit_script(
             result.kfp_run_ids = _extract_run_ids_from_stdout(stdout)
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
-            result.error = str(exc)[:300]
+            result.error = str(exc)
         finally:
             result.duration = time.time() - t0
 
@@ -228,6 +275,15 @@ def _submit_script(
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
+
+
+def _print_result(r: Result) -> None:
+    """Print a single result line, with error detail if failed."""
+    dur = f"{r.duration:.0f}s" if r.duration else "-"
+    print(f"  [{r.status}] {r.name}  ({dur})")
+    if r.status == "FAIL" and r.error:
+        for line in r.error.splitlines():
+            print(f"         {line}")
 
 
 def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> None:
@@ -240,7 +296,6 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
         dur = f"{r.duration:.0f}s" if r.duration else "-"
         print(f"{r.name:<{col}} {r.status:<10} {dur}")
         if r.status == "FAIL":
-            print(f"  {'':>{col}}  {r.error}")
             failed += 1
         else:
             passed += 1
@@ -250,14 +305,21 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
         print("-" * 70)
         for run_id, status in poll_results.items():
             short = run_id[:8] + "..."
-            ok = status == "Succeeded"
-            if not ok:
+            if status != "Succeeded":
                 failed += 1
             else:
                 passed += 1
             print(f"{short:<{col}} {status:<10}")
     print("=" * 70)
     print(f"PASSED: {passed}   FAILED: {failed}   TOTAL: {passed + failed}")
+    if failed:
+        print("\nFailed details:")
+        print("-" * 70)
+        for r in results.values():
+            if r.status == "FAIL" and r.error:
+                print(f"\n{r.name}:")
+                for line in r.error.splitlines():
+                    print(f"  {line}")
     print()
 
 
@@ -274,6 +336,8 @@ def run_all(
     output_dir = root / "ci" / "output"
     results: dict[str, Result] = {}
     poll_results: dict[str, str] = {}
+
+    _ensure_papermill()
 
     if dry_run:
         print("[dry-run] Would execute the following phases:")
