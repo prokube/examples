@@ -300,30 +300,19 @@ def _print_result(r: Result) -> None:
 
 def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> None:
     col = 50
-    print("\n" + "=" * 70)
-    print(f"{'EXAMPLE':<{col}} {'STATUS':<10} {'DURATION'}")
-    print("-" * 70)
     passed = failed = 0
     for r in results.values():
-        dur = f"{r.duration:.0f}s" if r.duration else "-"
-        print(f"{r.name:<{col}} {r.status:<10} {dur}")
         if r.status == "FAIL":
             failed += 1
         else:
             passed += 1
-    if poll_results:
-        print()
-        print(f"{'KFP PIPELINE POLL':<{col}} {'STATUS':<10}")
-        print("-" * 70)
-        for run_id, status in poll_results.items():
-            short = run_id[:8] + "..."
-            if status.upper() == "SUCCEEDED":
-                passed += 1
-            else:
-                failed += 1
-            print(f"{short:<{col}} {status:<10}")
-    print("=" * 70)
-    print(f"PASSED: {passed}   FAILED: {failed}   TOTAL: {passed + failed}")
+    for run_id, status in poll_results.items():
+        if status.upper() == "SUCCEEDED":
+            passed += 1
+        else:
+            failed += 1
+
+    # Failed details first so they're easy to scroll back to
     if failed:
         print("\nFailed details:")
         print("-" * 70)
@@ -332,6 +321,25 @@ def _print_report(results: dict[str, Result], poll_results: dict[str, str]) -> N
                 print(f"\n{r.name}:")
                 for line in r.error.splitlines():
                     print(f"  {line}")
+        for run_id, status in poll_results.items():
+            if status.upper() != "SUCCEEDED":
+                print(f"\nKFP run {run_id[:8]}...: {status}")
+
+    # Summary table last — easy to see final verdict at a glance
+    print("\n" + "=" * 70)
+    print(f"{'EXAMPLE':<{col}} {'STATUS':<10} {'DURATION'}")
+    print("-" * 70)
+    for r in results.values():
+        dur = f"{r.duration:.0f}s" if r.duration else "-"
+        print(f"{r.name:<{col}} {r.status:<10} {dur}")
+    if poll_results:
+        print()
+        print(f"{'KFP PIPELINE POLL':<{col}} {'STATUS':<10}")
+        print("-" * 70)
+        for run_id, status in poll_results.items():
+            print(f"{run_id[:8] + '...':<{col}} {status:<10}")
+    print("=" * 70)
+    print(f"PASSED: {passed}   FAILED: {failed}   TOTAL: {passed + failed}")
     print()
 
 
@@ -429,25 +437,43 @@ def run_all(
 
             # ── Phase 3: MLflow KServe examples (need registered model) ───────
             print("\nPhase 3: deploying MLflow KServe InferenceServices...")
-            phase3_futures = {}
-            for name, rel in [
-                (
+            if results["mlflow/mobile-price-classification"].status == "FAIL":
+                print(
+                    "  [SKIP] mlflow-mobile-price-classification failed — "
+                    "skipping ISVC tests that depend on the registered model"
+                )
+                for name in (
                     "serving/mlflow-kserve-minimal",
-                    "serving/mlflow-kserve-minimal/apply.py",
-                ),
-                (
                     "serving/mlflow-kserve-inference-protocols",
-                    "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
-                ),
-            ]:
-                path = root / rel
-                if path.suffix == ".ipynb":
-                    f = _submit_notebook(
-                        executor, results, name, path, output_dir, timeout_notebook
+                ):
+                    results[name] = Result(
+                        name=name,
+                        status="SKIP",
+                        error="prerequisite mlflow/mobile-price-classification failed",
                     )
-                else:
-                    f = _submit_script(executor, results, name, path, timeout_notebook)
-                phase3_futures[name] = f
+                phase3_futures = {}
+            else:
+                phase3_futures = {}
+                for name, rel in [
+                    (
+                        "serving/mlflow-kserve-minimal",
+                        "serving/mlflow-kserve-minimal/apply.py",
+                    ),
+                    (
+                        "serving/mlflow-kserve-inference-protocols",
+                        "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
+                    ),
+                ]:
+                    path = root / rel
+                    if path.suffix == ".ipynb":
+                        f = _submit_notebook(
+                            executor, results, name, path, output_dir, timeout_notebook
+                        )
+                    else:
+                        f = _submit_script(
+                            executor, results, name, path, timeout_notebook
+                        )
+                    phase3_futures[name] = f
 
             # Phase 2 remaining + phase 3 run concurrently; print as each finishes
             print("\nPhase 2 (remaining) + Phase 3 running concurrently...")
