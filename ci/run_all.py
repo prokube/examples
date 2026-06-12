@@ -130,20 +130,41 @@ def _format_papermill_error(exc: Exception) -> str:
     return "\n".join(lines)
 
 
+def _strip_ci_skip_cells(nb_path: Path, output_dir: Path) -> Path:
+    """Return a copy of the notebook with 'ci-skip' tagged cells replaced by a comment.
+    Returns the original path unchanged if no cells are tagged."""
+    with open(nb_path) as fh:
+        nb = json.load(fh)
+    skipped = 0
+    for cell in nb["cells"]:
+        if "ci-skip" in cell.get("metadata", {}).get("tags", []):
+            cell["source"] = ["# [CI] cell skipped (ci-skip tag)\n"]
+            skipped += 1
+    if skipped == 0:
+        return nb_path
+    stripped = output_dir / f"_stripped_{nb_path.name}"
+    stripped.parent.mkdir(parents=True, exist_ok=True)
+    with open(stripped, "w") as fh:
+        json.dump(nb, fh, indent=1)
+    print(f"  ({skipped} ci-skip cell(s) stripped from {nb_path.name})")
+    return stripped
+
+
 def _run_notebook(nb_path: Path, output_dir: Path, timeout: int) -> Path:
     """Execute a notebook with papermill. Returns the output notebook path."""
     import papermill as pm
     from papermill.exceptions import PapermillExecutionError
 
-    output_path = output_dir / nb_path.name
     output_dir.mkdir(parents=True, exist_ok=True)
+    nb_to_run = _strip_ci_skip_cells(nb_path, output_dir)
+    output_path = output_dir / nb_path.name
     try:
         pm.execute_notebook(
-            str(nb_path),
+            str(nb_to_run),
             str(output_path),
             kernel_name="python3",
             execution_timeout=timeout,
-            cwd=str(nb_path.parent),
+            cwd=str(nb_path.parent),  # always cwd to original notebook directory
             progress_bar=False,  # avoid interleaved tqdm bars from parallel threads
         )
     except PapermillExecutionError as exc:
@@ -193,12 +214,12 @@ def _extract_run_ids_from_stdout(stdout: str) -> list[str]:
 _KFP_TERMINAL_STATES = {"SUCCEEDED", "FAILED", "ERROR", "CANCELED", "SKIPPED"}
 
 
-def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> str:
-    """Poll a KFP run until terminal state. Returns final status string."""
+def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, str]:
+    """Poll a KFP run until terminal state. Returns (status, error_detail)."""
     try:
         from kfp.client import Client
     except ImportError:
-        return "SKIP (kfp not installed)"
+        return "SKIP (kfp not installed)", ""
     client = Client()
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -211,9 +232,14 @@ def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> str:
             or "UNKNOWN"
         ).upper()
         if state in _KFP_TERMINAL_STATES:
-            return state
+            error_detail = ""
+            if state not in ("SUCCEEDED", "SKIPPED"):
+                err = getattr(run, "error", None)
+                if err:
+                    error_detail = getattr(err, "message", "") or ""
+            return state, error_detail
         time.sleep(interval)
-    return f"TIMEOUT after {timeout}s"
+    return f"TIMEOUT after {timeout}s", ""
 
 
 def _run_cleanup(cleanup_path: Path) -> None:
@@ -301,6 +327,7 @@ def _print_result(r: Result) -> None:
 def _print_report(
     results: dict[str, Result],
     poll_results: dict[str, str],
+    poll_errors: dict[str, str],
     run_id_to_name: dict[str, str],
 ) -> None:
     col = 50
@@ -329,6 +356,10 @@ def _print_report(
             if status.upper() != "SUCCEEDED":
                 source = run_id_to_name.get(run_id, "unknown")
                 print(f"\nKFP run {run_id[:8]}... (from {source}): {status}")
+                err = poll_errors.get(run_id, "")
+                if err:
+                    for line in err.splitlines():
+                        print(f"  {line}")
 
     # Summary table last — easy to see final verdict at a glance
     print("\n" + "=" * 70)
@@ -429,6 +460,7 @@ def run_all(
     output_dir = root / "ci" / "output"
     results: dict[str, Result] = {}
     poll_results: dict[str, str] = {}
+    poll_errors: dict[str, str] = {}
 
     _ensure_papermill()
 
@@ -543,10 +575,11 @@ def run_all(
                         "  Polling mlflow-mobile-price KFP pipeline (model must be registered before ISVCs)..."
                     )
                     for _run_id in _mobile_run_ids:
-                        _state = _poll_kfp_run(_run_id, timeout_pipeline)
+                        _state, _err = _poll_kfp_run(_run_id, timeout_pipeline)
                         poll_results[_run_id] = (
                             _state  # recorded here; Phase 4 will skip it
                         )
+                        poll_errors[_run_id] = _err
                         print(f"    [{_state}] {_run_id[:8]}...")
                         if _state.upper() != "SUCCEEDED":
                             _mobile_price_ok = False
@@ -620,9 +653,10 @@ def run_all(
                 }
                 for run_id, f in poll_futures.items():
                     try:
-                        poll_results[run_id] = f.result()
+                        poll_results[run_id], poll_errors[run_id] = f.result()
                     except Exception as exc:  # noqa: BLE001
                         poll_results[run_id] = f"POLL_ERROR: {exc}"
+                        poll_errors[run_id] = ""
                     state = poll_results[run_id]
                     print(f"  [{state}] {run_id[:8]}...")
             else:
@@ -642,7 +676,7 @@ def run_all(
         for run_id in r.kfp_run_ids:
             run_id_to_name[run_id] = r.name
 
-    _print_report(results, poll_results, run_id_to_name)
+    _print_report(results, poll_results, poll_errors, run_id_to_name)
     return results
 
 
