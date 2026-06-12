@@ -350,6 +350,72 @@ def _print_report(
     print()
 
 
+# ── MLflow pre-flight check ───────────────────────────────────────────────────
+
+# Notebooks that require working MLflow credentials
+_MLFLOW_DEPENDENT = frozenset(
+    {
+        "mlflow/mlflow-quickstart",
+        "mlflow/mlflow-image-example",
+        "mlflow/mlflow-kfp-example",
+        "mlflow/mobile-price-classification",
+    }
+)
+
+
+def _check_mlflow_credentials() -> tuple[bool, str]:
+    """Return (ok, reason).  Checks secret existence then validates credentials
+    with a quick call to the MLflow REST API."""
+    import base64 as _b64
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    ns = _namespace()
+    r = subprocess.run(
+        ["kubectl", "get", "secret", "mlflow-credentials", "-n", ns, "-o", "json"],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        return False, (
+            "mlflow-credentials secret not found — "
+            "run scripts/setup_mlflow_credentials.py first"
+        )
+
+    try:
+        data = _json.loads(r.stdout)["data"]
+        uri = _b64.b64decode(data["MLFLOW_TRACKING_URI"]).decode().rstrip("/")
+        username = _b64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode()
+        password = _b64.b64decode(data["MLFLOW_TRACKING_PASSWORD"]).decode()
+    except KeyError as exc:
+        return (
+            False,
+            f"mlflow-credentials secret is missing key {exc} — re-run setup_mlflow_credentials.py",
+        )
+
+    creds = _b64.b64encode(f"{username}:{password}".encode()).decode()
+    req = urllib.request.Request(
+        f"{uri}/api/2.0/mlflow/experiments/search?max_results=1",
+        headers={"Authorization": f"Basic {creds}"},
+    )
+    try:
+        urllib.request.urlopen(req, timeout=8)
+        return True, "OK"
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return False, (
+                "MLflow credentials are invalid or the PAT has expired — "
+                "re-run scripts/setup_mlflow_credentials.py"
+            )
+        return (
+            False,
+            f"MLflow API returned HTTP {exc.code} — check MLFLOW_TRACKING_URI in the secret",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Could not reach MLflow at {uri}: {exc}"
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
@@ -365,6 +431,16 @@ def run_all(
     poll_results: dict[str, str] = {}
 
     _ensure_papermill()
+
+    # Pre-flight: validate MLflow credentials; skip dependent tests if unavailable
+    print("Pre-flight: checking MLflow credentials...")
+    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
+    if mlflow_ok:
+        print("  [OK] MLflow credentials valid")
+    else:
+        print(f"  [SKIP] {mlflow_reason}")
+        for name in _MLFLOW_DEPENDENT:
+            results[name] = Result(name=name, status="SKIP", error=mlflow_reason)
 
     if dry_run:
         print("[dry-run] Would execute the following phases:")
@@ -401,6 +477,9 @@ def run_all(
                     "serving/minimal-s3-model/minimal-s3-model.ipynb",
                 ),
             ]:
+                if name in results:  # already SKIP from pre-flight
+                    print(f"  [SKIP  ] {name}")
+                    continue
                 f = _submit_notebook(
                     executor, results, name, root / rel, output_dir, timeout_notebook
                 )
@@ -424,6 +503,9 @@ def run_all(
                     "pipelines/lightweight-components/mobile-price-classifications.ipynb",
                 ),
             ]:
+                if name in results:  # already SKIP from pre-flight
+                    print(f"  [SKIP  ] {name}")
+                    continue
                 f = _submit_notebook(
                     executor, results, name, root / rel, output_dir, timeout_notebook
                 )
@@ -438,26 +520,51 @@ def run_all(
             )
             phase2_futures["pipelines/lightweight-python-package"] = lpp_future
 
-            # Wait only for mlflow-mobile-price before launching phase 3
-            phase2_futures["mlflow/mobile-price-classification"].result()
-            _print_result(results["mlflow/mobile-price-classification"])
+            # Wait for mlflow-mobile-price notebook; then poll its KFP run
+            # inline before Phase 3 — the ISVC needs the registered model.
+            _mobile_price_skipped = (
+                "mlflow/mobile-price-classification" not in phase2_futures
+            )
+            if not _mobile_price_skipped:
+                phase2_futures["mlflow/mobile-price-classification"].result()
+                _print_result(results["mlflow/mobile-price-classification"])
+
+            _mobile_price_ok = (
+                not _mobile_price_skipped
+                and results["mlflow/mobile-price-classification"].status == "PASS"
+            )
+
+            if _mobile_price_ok:
+                _mobile_run_ids = results[
+                    "mlflow/mobile-price-classification"
+                ].kfp_run_ids
+                if _mobile_run_ids:
+                    print(
+                        "  Polling mlflow-mobile-price KFP pipeline (model must be registered before ISVCs)..."
+                    )
+                    for _run_id in _mobile_run_ids:
+                        _state = _poll_kfp_run(_run_id, timeout_pipeline)
+                        poll_results[_run_id] = (
+                            _state  # recorded here; Phase 4 will skip it
+                        )
+                        print(f"    [{_state}] {_run_id[:8]}...")
+                        if _state.upper() != "SUCCEEDED":
+                            _mobile_price_ok = False
 
             # ── Phase 3: MLflow KServe examples (need registered model) ───────
             print("\nPhase 3: deploying MLflow KServe InferenceServices...")
-            if results["mlflow/mobile-price-classification"].status == "FAIL":
-                print(
-                    "  [SKIP] mlflow-mobile-price-classification failed — "
-                    "skipping ISVC tests that depend on the registered model"
+            if not _mobile_price_ok:
+                _reason = (
+                    "prerequisite mlflow/mobile-price-classification skipped (MLflow credentials)"
+                    if _mobile_price_skipped
+                    else "prerequisite mlflow/mobile-price-classification notebook or KFP pipeline did not succeed"
                 )
+                print(f"  [SKIP] {_reason}")
                 for name in (
                     "serving/mlflow-kserve-minimal",
                     "serving/mlflow-kserve-inference-protocols",
                 ):
-                    results[name] = Result(
-                        name=name,
-                        status="SKIP",
-                        error="prerequisite mlflow/mobile-price-classification failed",
-                    )
+                    results[name] = Result(name=name, status="SKIP", error=_reason)
                 phase3_futures = {}
             else:
                 phase3_futures = {}
@@ -497,9 +604,13 @@ def run_all(
                 _print_result(results[_future_to_name2[f]])
 
             # ── Phase 4: KFP run polling ──────────────────────────────────────
-            all_run_ids: list[str] = []
-            for r in results.values():
-                all_run_ids.extend(r.kfp_run_ids)
+            # Exclude run IDs already polled inline before Phase 3
+            all_run_ids: list[str] = [
+                rid
+                for r in results.values()
+                for rid in r.kfp_run_ids
+                if rid not in poll_results
+            ]
 
             if all_run_ids:
                 print(f"\nPhase 4: polling {len(all_run_ids)} KFP run(s)...")

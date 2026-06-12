@@ -67,8 +67,30 @@ def _apply(manifest: str, namespace: str) -> None:
         raise RuntimeError(f"kubectl apply failed:\n{result.stderr}")
 
 
+def _owner(namespace: str) -> str:
+    """Determine the key owner.
+
+    Tries to read MLFLOW_TRACKING_USERNAME from the mlflow-credentials secret
+    (the canonical identity in the prokube platform).  Falls back to a
+    namespace-scoped placeholder if the secret is absent.
+    """
+    result = _kubectl(
+        "get",
+        "secret",
+        "mlflow-credentials",
+        "-n",
+        namespace,
+        "-o",
+        "jsonpath={.data.MLFLOW_TRACKING_USERNAME}",
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return base64.b64decode(result.stdout.strip()).decode()
+    return f"notebook-examples@{namespace}"
+
+
 def _create_key(namespace: str) -> str:
     key_value = f"pk_live_{secrets.token_hex(20)}"
+    owner = _owner(namespace)
 
     _apply(
         f"apiVersion: v1\n"
@@ -89,6 +111,7 @@ def _create_key(namespace: str) -> str:
         f"  namespace: {namespace}\n"
         f"spec:\n"
         f"  displayName: Examples API key\n"
+        f"  owner: {owner}\n"
         f"  secretRef:\n"
         f"    name: {_SECRET_NAME}\n"
         f"    key: token\n"
