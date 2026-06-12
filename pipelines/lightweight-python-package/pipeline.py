@@ -2,10 +2,22 @@ import os
 from typing import Dict, List
 
 from kfp import dsl
-from kfp.dsl import HTML, Input, Output, Dataset, Artifact, Model, ClassificationMetrics, Markdown
+from kfp.dsl import (
+    HTML,
+    Input,
+    Output,
+    Dataset,
+    Artifact,
+    Model,
+    ClassificationMetrics,
+    Markdown,
+)
 
 
-COMPONENTS_IMAGE = "europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/mobile-price-classification:v1"
+COMPONENTS_IMAGE = os.environ.get(
+    "COMPONENTS_IMAGE",
+    "europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/mobile-price-classification:v2",
+)
 
 
 @dsl.component(base_image=COMPONENTS_IMAGE)
@@ -187,16 +199,18 @@ def mobile_price_classification_pipeline(
         test_data_path=test_data_path,
     )
     # Use the cluster internal object storage endpoint
-    read_data_task.set_env_variable('AWS_ENDPOINT_URL', f'http://{os.environ["S3_ENDPOINT"]}')
+    read_data_task.set_env_variable(
+        "AWS_ENDPOINT_URL", f"http://{os.environ['S3_ENDPOINT']}"
+    )
     # Use Kubernetes secrets to provide AWS credentials to the read_data component
     kubernetes.use_secret_as_env(
         read_data_task,
-        secret_name='s3creds',
+        secret_name="s3creds",
         secret_key_to_env={
-            'AWS_ACCESS_KEY_ID': 'AWS_ACCESS_KEY_ID',
-            'AWS_SECRET_ACCESS_KEY': 'AWS_SECRET_ACCESS_KEY',
-        }
-    ) 
+            "AWS_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
+        },
+    )
 
     # Step 2: Split the data
     split_data_task = split_data(
