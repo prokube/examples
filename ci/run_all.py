@@ -214,6 +214,55 @@ def _extract_run_ids_from_stdout(stdout: str) -> list[str]:
 _KFP_TERMINAL_STATES = {"SUCCEEDED", "FAILED", "ERROR", "CANCELED", "SKIPPED"}
 
 
+def _get_failed_task_logs(run: object, namespace: str) -> str:
+    """Best-effort: tail logs from the pod(s) of the first failed KFP task.
+
+    Walks run.run_details.task_details → child_tasks → pod_name and tries
+    kubectl logs on those pods.  Silently returns "" on any failure.
+    """
+    try:
+        task_details = (
+            getattr(getattr(run, "run_details", None), "task_details", None) or []
+        )
+        for task in task_details:
+            if "FAIL" not in str(getattr(task, "state", "")).upper():
+                continue
+            task_name = getattr(task, "display_name", "unknown-task")
+            for ct in getattr(task, "child_tasks", None) or []:
+                pod = (
+                    ct.get("pod_name")
+                    if isinstance(ct, dict)
+                    else getattr(ct, "pod_name", None)
+                )
+                if not pod:
+                    continue
+                for container in ("main", "user-main"):
+                    result = subprocess.run(
+                        [
+                            "kubectl",
+                            "logs",
+                            pod,
+                            "-n",
+                            namespace,
+                            "-c",
+                            container,
+                            "--tail=15",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        header = f"[Task '{task_name}' / pod {pod[:30]}...]"
+                        tail = "\n".join(
+                            f"  {l}" for l in result.stdout.strip().splitlines()[-10:]
+                        )
+                        return f"{header}\n{tail}"
+    except Exception:  # noqa: BLE001
+        pass
+    return ""
+
+
 def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, str]:
     """Poll a KFP run until terminal state. Returns (status, error_detail)."""
     try:
@@ -221,6 +270,11 @@ def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, s
     except ImportError:
         return "SKIP (kfp not installed)", ""
     client = Client()
+    try:
+        with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as fh:
+            namespace = fh.read().strip()
+    except OSError:
+        namespace = ""
     deadline = time.time() + timeout
     while time.time() < deadline:
         run = client.get_run(run_id)
@@ -234,9 +288,12 @@ def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, s
         if state in _KFP_TERMINAL_STATES:
             error_detail = ""
             if state not in ("SUCCEEDED", "SKIPPED"):
+                # run.error is often None even for failed runs in KFP v2 —
+                # the real failure is in the task pod logs
                 err = getattr(run, "error", None)
-                if err:
-                    error_detail = getattr(err, "message", "") or ""
+                error_detail = (getattr(err, "message", "") or "") if err else ""
+                if not error_detail and namespace:
+                    error_detail = _get_failed_task_logs(run, namespace)
             return state, error_detail
         time.sleep(interval)
     return f"TIMEOUT after {timeout}s", ""
