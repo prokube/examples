@@ -327,6 +327,7 @@ def _submit_notebook(
     nb_path: Path,
     output_dir: Path,
     timeout: int,
+    extract_run_ids: bool = True,
 ) -> Future:
     result = Result(name=name)
     results[name] = result
@@ -337,7 +338,8 @@ def _submit_notebook(
         try:
             out = _run_notebook(nb_path, output_dir, timeout)
             result.status = "PASS"
-            result.kfp_run_ids = _extract_run_ids_from_notebook(out)
+            if extract_run_ids:
+                result.kfp_run_ids = _extract_run_ids_from_notebook(out)
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
             result.error = str(exc)
@@ -765,7 +767,10 @@ def run_all(
                     timeout_notebook,
                 )
 
-                # inference-protocols notebook handles its own deploy + test
+                # inference-protocols notebook handles its own deploy + test.
+                # extract_run_ids=False: this notebook is not a pipeline submission;
+                # its output contains ISVC/request UUIDs that must not be polled
+                # as KFP run IDs (they return 404 from the KFP API).
                 phase3_futures["serving/mlflow-kserve-inference-protocols"] = (
                     _submit_notebook(
                         executor,
@@ -775,6 +780,7 @@ def run_all(
                         / "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
                         output_dir,
                         timeout_notebook,
+                        extract_run_ids=False,
                     )
                 )
 
