@@ -18,7 +18,6 @@ training a return-risk model, and serving predictions in real time.
 
 ```bash
 kubectl create secret generic redis-feast \
-  -n <your-namespace> \
   --from-literal=password=$(openssl rand -base64 24 | tr -d '/')
 
 kubectl apply -f redis-cr.yaml   # edit namespace first
@@ -29,7 +28,7 @@ kubectl get redis -n <your-namespace> -w
 
 ```bash
 NAMESPACE=<your-namespace>
-PASSWORD=$(kubectl get secret redis-feast -n $NAMESPACE \
+PASSWORD=$(kubectl get secret redis-feast \
   -o jsonpath='{.data.password}' | base64 -d)
 
 cat > /tmp/redis-config.yaml << EOF
@@ -37,7 +36,6 @@ connection_string: "redis-feast.${NAMESPACE}.svc.cluster.local:6379,password=${P
 EOF
 
 kubectl create secret generic feast-redis-config \
-  -n $NAMESPACE \
   --from-file=redis=/tmp/redis-config.yaml
 
 rm /tmp/redis-config.yaml
@@ -101,11 +99,11 @@ Feast has three stores:
                     ┌──────────────────────────────────────┐
                     │           Your Namespace             │
                     │                                      │
-                    │  Redis CR (redis-feast)               │
+                    │  Redis CR (redis-feast)              │
                     │                                      │
   store.apply() ───▶  Registry                             │
-  (notebook)        │    local:  sqlite:////tmp/registry.db │
-                    │    remote: gRPC → operator PVC        │
+  (notebook)        │   local:  sqlite:////tmp/registry.db │
+                    │   remote: gRPC → operator PVC        │
                     │                                      │
   materialize ──────▶  Redis online store                  │
                     │                                      │
