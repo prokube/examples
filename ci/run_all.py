@@ -566,6 +566,7 @@ def run_all(
     timeout_pipeline: int = 3600,
     include_keda: bool = False,
     include_pytorch: bool = False,
+    include_shadow: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Result]:
     root = _REPO_ROOT
@@ -586,23 +587,27 @@ def run_all(
         for name in _MLFLOW_DEPENDENT:
             results[name] = Result(name=name, status="SKIP", error=mlflow_reason)
 
-    if dry_run:
-        print("[dry-run] Would execute the following phases:")
-        for label in [
-            "Phase 1: dask, mlflow-quickstart, mlflow-image, mlflow-kfp, minimal-s3-model",
-            "Phase 2: mlflow-mobile-price, lightweight-components, lightweight-python-package",
-            "Phase 3: mlflow-kserve-minimal, mlflow-kserve-inference-protocols",
-            "Phase 4: KFP run polling",
-            "Phase 5: cleanup",
-        ]:
-            print(f"  {label}")
-        return results
+        if dry_run:
+            print("[dry-run] Would execute the following phases:")
+            for label in [
+                "Phase 1: dask, mlflow-quickstart, mlflow-image, mlflow-kfp, minimal-s3-model, hf-vllm-completion",
+                "Phase 1 (opt-in): kserve-keda-autoscaling (--include-keda), minimal-example-shadow-deployment (--include-shadow)",
+                "Phase 2: mlflow-mobile-price, lightweight-components, lightweight-python-package",
+                "Phase 3: mlflow-kserve-minimal, mlflow-kserve-inference-protocols",
+                "Phase 4: KFP run polling",
+                "Phase 5: cleanup",
+            ]:
+                print(f"  {label}")
+            return results
 
     cleanup_scripts = [
         root / "notebooks" / "dask" / "cleanup.py",
         root / "serving" / "minimal-s3-model" / "cleanup.py",
         root / "serving" / "mlflow-kserve-minimal" / "cleanup.py",
         root / "serving" / "mlflow-kserve-inference-protocols" / "cleanup.py",
+        root / "serving" / "hf-vllm-completion" / "cleanup.py",
+        root / "serving" / "kserve-keda-autoscaling" / "cleanup.py",
+        root / "serving" / "minimal-example-shadow-deployment" / "cleanup.py",
         root / "hparam-tuning" / "minimal-mnist" / "cleanup.py",
     ]
 
@@ -632,6 +637,61 @@ def run_all(
                     executor, results, name, root / rel, output_dir, timeout_notebook
                 )
                 phase1_futures[name] = f
+
+            # hf-vllm-completion (CPU): self-contained, no KFP pipelines
+            phase1_futures["serving/hf-vllm-completion"] = _submit_script(
+                executor,
+                results,
+                "serving/hf-vllm-completion",
+                root / "serving" / "hf-vllm-completion" / "apply.py",
+                timeout_notebook,
+            )
+
+            # kserve-keda-autoscaling: opt-in; apply.py self-checks KEDA CRDs
+            # and exits 0 with a skip message if KEDA is not installed.
+            if include_keda:
+                phase1_futures["serving/kserve-keda-autoscaling"] = _submit_script(
+                    executor,
+                    results,
+                    "serving/kserve-keda-autoscaling",
+                    root / "serving" / "kserve-keda-autoscaling" / "apply.py",
+                    timeout_notebook,
+                )
+            else:
+                print(
+                    "  [SKIP  ] serving/kserve-keda-autoscaling  (pass --include-keda to enable)"
+                )
+                results["serving/kserve-keda-autoscaling"] = Result(
+                    name="serving/kserve-keda-autoscaling",
+                    status="SKIP",
+                    error="opt-in: pass --include-keda to run this example",
+                )
+
+            # minimal-example-shadow-deployment: opt-in; apply.py self-checks for
+            # the postgres-operator CRD and exits 0 if not found. Istio
+            # VirtualService mirroring is not verified in CI (requires domain config).
+            if include_shadow:
+                phase1_futures["serving/minimal-example-shadow-deployment"] = (
+                    _submit_script(
+                        executor,
+                        results,
+                        "serving/minimal-example-shadow-deployment",
+                        root
+                        / "serving"
+                        / "minimal-example-shadow-deployment"
+                        / "apply.py",
+                        timeout_notebook,
+                    )
+                )
+            else:
+                print(
+                    "  [SKIP  ] serving/minimal-example-shadow-deployment  (pass --include-shadow to enable)"
+                )
+                results["serving/minimal-example-shadow-deployment"] = Result(
+                    name="serving/minimal-example-shadow-deployment",
+                    status="SKIP",
+                    error="opt-in: pass --include-shadow to run this example",
+                )
 
             # mnist-vae: opt-in (requires pytorch_lightning, not in all images)
             if include_pytorch:
@@ -862,7 +922,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--include-keda",
         action="store_true",
-        help="Include GPU-dependent KEDA autoscaling example (opt-in)",
+        help="Include KEDA autoscaling example (opt-in; requires KEDA installed in the cluster)",
+    )
+    parser.add_argument(
+        "--include-shadow",
+        action="store_true",
+        help=(
+            "Include minimal-example-shadow-deployment (opt-in; "
+            "requires CrunchyData postgres-operator; Istio VirtualService not tested)"
+        ),
     )
     parser.add_argument(
         "--include-pytorch",
@@ -878,6 +946,7 @@ if __name__ == "__main__":
         timeout_notebook=args.timeout_notebook,
         timeout_pipeline=args.timeout_pipeline,
         include_keda=args.include_keda,
+        include_shadow=args.include_shadow,
         include_pytorch=args.include_pytorch,
         dry_run=args.dry_run,
     )
