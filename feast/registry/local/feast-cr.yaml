@@ -6,8 +6,7 @@
 #   - A ConfigMap (feast-<name>-client) with client connection info
 #
 # The registry PVC is provisioned but the notebook talks to it directly
-# via a local SQLite SQL file (not through the gRPC server). No Istio
-# workaround is needed.
+# via a local SQLite SQL file (not through the gRPC server).
 #
 # Prerequisites:
 #   - feast-redis-config secret must exist in your namespace (see README)

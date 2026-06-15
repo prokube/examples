@@ -12,7 +12,7 @@ online_store:
     connection_string: "<redis-host>:6379,password=<password>"
 registry:
     registry_type: remote
-    path: grpc://feast-my-store-registry-grpc.<namespace>.svc.cluster.local:80
+    path: grpc://feast-my-store-registry.<namespace>.svc.cluster.local:6570
 auth:
     type: no_auth
 entity_key_serialization_version: 3

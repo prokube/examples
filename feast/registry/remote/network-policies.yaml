@@ -1,0 +1,57 @@
+# NetworkPolicies for Feast registry and online store isolation.
+#
+# These policies restrict registry and Redis access to pods within the same
+# namespace, providing defense-in-depth alongside Istio AuthorizationPolicies.
+# NetworkPolicies operate at the CNI layer and enforce isolation regardless of
+# sidecar configuration.
+#
+# Usage
+# -----
+# Replace <name> with your FeatureStore CR name and <namespace> with your
+# Kubeflow profile namespace, then apply:
+#
+#   sed 's/<name>/my-store/g; s/<namespace>/my-namespace/g' \
+#     network-policies.yaml | kubectl apply -f -
+#
+# ---------------------------------------------------------------------------
+
+# Feast registry server: allow ingress on port 6570 only from pods in the
+# same namespace. Pods in other namespaces — including other Feast instances
+# — are blocked at the CNI layer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: feast-<name>-registry-ingress
+  namespace: <namespace>
+spec:
+  podSelector:
+    matchLabels:
+      app: feast-<name>   # label applied by the Feast operator to the server pod
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}  # any pod in the same namespace
+      ports:
+        - port: 6570
+          protocol: TCP
+---
+# Redis online store: allow ingress on port 6379 only from pods in the
+# same namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-feast-ingress
+  namespace: <namespace>
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-feast    # label applied by the OpsTree Redis operator (app: <cr-name>)
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}  # any pod in the same namespace
+      ports:
+        - port: 6379
+          protocol: TCP
