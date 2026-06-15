@@ -378,7 +378,7 @@ def _submit_chain(
     executor: ThreadPoolExecutor,
     results: dict[str, Result],
     name: str,
-    steps: list[tuple[str, Path, dict]],
+    steps: list[tuple[str, Path | None, dict]],
     output_dir: Path,
     timeout: int,
 ) -> Future:
@@ -403,6 +403,14 @@ def _submit_chain(
                         path, timeout, extra_args=kwargs.get("extra_args")
                     )
                     result.kfp_run_ids.extend(_extract_run_ids_from_stdout(stdout))
+                elif kind == "pip":
+                    r = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-q"]
+                        + kwargs.get("packages", []),
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
             result.status = "PASS"
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
@@ -630,6 +638,8 @@ def run_all(
                     results,
                     "notebooks/mnist-vae",
                     steps=[
+                        # install pytorch-lightning if not already present in the image
+                        ("pip", None, {"packages": ["pytorch-lightning"]}),
                         (
                             "script",
                             root / "notebooks/mnist-vae/run_training.py",
