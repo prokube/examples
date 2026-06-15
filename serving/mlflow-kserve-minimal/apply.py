@@ -36,6 +36,7 @@ import sys
 
 _ISVC_NAME = "mobile-price-svm"
 _YAML_TEMPLATE = os.path.join(os.path.dirname(__file__), "InferenceService.yaml")
+_SA_YAML_TEMPLATE = os.path.join(os.path.dirname(__file__), "ServiceAccount.yaml")
 
 
 def _namespace() -> str:
@@ -124,9 +125,15 @@ def _isvc_url(name: str, namespace: str) -> str:
 
 
 def deploy(timeout: int = 600) -> str:
-    """Apply InferenceService.yaml, wait for readiness, return the external URL."""
+    """Apply ServiceAccount.yaml and InferenceService.yaml, wait for readiness, return the external URL."""
     ns = _namespace()
     username = _mlflow_username(ns)
+
+    with open(_SA_YAML_TEMPLATE) as fh:
+        sa_manifest = fh.read().replace("<workspace-name>", ns)
+
+    _kubectl_apply(sa_manifest, ns)
+    print(f"Applied ServiceAccount 'mlflow-isvc-sa' in namespace '{ns}'.")
 
     with open(_YAML_TEMPLATE) as fh:
         manifest = fh.read()

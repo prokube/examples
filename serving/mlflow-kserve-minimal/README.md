@@ -12,9 +12,58 @@ InferenceService using the v2 inference protocol. It uses the built-in
 - `kubectl` access to your prokube namespace. (already installed in a pk-notebook)
 - Python with the `requests` package installed (for testing, already installed in a pk-notebook)
 
+## Why a dedicated ServiceAccount is required
+
+> [!IMPORTANT]
+> MLflow ISVCs **must** use the dedicated `mlflow-isvc-sa` ServiceAccount
+> defined in `ServiceAccount.yaml`. Do not use the namespace `default` SA.
+
+### Root cause: KServe S3 credential injection conflict
+
+KServe v0.18.0 automatically injects S3 credentials into the
+`storage-initializer` init container for every ISVC whose ServiceAccount
+references a secret annotated as an S3 credential source (e.g. the
+`s3creds` secret present in every prokube namespace).
+
+The injection produces two kinds of env entries for the same variable names
+(`S3_ENDPOINT`, `AWS_ENDPOINT_URL`, `S3_USE_HTTPS`, etc.):
+
+| Source | Env form |
+|---|---|
+| Secret annotations (`serving.kserve.io/s3-endpoint`, `s3-usehttps`, …) | `value: <literal>` |
+| Secret keys (mounted via `valueFrom.secretKeyRef`) | `valueFrom: {secretKeyRef: …}` |
+
+Kubernetes rejects a container spec that sets **both** `value` and
+`valueFrom` on the same env var. The admission webhook blocks the pod, the
+storage-initializer never runs, and the ISVC times out with
+`timed out waiting for condition`.
+
+This only affects `mlflow://` ISVCs: S3-backed ISVCs (`s3://`) rely on
+exactly that injection and work correctly with the `default` SA.
+
+### The fix
+
+`ServiceAccount.yaml` defines `mlflow-isvc-sa`, a dedicated SA that:
+
+- Holds the `regcred-prokube` and `regcred-dev` imagePullSecrets so that
+  the private prokube storage-initializer image can be pulled.
+- Does **not** reference `s3creds`, so KServe skips S3 credential injection
+  entirely for any ISVC that uses it.
+
+Both `InferenceService.yaml` and `apply.py` already reference this SA.
+
 ## Deploy the InferenceService
 
-1. Open `InferenceService.yaml` and replace the placeholder values:
+1. Open `ServiceAccount.yaml` and replace `<workspace-name>` with your
+   Kubeflow namespace, then apply it:
+
+   ```sh
+   kubectl apply -f ServiceAccount.yaml -n <your-namespace>
+   ```
+
+   You only need to do this once per namespace.
+
+2. Open `InferenceService.yaml` and replace the placeholder values:
 
    | Placeholder | Description |
    |---|---|
@@ -32,16 +81,18 @@ InferenceService using the v2 inference protocol. It uses the built-in
    > You need to the a MLFlow ClusterStorageContainer in order to use the
    > `mlflow://` scheme (prokube platform versions >= 1.7.0)
 
-2. Apply the manifest:
+3. Apply the manifest:
    ```sh
    kubectl apply -f InferenceService.yaml -n <your-namespace>
    ```
 
-3. Wait for the InferenceService to become ready. You can check the status in
+4. Wait for the InferenceService to become ready. You can check the status in
    the Kubeflow Endpoints UI or via:
    ```sh
    kubectl get inferenceservice -n <your-namespace>
    ```
+
+Alternatively, `apply.py` handles steps 1–4 automatically (see below).
 
 ## Test the Deployment
 
