@@ -18,12 +18,19 @@ if os.path.isdir(_conda_lib) and _conda_lib not in _ld.split(":"):
         {**os.environ, "LD_LIBRARY_PATH": f"{_conda_lib}:{_ld}"},
     )
 
-# pytorch-lightning is not bundled in all notebook images — install if absent
+# pytorch-lightning and torchvision are not bundled in all notebook images
+_missing = []
 try:
     import pytorch_lightning  # noqa: F401
 except ImportError:
+    _missing.append("pytorch-lightning")
+try:
+    import torchvision  # noqa: F401
+except ImportError:
+    _missing.append("torchvision")
+if _missing:
     subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", "pytorch-lightning"],
+        [sys.executable, "-m", "pip", "install", "-q"] + _missing,
         check=True,
     )
 
