@@ -1,9 +1,9 @@
 """
-Deploy the mlflow-kserve-minimal InferenceService.
+Deploy the mlflow-kserve-minimal InferenceService and run an inference test.
 
 Substitutes ``<workspace-name>`` and ``<your-user>`` in InferenceService.yaml
-from the cluster environment, applies it, waits for readiness, and prints the
-external URL so it can be used by ``test_inference_service.py``.
+from the cluster environment, applies it, waits for readiness, runs a smoke
+test via ``test_inference_service.py``, and prints the external URL.
 
 Usage from a notebook
 ---------------------
@@ -17,7 +17,7 @@ Usage from a notebook
 CLI usage
 ---------
     python apply.py
-    # prints ISVC_URI=<url> to stdout
+    # prints ISVC_URI=<url> and runs inference smoke test
 
 Prerequisites
 -------------
@@ -142,9 +142,45 @@ def deploy(timeout: int = 600) -> str:
     return url
 
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_TEST_SCRIPT = os.path.join(_HERE, "test_inference_service.py")
+_TEST_JSON = os.path.join(_HERE, "v2-mlflow-inference-body.json")
+
+
+def test(uri: str) -> None:
+    """Run the inference smoke test against the deployed ISVC."""
+    # Get / create the API key
+    _root = subprocess.check_output(
+        ["git", "rev-parse", "--show-toplevel"], text=True
+    ).strip()
+    sys.path.insert(0, os.path.join(_root, "scripts"))
+    from get_or_create_api_key import get_or_create_api_key  # noqa: PLC0415
+
+    api_key = get_or_create_api_key()
+
+    print(f"Running inference smoke test against {uri} ...")
+    result = subprocess.run(
+        [sys.executable, _TEST_SCRIPT, "--json", _TEST_JSON, "--model", _ISVC_NAME],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "API_KEY": api_key, "INFERENCE_SERVICE_URI": uri},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Inference test failed:\n{result.stdout}\n{result.stderr}")
+    print("Inference test passed.")
+    print(result.stdout.strip())
+
+
+def deploy_and_test(timeout: int = 600) -> str:
+    """Deploy the ISVC, wait for readiness, run smoke test, return the URL."""
+    uri = deploy(timeout=timeout)
+    test(uri)
+    return uri
+
+
 if __name__ == "__main__":
     try:
-        deploy()
+        deploy_and_test()
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)

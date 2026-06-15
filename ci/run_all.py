@@ -172,17 +172,21 @@ def _run_notebook(nb_path: Path, output_dir: Path, timeout: int) -> Path:
     return output_path
 
 
-def _run_script(script_path: Path, timeout: int) -> tuple[str, str]:
+def _run_script(
+    script_path: Path,
+    timeout: int,
+    extra_args: list[str] | None = None,
+) -> tuple[str, str]:
     """Run a plain Python script. Returns (stdout, stderr)."""
+    cmd = [sys.executable, str(script_path)] + (extra_args or [])
     result = subprocess.run(
-        [sys.executable, str(script_path)],
+        cmd,
         capture_output=True,
         text=True,
         timeout=timeout,
         cwd=str(script_path.parent),
     )
     if result.returncode != 0:
-        # Include both stderr and stdout for full context
         detail = (result.stderr or result.stdout or "(no output)").strip()
         raise RuntimeError(detail)
     return result.stdout, result.stderr
@@ -349,6 +353,7 @@ def _submit_script(
     name: str,
     script_path: Path,
     timeout: int,
+    extra_args: list[str] | None = None,
 ) -> Future:
     result = Result(name=name)
     results[name] = result
@@ -357,9 +362,48 @@ def _submit_script(
     def _run():
         t0 = time.time()
         try:
-            stdout, _ = _run_script(script_path, timeout)
+            stdout, _ = _run_script(script_path, timeout, extra_args=extra_args)
             result.status = "PASS"
             result.kfp_run_ids = _extract_run_ids_from_stdout(stdout)
+        except Exception as exc:  # noqa: BLE001
+            result.status = "FAIL"
+            result.error = str(exc)
+        finally:
+            result.duration = time.time() - t0
+
+    return executor.submit(_run)
+
+
+def _submit_chain(
+    executor: ThreadPoolExecutor,
+    results: dict[str, Result],
+    name: str,
+    steps: list[tuple[str, Path, dict]],
+    output_dir: Path,
+    timeout: int,
+) -> Future:
+    """Submit a sequential chain of (kind, path, kwargs) steps as a single named result.
+
+    kind is 'notebook' or 'script'.  kwargs may include 'extra_args' for scripts.
+    All steps run in one thread; the first failure stops the chain.
+    """
+    result = Result(name=name)
+    results[name] = result
+    print(f"  [START  ] {name}")
+
+    def _run():
+        t0 = time.time()
+        try:
+            for kind, path, kwargs in steps:
+                if kind == "notebook":
+                    out = _run_notebook(path, output_dir, timeout)
+                    result.kfp_run_ids.extend(_extract_run_ids_from_notebook(out))
+                elif kind == "script":
+                    stdout, _ = _run_script(
+                        path, timeout, extra_args=kwargs.get("extra_args")
+                    )
+                    result.kfp_run_ids.extend(_extract_run_ids_from_stdout(stdout))
+            result.status = "PASS"
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
             result.error = str(exc)
@@ -558,6 +602,10 @@ def run_all(
             phase1_futures = {}
             for name, rel in [
                 ("notebooks/dask", "notebooks/dask/dask_example.ipynb"),
+                (
+                    "notebooks/mobile-price-classification",
+                    "notebooks/mobile-price-classification/mobile-price-classifications.ipynb",
+                ),
                 ("mlflow/mlflow-quickstart", "mlflow/mlflow-quickstart-example.ipynb"),
                 ("mlflow/mlflow-image-example", "mlflow/mlflow-image-example.ipynb"),
                 ("mlflow/mlflow-kfp-example", "mlflow/mlflow-kfp-example.ipynb"),
@@ -573,6 +621,24 @@ def run_all(
                     executor, results, name, root / rel, output_dir, timeout_notebook
                 )
                 phase1_futures[name] = f
+
+            # mnist-vae: training script (reduced epochs) → visualization notebook
+            # run as a sequential chain in a single thread, parallel to other Phase 1
+            phase1_futures["notebooks/mnist-vae"] = _submit_chain(
+                executor,
+                results,
+                "notebooks/mnist-vae",
+                steps=[
+                    (
+                        "script",
+                        root / "notebooks/mnist-vae/run_training.py",
+                        {"extra_args": ["--max_epochs", "3"]},
+                    ),
+                    ("notebook", root / "notebooks/mnist-vae/visualizations.ipynb", {}),
+                ],
+                output_dir=output_dir,
+                timeout=timeout_notebook,
+            )
 
             # wait for all phase 1, printing results as each finishes
             _future_to_name = {v: k for k, v in phase1_futures.items()}
@@ -608,6 +674,18 @@ def run_all(
                 timeout_notebook,
             )
             phase2_futures["pipelines/lightweight-python-package"] = lpp_future
+
+            mcc_future = _submit_script(
+                executor,
+                results,
+                "pipelines/minimal-container-components",
+                root
+                / "pipelines"
+                / "minimal-container-components"
+                / "submit-cluster.py",
+                timeout_notebook,
+            )
+            phase2_futures["pipelines/minimal-container-components"] = mcc_future
 
             # Wait for mlflow-mobile-price notebook; then poll its KFP run
             # inline before Phase 3 — the ISVC needs the registered model.
@@ -658,26 +736,29 @@ def run_all(
                 phase3_futures = {}
             else:
                 phase3_futures = {}
-                for name, rel in [
-                    (
-                        "serving/mlflow-kserve-minimal",
-                        "serving/mlflow-kserve-minimal/apply.py",
-                    ),
-                    (
+
+                # mlflow-kserve-minimal: deploy then immediately smoke-test
+                # deploy_and_test() in apply.py handles both steps
+                phase3_futures["serving/mlflow-kserve-minimal"] = _submit_script(
+                    executor,
+                    results,
+                    "serving/mlflow-kserve-minimal",
+                    root / "serving" / "mlflow-kserve-minimal" / "apply.py",
+                    timeout_notebook,
+                )
+
+                # inference-protocols notebook handles its own deploy + test
+                phase3_futures["serving/mlflow-kserve-inference-protocols"] = (
+                    _submit_notebook(
+                        executor,
+                        results,
                         "serving/mlflow-kserve-inference-protocols",
-                        "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
-                    ),
-                ]:
-                    path = root / rel
-                    if path.suffix == ".ipynb":
-                        f = _submit_notebook(
-                            executor, results, name, path, output_dir, timeout_notebook
-                        )
-                    else:
-                        f = _submit_script(
-                            executor, results, name, path, timeout_notebook
-                        )
-                    phase3_futures[name] = f
+                        root
+                        / "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
+                        output_dir,
+                        timeout_notebook,
+                    )
+                )
 
             # Phase 2 remaining + phase 3 run concurrently; print as each finishes
             print("\nPhase 2 (remaining) + Phase 3 running concurrently...")
