@@ -555,6 +555,7 @@ def run_all(
     timeout_notebook: int = 1800,
     timeout_pipeline: int = 3600,
     include_keda: bool = False,
+    include_pytorch: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Result]:
     root = _REPO_ROOT
@@ -622,23 +623,31 @@ def run_all(
                 )
                 phase1_futures[name] = f
 
-            # mnist-vae: training script (reduced epochs) → visualization notebook
-            # run as a sequential chain in a single thread, parallel to other Phase 1
-            phase1_futures["notebooks/mnist-vae"] = _submit_chain(
-                executor,
-                results,
-                "notebooks/mnist-vae",
-                steps=[
-                    (
-                        "script",
-                        root / "notebooks/mnist-vae/run_training.py",
-                        {"extra_args": ["--max_epochs", "3"]},
-                    ),
-                    ("notebook", root / "notebooks/mnist-vae/visualizations.ipynb", {}),
-                ],
-                output_dir=output_dir,
-                timeout=timeout_notebook,
-            )
+            # mnist-vae: opt-in (requires pytorch_lightning, not in all images)
+            if include_pytorch:
+                phase1_futures["notebooks/mnist-vae"] = _submit_chain(
+                    executor,
+                    results,
+                    "notebooks/mnist-vae",
+                    steps=[
+                        (
+                            "script",
+                            root / "notebooks/mnist-vae/run_training.py",
+                            {"extra_args": ["--max_epochs", "3"]},
+                        ),
+                        (
+                            "notebook",
+                            root / "notebooks/mnist-vae/visualizations.ipynb",
+                            {},
+                        ),
+                    ],
+                    output_dir=output_dir,
+                    timeout=timeout_notebook,
+                )
+            else:
+                print(
+                    "  [SKIP  ] notebooks/mnist-vae  (pass --include-pytorch to enable)"
+                )
 
             # wait for all phase 1, printing results as each finishes
             _future_to_name = {v: k for k, v in phase1_futures.items()}
@@ -841,6 +850,11 @@ if __name__ == "__main__":
         help="Include GPU-dependent KEDA autoscaling example (opt-in)",
     )
     parser.add_argument(
+        "--include-pytorch",
+        action="store_true",
+        help="Include pytorch_lightning examples (opt-in; requires pytorch in the notebook image)",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="Print plan without executing anything"
     )
     args = parser.parse_args()
@@ -849,6 +863,7 @@ if __name__ == "__main__":
         timeout_notebook=args.timeout_notebook,
         timeout_pipeline=args.timeout_pipeline,
         include_keda=args.include_keda,
+        include_pytorch=args.include_pytorch,
         dry_run=args.dry_run,
     )
 
