@@ -18,7 +18,7 @@ if os.path.isdir(_conda_lib) and _conda_lib not in _ld.split(":"):
         {**os.environ, "LD_LIBRARY_PATH": f"{_conda_lib}:{_ld}"},
     )
 
-# pytorch-lightning and torchvision are not bundled in all notebook images
+# pytorch-lightning, torchvision, and tensorboard are not bundled in all notebook images
 _missing = []
 try:
     import pytorch_lightning  # noqa: F401
@@ -28,6 +28,10 @@ try:
     import torchvision  # noqa: F401
 except ImportError:
     _missing.append("torchvision")
+try:
+    import tensorboard  # noqa: F401
+except ImportError:
+    _missing.append("tensorboard")
 if _missing:
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "-q"] + _missing,
