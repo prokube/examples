@@ -9,7 +9,6 @@ apiVersion: redis.redis.opstreelabs.in/v1beta2
 kind: Redis
 metadata:
   name: redis-feast
-  namespace: <your-namespace>  # <-- change this
 spec:
   kubernetesConfig:
     image: quay.io/opstree/redis:v7.0.15

@@ -22,6 +22,19 @@ the namespace.
 | Shared across clients | Yes | No |
 | Setup complexity | Higher | Low |
 
+## Network policies
+
+`network-policies.yaml` restricts access to the registry and Redis to pods
+within the same namespace. This is defense-in-depth alongside the
+namespace-isolation AuthorizationPolicy that the Kubeflow profile controller
+creates — NetworkPolicies are enforced at the CNI layer independently of the
+Istio mesh.
+
+| Policy | Protects | Port |
+|--------|----------|------|
+| `feast-my-store-registry-ingress` | Feast registry gRPC server | 6570 |
+| `redis-feast-ingress` | Redis online store | 6379 |
+
 ## Setup
 
 Follow the top-level README through the Redis and `feast-redis-config` steps,
@@ -30,7 +43,10 @@ then:
 ```bash
 # 1. Deploy the FeatureStore CR
 kubectl apply -f registry/remote/feast-cr.yaml
-kubectl get featurestore -n <your-namespace> -w   # wait until Ready
+kubectl get featurestore -w   # wait until Ready
+
+# 2. Apply the network policies
+kubectl apply -f registry/remote/network-policies.yaml
 ```
 
 Then open the notebook and select **Remote** when prompted.

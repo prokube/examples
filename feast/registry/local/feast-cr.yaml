@@ -14,7 +14,6 @@ apiVersion: feast.dev/v1
 kind: FeatureStore
 metadata:
   name: my-store
-  namespace: <your-namespace>  # <-- change this
 spec:
   feastProject: retail_features
   services:
