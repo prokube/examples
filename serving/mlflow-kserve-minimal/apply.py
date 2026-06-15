@@ -64,7 +64,11 @@ def _mlflow_username(namespace: str) -> str:
             "Run scripts/setup_mlflow_credentials.py to create it."
         )
     data = json.loads(result.stdout)["data"]
-    return base64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode()
+    full = base64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode()
+    # Pipeline registers models as "mobile-price-svm-{local_user}" where
+    # local_user = MLFLOW_TRACKING_USERNAME.split('@')[0], e.g.
+    # "developer1@prokube.cloud" → "developer1"
+    return full.split("@")[0]
 
 
 def _kubectl_apply(manifest: str, namespace: str) -> None:
