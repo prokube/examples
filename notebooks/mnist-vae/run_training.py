@@ -1,5 +1,22 @@
+import os
 import subprocess
 import sys
+
+# Re-exec with conda's libstdc++ prepended to LD_LIBRARY_PATH when needed.
+# scipy 1.17+ requires CXXABI_1.3.15 which the system libstdc++ may lack; the
+# conda-bundled libstdc++ provides it. LD_LIBRARY_PATH must be set before the
+# process starts (the dynamic linker reads it once), so we re-exec if the
+# conda lib dir is not already in the path.
+_conda_lib = os.path.normpath(
+    os.path.join(os.path.dirname(sys.executable), "..", "lib")
+)
+_ld = os.environ.get("LD_LIBRARY_PATH", "")
+if os.path.isdir(_conda_lib) and _conda_lib not in _ld.split(":"):
+    os.execvpe(
+        sys.executable,
+        [sys.executable] + sys.argv,
+        {**os.environ, "LD_LIBRARY_PATH": f"{_conda_lib}:{_ld}"},
+    )
 
 # pytorch-lightning is not bundled in all notebook images — install if absent
 try:
@@ -25,13 +42,15 @@ import torch
 @click.option(
     "--latent_dim", default=2, type=int, help="Dimension of the latent space."
 )
-def run(hidden_dim: int, latent_dim: int) -> None:
+@click.option("--max_epochs", default=50, type=int, help="Number of training epochs.")
+def run(hidden_dim: int, latent_dim: int, max_epochs: int) -> None:
     """
     Train a VAE model on the MNIST dataset using PyTorch Lightning.
 
     Args:
         hidden_dim (int): Dimension of the hidden layer.
         latent_dim (int): Dimension of the latent space.
+        max_epochs (int): Number of training epochs.
     """
 
     # Initialize data module
@@ -50,7 +69,7 @@ def run(hidden_dim: int, latent_dim: int) -> None:
 
     # Initialize trainer
     trainer = pl.Trainer(
-        max_epochs=50,
+        max_epochs=max_epochs,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=1,
         logger=logger,
