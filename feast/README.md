@@ -7,72 +7,30 @@ feature management in ML workflows.
 return their next order. The notebook walks through defining customer features,
 training a return-risk model, and serving predictions in real time.
 
-## Prerequisites
-
-- Feast must be enabled on your cluster (ask your admin)
-- You have `kubectl` access to your Kubeflow profile namespace
-
 ## Quick Start
 
-### 1. Deploy a Redis instance
+1. Feast must be enabled on your cluster (ask your admin)
+2. Clone this repository to your notebook server
+3. Open `feast_example.ipynb` from the `feast/` directory and run all cells
 
-```bash
-kubectl create secret generic redis-feast \
-  --from-literal=password=$(openssl rand -base64 24 | tr -d '/')
+The notebook's **Infrastructure setup** cell handles everything automatically:
+Redis, secrets, FeatureStore CR, and (for remote mode) NetworkPolicies.
 
-kubectl apply -f redis-cr.yaml   # edit namespace first
-kubectl get redis -n <your-namespace> -w
-```
+## Registry modes
 
-### 2. Create the Feast Redis secret
-
-```bash
-NAMESPACE=<your-namespace>
-PASSWORD=$(kubectl get secret redis-feast \
-  -o jsonpath='{.data.password}' | base64 -d)
-
-cat > /tmp/redis-config.yaml << EOF
-connection_string: "redis-feast.${NAMESPACE}.svc.cluster.local:6379,password=${PASSWORD}"
-EOF
-
-kubectl create secret generic feast-redis-config \
-  --from-file=redis=/tmp/redis-config.yaml
-
-rm /tmp/redis-config.yaml
-```
-
-### 3. Choose a registry mode and deploy the FeatureStore
-
-There are two registry modes. **Pick one:**
+There are two registry modes. Select one in the notebook when prompted:
 
 | | Local | Remote |
 |---|---|---|
-| **Registry** | SQLite SQL on `/tmp` (ephemeral) or PVC (persistent) | gRPC server on operator PVC (persistent, shared) |
+| **Registry** | SQLite SQL on `/tmp` (ephemeral) | gRPC server on operator PVC (persistent, shared) |
 | **Good for** | Single user, quick iteration | Teams sharing definitions across clients |
-
-**Local:**
-```bash
-kubectl apply -f registry/local/feast-cr.yaml   # edit namespace first
-kubectl get featurestore -n <your-namespace> -w
-```
-
-**Remote:**
-```bash
-kubectl apply -f registry/remote/feast-cr.yaml   # edit namespace first
-kubectl get featurestore -n <your-namespace> -w
-```
-
-### 4. Run the notebook
-
-Open `feast_example.ipynb`. The first cell will ask which registry mode you
-chose — select it there and run all cells.
 
 ## Files
 
 ```
 feast/
   feast_example.ipynb              End-to-end notebook (works with both modes)
-  redis-cr.yaml                    Deploys a Redis instance (OpsTree operator)
+  redis-cr.yaml                    Redis instance CR (OpsTree operator)
   registry/
     local/
       feast-cr.yaml                FeatureStore CR — local SQLite SQL registry
