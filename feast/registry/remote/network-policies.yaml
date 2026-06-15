@@ -5,11 +5,18 @@
 # NetworkPolicies operate at the CNI layer and enforce isolation regardless of
 # sidecar configuration.
 #
+# Note: the namespaceSelector inside each ingress rule is intentional.
+# Calico eBPF mode does not reliably enforce same-namespace restriction when
+# only podSelector: {} is used in the from clause — an explicit
+# namespaceSelector is required to lock access to a specific namespace.
+#
+# The <namespace> placeholder is filled in by the notebook at apply time
+# (it reads the namespace from the pod's service account token).
+#
 # ---------------------------------------------------------------------------
 
 # Feast registry server: allow ingress on port 6570 only from pods in the
-# same namespace. Pods in other namespaces — including other Feast instances
-# — are blocked at the CNI layer.
+# same namespace. Pods in other namespaces are blocked at the CNI layer.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -17,12 +24,15 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: feast-my-store   # label applied by the Feast operator to the server pod
+      feast.dev/name: my-store   # label applied by the Feast operator to the server pod
   policyTypes:
     - Ingress
   ingress:
     - from:
-        - podSelector: {}  # any pod in the same namespace
+        - podSelector: {}
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <namespace>
       ports:
         - port: 6570
           protocol: TCP
@@ -41,7 +51,10 @@ spec:
     - Ingress
   ingress:
     - from:
-        - podSelector: {}  # any pod in the same namespace
+        - podSelector: {}
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <namespace>
       ports:
         - port: 6379
           protocol: TCP
