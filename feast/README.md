@@ -50,8 +50,6 @@ There are two registry modes. **Pick one:**
 | | Local | Remote |
 |---|---|---|
 | **Registry** | SQLite SQL on `/tmp` (ephemeral) or PVC (persistent) | gRPC server on operator PVC (persistent, shared) |
-| **ODFVs** | Work out of the box | Require a monkey-patch (Feast ≤ 0.63 bug) |
-| **Istio workaround** | Not needed | Required until [feast#6367](https://github.com/feast-dev/feast/pull/6367) merges |
 | **Good for** | Single user, quick iteration | Teams sharing definitions across clients |
 
 **Local:**
@@ -64,10 +62,6 @@ kubectl get featurestore -n <your-namespace> -w
 ```bash
 kubectl apply -f registry/remote/feast-cr.yaml   # edit namespace first
 kubectl get featurestore -n <your-namespace> -w
-
-# Apply the Istio workaround (required for remote mode)
-sed 's/<name>/my-store/g; s/<namespace>/<your-namespace>/g' \
-  registry/remote/feast-istio-workaround.yaml | kubectl apply -f -
 ```
 
 ### 4. Run the notebook
@@ -89,8 +83,8 @@ feast/
     remote/
       feast-cr.yaml                FeatureStore CR — remote gRPC registry server
       feature_store.yaml           Feast SDK config template
-      feast-istio-workaround.yaml  Alt-Service + DestinationRule for Istio fix
-      README.md                    Remote mode details and when to retire the workaround
+      network-policies.yaml        CNI-layer NetworkPolicies for isolation
+      README.md                    Remote mode details and trade-offs
 ```
 
 ## Architecture
@@ -119,12 +113,3 @@ Feast has three stores:
   features          │                                      │
                     └──────────────────────────────────────┘
 ```
-
-## Known limitations (remote mode only)
-
-The Feast Operator creates the registry Service with `name: http` and no
-`appProtocol`, causing Istio to misclassify gRPC traffic as HTTP/1.1. The
-three-part workaround in `registry/remote/feast-istio-workaround.yaml`
-addresses this. Once [feast-dev/feast#6367](https://github.com/feast-dev/feast/pull/6367)
-merges and you upgrade the operator, the workaround and the local mode
-fallback both become unnecessary.

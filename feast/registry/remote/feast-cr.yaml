@@ -10,9 +10,6 @@
 # remotely. Definitions persist on the operator-managed PVC across restarts
 # and are shared with every client in the namespace.
 #
-# Requires the Istio workaround in feast-istio-workaround.yaml — see the
-# Known Limitations section in registry/remote/README.md.
-#
 # Prerequisites:
 #   - feast-redis-config secret must exist in your namespace (see top-level README)
 apiVersion: feast.dev/v1
@@ -26,14 +23,6 @@ spec:
     runFeastApplyOnInit: false
     securityContext:
       runAsUser: 0
-    # The operator-generated registry Service has port name "http" and no
-    # appProtocol. This misleads the SERVER-side envoy into classifying port
-    # 6570 as HTTP/1.1. Bypassing server-side envoy interception entirely
-    # (excludeInboundPorts) is the only workaround until the operator sets
-    # appProtocol: grpc on its own Service. See feast-istio-workaround.yaml
-    # for the client-side alt-Service + DestinationRule.
-    podAnnotations:
-      traffic.sidecar.istio.io/excludeInboundPorts: "6570"
     registry:
       local:
         # Expose the registry as a gRPC server so notebooks/clients can read
