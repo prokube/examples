@@ -638,8 +638,7 @@ def run_all(
                     results,
                     "notebooks/mnist-vae",
                     steps=[
-                        # install pytorch-lightning if not already present in the image
-                        ("pip", None, {"packages": ["pytorch-lightning"]}),
+                        # run_training.py self-installs pytorch-lightning if absent
                         (
                             "script",
                             root / "notebooks/mnist-vae/run_training.py",
