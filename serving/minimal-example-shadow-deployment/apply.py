@@ -86,13 +86,30 @@ def _kubectl_apply(manifest: str, namespace: str) -> None:
     print(result.stdout.strip())
 
 
-def _crd_available(crd_name: str) -> bool:
+def _try_apply(manifest: str, namespace: str) -> str | None:
+    """Apply a manifest; return the error string if the resource type is unknown.
+
+    Returns None on success, or a non-empty string if kubectl rejected the
+    manifest because the CRD does not exist in this cluster.  Any other error
+    (permissions, connectivity, …) is raised as RuntimeError so CI marks the
+    example as FAIL rather than silently skipping it.
+    """
     result = subprocess.run(
-        ["kubectl", "get", "crd", crd_name],
-        capture_output=True,
+        ["kubectl", "apply", "-f", "-", "-n", namespace],
+        input=manifest,
         text=True,
+        capture_output=True,
     )
-    return result.returncode == 0
+    if result.returncode == 0:
+        print(result.stdout.strip())
+        return None
+    stderr = result.stderr or result.stdout
+    if (
+        "no matches for kind" in stderr
+        or "the server doesn't have a resource type" in stderr
+    ):
+        return stderr.strip()
+    raise RuntimeError(stderr)
 
 
 def _wait_for_secret(name: str, namespace: str, timeout: int = 300) -> None:
@@ -224,11 +241,17 @@ def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
 
 
 def _smoke_test(namespace: str, timeout: int = 120) -> None:
-    """POST numeric values to the primary (doubler) ISVC and verify predictions."""
+    """POST numeric values to the primary (doubler) ISVC and verify predictions.
+
+    The doubler predictor multiplies each input value by FACTOR=2, so
+    [1.0, 2.0, 3.0] must produce predictions [2.0, 4.0, 6.0].
+    """
     url = (
         f"http://{_DOUBLER_ISVC}.{namespace}.svc.cluster.local/v1/models/model:predict"
     )
-    payload = json.dumps({"values": [1.0, 2.0, 3.0]}).encode()
+    inputs = [1.0, 2.0, 3.0]
+    expected = [2.0, 4.0, 6.0]
+    payload = json.dumps({"values": inputs}).encode()
     deadline = time.time() + timeout
     last_err: Exception | None = None
     while time.time() < deadline:
@@ -241,9 +264,15 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 body = json.loads(resp.read())
-            if "predictions" not in body:
-                raise RuntimeError(f"unexpected response body: {body}")
-            print(f"Smoke test passed: {body}")
+            predictions = body.get("predictions")
+            if predictions is None:
+                raise RuntimeError(f"no 'predictions' key in response: {body}")
+            if predictions != expected:
+                raise RuntimeError(
+                    f"doubler (FACTOR=2) returned wrong predictions: "
+                    f"got {predictions}, expected {expected}"
+                )
+            print(f"Smoke test passed: {inputs} → {predictions} (FACTOR=2 verified)")
             return
         except Exception as exc:
             last_err = exc
@@ -255,19 +284,19 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
 
 
 def deploy(timeout: int = 600) -> None:
-    if not _crd_available("postgresclusters.postgres-operator.crunchydata.com"):
-        print(
-            "SKIP: CrunchyData postgres-operator CRD not found in this cluster.\n"
-            "The shadow deployment example requires the postgres-operator to be installed."
-        )
-        sys.exit(0)
-
     ns = _namespace()
 
-    # 1. Postgres cluster
+    # 1. Postgres cluster — detect operator availability via the apply itself
     with open(os.path.join(_ROOT, "postgres-cluster.yaml")) as fh:
         pg_manifest = fh.read()
-    _kubectl_apply(pg_manifest, ns)
+    skip_reason = _try_apply(pg_manifest, ns)
+    if skip_reason:
+        print(
+            f"SKIP: postgres-operator is not installed in this cluster "
+            f"(kubectl apply returned: {skip_reason}).\n"
+            "The shadow deployment example requires the CrunchyData postgres-operator."
+        )
+        sys.exit(0)
     print(f"Applied PostgresCluster '{_PG_CLUSTER_NAME}' in namespace '{ns}'.")
 
     _wait_pg_primary_ready(ns, timeout=300)
