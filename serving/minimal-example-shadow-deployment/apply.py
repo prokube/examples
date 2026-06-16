@@ -32,7 +32,6 @@ import base64
 import json
 import os
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -81,34 +80,26 @@ def _kubectl_apply(manifest: str, namespace: str) -> None:
         text=True,
         capture_output=True,
     )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr or result.stdout)
-    print(result.stdout.strip())
-
-
-def _try_apply(manifest: str, namespace: str) -> str | None:
-    """Apply a manifest; return the error string if the resource type is unknown.
-
-    Returns None on success, or a non-empty string if kubectl rejected the
-    manifest because the CRD does not exist in this cluster.  Any other error
-    (permissions, connectivity, …) is raised as RuntimeError so CI marks the
-    example as FAIL rather than silently skipping it.
-    """
-    result = subprocess.run(
-        ["kubectl", "apply", "-f", "-", "-n", namespace],
-        input=manifest,
-        text=True,
-        capture_output=True,
-    )
     if result.returncode == 0:
         print(result.stdout.strip())
-        return None
+        return
     stderr = result.stderr or result.stdout
+    # Translate common failure modes into actionable messages
     if (
         "no matches for kind" in stderr
         or "the server doesn't have a resource type" in stderr
     ):
-        return stderr.strip()
+        raise RuntimeError(
+            "postgres-operator is not installed in this cluster. "
+            "The shadow deployment example requires the CrunchyData postgres-operator."
+        )
+    if "Forbidden" in stderr and "postgres-operator.crunchydata.com" in stderr:
+        raise RuntimeError(
+            "The notebook ServiceAccount lacks RBAC permission to manage PostgresCluster "
+            "resources.\n"
+            "Ask your cluster admin to grant get/create/update/patch on "
+            "postgresclusters.postgres-operator.crunchydata.com in this namespace."
+        )
     raise RuntimeError(stderr)
 
 
@@ -286,17 +277,11 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
 def deploy(timeout: int = 600) -> None:
     ns = _namespace()
 
-    # 1. Postgres cluster — detect operator availability via the apply itself
+    # 1. Postgres cluster — _kubectl_apply raises with an actionable message on
+    #    "no matches for kind" (operator not installed) or Forbidden (RBAC missing).
     with open(os.path.join(_ROOT, "postgres-cluster.yaml")) as fh:
         pg_manifest = fh.read()
-    skip_reason = _try_apply(pg_manifest, ns)
-    if skip_reason:
-        print(
-            f"SKIP: postgres-operator is not installed in this cluster "
-            f"(kubectl apply returned: {skip_reason}).\n"
-            "The shadow deployment example requires the CrunchyData postgres-operator."
-        )
-        sys.exit(0)
+    _kubectl_apply(pg_manifest, ns)
     print(f"Applied PostgresCluster '{_PG_CLUSTER_NAME}' in namespace '{ns}'.")
 
     _wait_pg_primary_ready(ns, timeout=300)
