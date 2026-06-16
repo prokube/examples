@@ -32,6 +32,7 @@ import base64
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -314,4 +315,8 @@ def deploy(timeout: int = 600) -> None:
 
 
 if __name__ == "__main__":
-    deploy()
+    try:
+        deploy()
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)

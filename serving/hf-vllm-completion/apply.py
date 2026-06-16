@@ -123,4 +123,8 @@ def deploy(timeout: int = 900) -> None:
 
 
 if __name__ == "__main__":
-    deploy()
+    try:
+        deploy()
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
