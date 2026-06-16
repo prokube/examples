@@ -54,14 +54,11 @@ Both `InferenceService.yaml` and `apply.py` already reference this SA.
 
 ## Deploy the InferenceService
 
-1. Open `ServiceAccount.yaml` and replace `<workspace-name>` with your
-   Kubeflow namespace, then apply it:
+1. Apply the ServiceAccount (once per namespace):
 
    ```sh
-   kubectl apply -f ServiceAccount.yaml -n <your-namespace>
+   kubectl apply -f ServiceAccount.yaml
    ```
-
-   You only need to do this once per namespace.
 
 2. Open `InferenceService.yaml` and replace the placeholder values:
 

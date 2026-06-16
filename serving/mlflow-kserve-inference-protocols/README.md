@@ -64,11 +64,10 @@ reference this SA.
 
 ## Deploy
 
-1. Replace `<workspace-name>` in `ServiceAccount.yaml` with your namespace
-   and apply it (once per namespace):
+1. Apply the ServiceAccount (once per namespace):
 
    ```sh
-   kubectl apply -f ServiceAccount.yaml -n <your-namespace>
+   kubectl apply -f ServiceAccount.yaml
    ```
 
 2. Replace the placeholder values in both ISVC YAMLs:
