@@ -130,7 +130,7 @@ def deploy(timeout: int = 600) -> str:
     username = _mlflow_username(ns)
 
     with open(_SA_YAML_TEMPLATE) as fh:
-        sa_manifest = fh.read().replace("<workspace-name>", ns)
+        sa_manifest = fh.read()
 
     _kubectl_apply(sa_manifest, ns)
     print(f"Applied ServiceAccount 'mlflow-isvc-sa' in namespace '{ns}'.")

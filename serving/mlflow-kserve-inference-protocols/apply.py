@@ -36,6 +36,7 @@ import urllib.request
 
 _HERE = os.path.dirname(__file__)
 
+_SA_YAML = os.path.join(_HERE, "ServiceAccount.yaml")
 _ISVC_NAMES = {
     "v1": "v1-mobile-price-classification-inference",
     "v2": "v2-mobile-price-classification-inference",
@@ -186,6 +187,9 @@ def deploy(timeout: int = 600) -> tuple[str, str, str]:
     """Deploy both ISVCs, wait for readiness, and return (v1_uri, v2_uri, api_key)."""
     ns = _namespace()
     username = _mlflow_username(ns)
+
+    print("Applying ServiceAccount...")
+    _apply_yaml(_SA_YAML, ns, username)
 
     print("Applying InferenceService manifests...")
     for proto, yaml_file in _YAML_FILES.items():
