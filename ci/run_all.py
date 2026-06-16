@@ -276,8 +276,8 @@ _EXAMPLES: list[Example] = [
         name="serving/mlflow-kserve-inference-protocols",
         steps=[
             Step(
-                "notebook",
-                "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
+                "script",
+                "serving/mlflow-kserve-inference-protocols/apply.py",
                 extract_run_ids=False,
             )
         ],
