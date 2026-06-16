@@ -53,6 +53,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 
 # ── Repo root ─────────────────────────────────────────────────────────────────
@@ -320,6 +321,35 @@ def _run_cleanup(cleanup_path: Path) -> None:
 # ── Executor ──────────────────────────────────────────────────────────────────
 
 
+def _timed_run(
+    executor: ThreadPoolExecutor,
+    results: dict[str, Result],
+    name: str,
+    work: Callable[[Result], None],
+) -> Future:
+    """Submit `work(result)` to the executor with shared timing + error handling.
+
+    `work` mutates the Result (e.g. sets kfp_run_ids); status/duration are set
+    here. The first exception is recorded as FAIL.
+    """
+    result = Result(name=name)
+    results[name] = result
+    print(f"  [START  ] {name}")
+
+    def _run():
+        t0 = time.time()
+        try:
+            work(result)
+            result.status = "PASS"
+        except Exception as exc:  # noqa: BLE001
+            result.status = "FAIL"
+            result.error = str(exc)
+        finally:
+            result.duration = time.time() - t0
+
+    return executor.submit(_run)
+
+
 def _submit_notebook(
     executor: ThreadPoolExecutor,
     results: dict[str, Result],
@@ -329,24 +359,12 @@ def _submit_notebook(
     timeout: int,
     extract_run_ids: bool = True,
 ) -> Future:
-    result = Result(name=name)
-    results[name] = result
-    print(f"  [START  ] {name}")
+    def work(result: Result) -> None:
+        out = _run_notebook(nb_path, output_dir, timeout)
+        if extract_run_ids:
+            result.kfp_run_ids = _extract_run_ids_from_notebook(out)
 
-    def _run():
-        t0 = time.time()
-        try:
-            out = _run_notebook(nb_path, output_dir, timeout)
-            result.status = "PASS"
-            if extract_run_ids:
-                result.kfp_run_ids = _extract_run_ids_from_notebook(out)
-        except Exception as exc:  # noqa: BLE001
-            result.status = "FAIL"
-            result.error = str(exc)
-        finally:
-            result.duration = time.time() - t0
-
-    return executor.submit(_run)
+    return _timed_run(executor, results, name, work)
 
 
 def _submit_script(
@@ -357,23 +375,11 @@ def _submit_script(
     timeout: int,
     extra_args: list[str] | None = None,
 ) -> Future:
-    result = Result(name=name)
-    results[name] = result
-    print(f"  [START  ] {name}")
+    def work(result: Result) -> None:
+        stdout, _ = _run_script(script_path, timeout, extra_args=extra_args)
+        result.kfp_run_ids = _extract_run_ids_from_stdout(stdout)
 
-    def _run():
-        t0 = time.time()
-        try:
-            stdout, _ = _run_script(script_path, timeout, extra_args=extra_args)
-            result.status = "PASS"
-            result.kfp_run_ids = _extract_run_ids_from_stdout(stdout)
-        except Exception as exc:  # noqa: BLE001
-            result.status = "FAIL"
-            result.error = str(exc)
-        finally:
-            result.duration = time.time() - t0
-
-    return executor.submit(_run)
+    return _timed_run(executor, results, name, work)
 
 
 def _submit_chain(
@@ -389,38 +395,27 @@ def _submit_chain(
     kind is 'notebook' or 'script'.  kwargs may include 'extra_args' for scripts.
     All steps run in one thread; the first failure stops the chain.
     """
-    result = Result(name=name)
-    results[name] = result
-    print(f"  [START  ] {name}")
 
-    def _run():
-        t0 = time.time()
-        try:
-            for kind, path, kwargs in steps:
-                if kind == "notebook":
-                    out = _run_notebook(path, output_dir, timeout)
-                    result.kfp_run_ids.extend(_extract_run_ids_from_notebook(out))
-                elif kind == "script":
-                    stdout, _ = _run_script(
-                        path, timeout, extra_args=kwargs.get("extra_args")
-                    )
-                    result.kfp_run_ids.extend(_extract_run_ids_from_stdout(stdout))
-                elif kind == "pip":
-                    r = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", "-q"]
-                        + kwargs.get("packages", []),
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    )
-            result.status = "PASS"
-        except Exception as exc:  # noqa: BLE001
-            result.status = "FAIL"
-            result.error = str(exc)
-        finally:
-            result.duration = time.time() - t0
+    def work(result: Result) -> None:
+        for kind, path, kwargs in steps:
+            if kind == "notebook":
+                out = _run_notebook(path, output_dir, timeout)
+                result.kfp_run_ids.extend(_extract_run_ids_from_notebook(out))
+            elif kind == "script":
+                stdout, _ = _run_script(
+                    path, timeout, extra_args=kwargs.get("extra_args")
+                )
+                result.kfp_run_ids.extend(_extract_run_ids_from_stdout(stdout))
+            elif kind == "pip":
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-q"]
+                    + kwargs.get("packages", []),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
 
-    return executor.submit(_run)
+    return _timed_run(executor, results, name, work)
 
 
 # ── Report ────────────────────────────────────────────────────────────────────
@@ -558,6 +553,342 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
         return False, f"Could not reach MLflow at {uri}: {exc}"
 
 
+# ── Orchestration context ─────────────────────────────────────────────────────
+
+
+@dataclass
+class _Context:
+    """Shared mutable state threaded through every phase."""
+
+    executor: ThreadPoolExecutor
+    root: Path
+    output_dir: Path
+    timeout_notebook: int
+    timeout_pipeline: int
+    results: dict[str, Result]
+    poll_results: dict[str, str]
+    poll_errors: dict[str, str]
+
+
+_CLEANUP_RELPATHS = [
+    "notebooks/dask/cleanup.py",
+    "serving/minimal-s3-model/cleanup.py",
+    "serving/mlflow-kserve-minimal/cleanup.py",
+    "serving/mlflow-kserve-inference-protocols/cleanup.py",
+    "serving/hf-vllm-completion/cleanup.py",
+    "serving/kserve-keda-autoscaling/cleanup.py",
+    "serving/minimal-example-shadow-deployment/cleanup.py",
+    "hparam-tuning/minimal-mnist/cleanup.py",
+]
+
+_DRY_RUN_PHASES = [
+    "Phase 1: dask, mlflow-quickstart, mlflow-image, mlflow-kfp, minimal-s3-model, hf-vllm-completion",
+    "Phase 1 (opt-in): kserve-keda-autoscaling (--include-keda), minimal-example-shadow-deployment (--include-shadow)",
+    "Phase 2: mlflow-mobile-price, lightweight-components, lightweight-python-package",
+    "Phase 3: mlflow-kserve-minimal, mlflow-kserve-inference-protocols",
+    "Phase 4: KFP run polling",
+    "Phase 5: cleanup",
+]
+
+
+def _drain(ctx: _Context, futures: dict[str, Future]) -> None:
+    """Wait on a {name: Future} map, printing each result as it completes."""
+    by_future = {v: k for k, v in futures.items()}
+    for f in as_completed(futures.values()):
+        _print_result(ctx.results[by_future[f]])
+
+
+def _skip(ctx: _Context, name: str, reason: str, label: str | None = None) -> None:
+    """Record a SKIP result and print a one-line notice."""
+    print(f"  [SKIP  ] {label or name}")
+    ctx.results[name] = Result(name=name, status="SKIP", error=reason)
+
+
+# ── Pre-flight ────────────────────────────────────────────────────────────────
+
+
+def _preflight(results: dict[str, Result]) -> tuple[bool, str]:
+    """Ensure papermill, then validate MLflow credentials.
+
+    Returns (mlflow_ok, reason). On failure, MLflow-dependent examples are
+    recorded as SKIP in `results`.
+    """
+    _ensure_papermill()
+    print("Pre-flight: checking MLflow credentials...")
+    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
+    if mlflow_ok:
+        print("  [OK] MLflow credentials valid")
+    else:
+        print(f"  [SKIP] {mlflow_reason}")
+        for name in _MLFLOW_DEPENDENT:
+            results[name] = Result(name=name, status="SKIP", error=mlflow_reason)
+    return mlflow_ok, mlflow_reason
+
+
+# ── Phases ──────────────────────────────────────────────────────────────────
+
+
+def _phase1(
+    ctx: _Context,
+    include_keda: bool,
+    include_shadow: bool,
+    include_pytorch: bool,
+) -> None:
+    """Phase 1: independent notebooks + self-contained serving examples."""
+    print("Phase 1: running independent notebooks in parallel...")
+    futures: dict[str, Future] = {}
+    for name, rel in [
+        ("notebooks/dask", "notebooks/dask/dask_example.ipynb"),
+        (
+            "notebooks/mobile-price-classification",
+            "notebooks/mobile-price-classification/mobile-price-classifications.ipynb",
+        ),
+        ("mlflow/mlflow-quickstart", "mlflow/mlflow-quickstart-example.ipynb"),
+        ("mlflow/mlflow-image-example", "mlflow/mlflow-image-example.ipynb"),
+        ("mlflow/mlflow-kfp-example", "mlflow/mlflow-kfp-example.ipynb"),
+        ("serving/minimal-s3-model", "serving/minimal-s3-model/minimal-s3-model.ipynb"),
+    ]:
+        if name in ctx.results:  # already SKIP from pre-flight
+            print(f"  [SKIP  ] {name}")
+            continue
+        futures[name] = _submit_notebook(
+            ctx.executor,
+            ctx.results,
+            name,
+            ctx.root / rel,
+            ctx.output_dir,
+            ctx.timeout_notebook,
+        )
+
+    # hf-vllm-completion (CPU): self-contained, no KFP pipelines
+    futures["serving/hf-vllm-completion"] = _submit_script(
+        ctx.executor,
+        ctx.results,
+        "serving/hf-vllm-completion",
+        ctx.root / "serving" / "hf-vllm-completion" / "apply.py",
+        ctx.timeout_notebook,
+    )
+
+    # kserve-keda-autoscaling: opt-in; apply.py self-checks KEDA CRDs
+    # and exits 0 with a skip message if KEDA is not installed.
+    if include_keda:
+        futures["serving/kserve-keda-autoscaling"] = _submit_script(
+            ctx.executor,
+            ctx.results,
+            "serving/kserve-keda-autoscaling",
+            ctx.root / "serving" / "kserve-keda-autoscaling" / "apply.py",
+            ctx.timeout_notebook,
+        )
+    else:
+        _skip(
+            ctx,
+            "serving/kserve-keda-autoscaling",
+            "opt-in: pass --include-keda to run this example",
+            label="serving/kserve-keda-autoscaling  (pass --include-keda to enable)",
+        )
+
+    # minimal-example-shadow-deployment: opt-in; apply.py self-checks for
+    # the postgres-operator CRD and exits 0 if not found. Istio
+    # VirtualService mirroring is not verified in CI (requires domain config).
+    if include_shadow:
+        futures["serving/minimal-example-shadow-deployment"] = _submit_script(
+            ctx.executor,
+            ctx.results,
+            "serving/minimal-example-shadow-deployment",
+            ctx.root / "serving" / "minimal-example-shadow-deployment" / "apply.py",
+            ctx.timeout_notebook,
+        )
+    else:
+        _skip(
+            ctx,
+            "serving/minimal-example-shadow-deployment",
+            "opt-in: pass --include-shadow to run this example",
+            label="serving/minimal-example-shadow-deployment  (pass --include-shadow to enable)",
+        )
+
+    # mnist-vae: opt-in (requires pytorch_lightning, not in all images)
+    if include_pytorch:
+        futures["notebooks/mnist-vae"] = _submit_chain(
+            ctx.executor,
+            ctx.results,
+            "notebooks/mnist-vae",
+            steps=[
+                # run_training.py self-installs pytorch-lightning if absent
+                (
+                    "script",
+                    ctx.root / "notebooks/mnist-vae/run_training.py",
+                    {"extra_args": ["--max_epochs", "3"]},
+                ),
+                ("notebook", ctx.root / "notebooks/mnist-vae/visualizations.ipynb", {}),
+            ],
+            output_dir=ctx.output_dir,
+            timeout=ctx.timeout_notebook,
+        )
+    else:
+        print("  [SKIP  ] notebooks/mnist-vae  (pass --include-pytorch to enable)")
+
+    _drain(ctx, futures)
+
+
+def _phase2_submit(ctx: _Context) -> dict[str, Future]:
+    """Phase 2: submit pipeline notebooks + scripts (they return fast)."""
+    print("\nPhase 2: submitting pipelines...")
+    futures: dict[str, Future] = {}
+    for name, rel in [
+        (
+            "mlflow/mobile-price-classification",
+            "mlflow/mobile-price-classification/mlflow-mobile-price-classification.ipynb",
+        ),
+        (
+            "pipelines/lightweight-components",
+            "pipelines/lightweight-components/mobile-price-classifications.ipynb",
+        ),
+    ]:
+        if name in ctx.results:  # already SKIP from pre-flight
+            print(f"  [SKIP  ] {name}")
+            continue
+        futures[name] = _submit_notebook(
+            ctx.executor,
+            ctx.results,
+            name,
+            ctx.root / rel,
+            ctx.output_dir,
+            ctx.timeout_notebook,
+        )
+
+    futures["pipelines/lightweight-python-package"] = _submit_script(
+        ctx.executor,
+        ctx.results,
+        "pipelines/lightweight-python-package",
+        ctx.root / "pipelines" / "lightweight-python-package" / "submit-cluster.py",
+        ctx.timeout_notebook,
+    )
+    futures["pipelines/minimal-container-components"] = _submit_script(
+        ctx.executor,
+        ctx.results,
+        "pipelines/minimal-container-components",
+        ctx.root / "pipelines" / "minimal-container-components" / "submit-cluster.py",
+        ctx.timeout_notebook,
+    )
+    return futures
+
+
+def _await_mobile_price(ctx: _Context, phase2_futures: dict[str, Future]) -> bool:
+    """Wait for the mlflow-mobile-price notebook and poll its KFP run inline.
+
+    Phase 3 ISVCs need the registered model, so this must complete before
+    Phase 3 starts. Returns True if the model is registered and ready.
+    """
+    name = "mlflow/mobile-price-classification"
+    skipped = name not in phase2_futures
+    if skipped:
+        return False
+
+    phase2_futures[name].result()
+    _print_result(ctx.results[name])
+    if ctx.results[name].status != "PASS":
+        return False
+
+    run_ids = ctx.results[name].kfp_run_ids
+    if not run_ids:
+        return True
+
+    print(
+        "  Polling mlflow-mobile-price KFP pipeline (model must be registered before ISVCs)..."
+    )
+    ok = True
+    for run_id in run_ids:
+        state, err = _poll_kfp_run(run_id, ctx.timeout_pipeline)
+        ctx.poll_results[run_id] = state  # recorded here; Phase 4 will skip it
+        ctx.poll_errors[run_id] = err
+        print(f"    [{state}] {run_id[:8]}...")
+        if state.upper() != "SUCCEEDED":
+            ok = False
+    return ok
+
+
+def _phase3_submit(
+    ctx: _Context, mobile_price_ok: bool, mobile_price_skipped: bool
+) -> dict[str, Future]:
+    """Phase 3: deploy MLflow KServe InferenceServices (need registered model)."""
+    print("\nPhase 3: deploying MLflow KServe InferenceServices...")
+    isvc_names = (
+        "serving/mlflow-kserve-minimal",
+        "serving/mlflow-kserve-inference-protocols",
+    )
+    if not mobile_price_ok:
+        reason = (
+            "prerequisite mlflow/mobile-price-classification skipped (MLflow credentials)"
+            if mobile_price_skipped
+            else "prerequisite mlflow/mobile-price-classification notebook or KFP pipeline did not succeed"
+        )
+        print(f"  [SKIP] {reason}")
+        for name in isvc_names:
+            ctx.results[name] = Result(name=name, status="SKIP", error=reason)
+        return {}
+
+    futures: dict[str, Future] = {}
+    # mlflow-kserve-minimal: deploy then immediately smoke-test
+    # deploy_and_test() in apply.py handles both steps
+    futures["serving/mlflow-kserve-minimal"] = _submit_script(
+        ctx.executor,
+        ctx.results,
+        "serving/mlflow-kserve-minimal",
+        ctx.root / "serving" / "mlflow-kserve-minimal" / "apply.py",
+        ctx.timeout_notebook,
+    )
+    # inference-protocols notebook handles its own deploy + test.
+    # extract_run_ids=False: this notebook is not a pipeline submission;
+    # its output contains ISVC/request UUIDs that must not be polled
+    # as KFP run IDs (they return 404 from the KFP API).
+    futures["serving/mlflow-kserve-inference-protocols"] = _submit_notebook(
+        ctx.executor,
+        ctx.results,
+        "serving/mlflow-kserve-inference-protocols",
+        ctx.root
+        / "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
+        ctx.output_dir,
+        ctx.timeout_notebook,
+        extract_run_ids=False,
+    )
+    return futures
+
+
+def _phase4_poll(ctx: _Context) -> None:
+    """Phase 4: poll all KFP run IDs not already polled inline before Phase 3."""
+    all_run_ids = [
+        rid
+        for r in ctx.results.values()
+        for rid in r.kfp_run_ids
+        if rid not in ctx.poll_results
+    ]
+    if not all_run_ids:
+        print("\nPhase 4: no KFP run IDs found, skipping poll.")
+        return
+
+    print(f"\nPhase 4: polling {len(all_run_ids)} KFP run(s)...")
+    poll_futures = {
+        run_id: ctx.executor.submit(_poll_kfp_run, run_id, ctx.timeout_pipeline)
+        for run_id in all_run_ids
+    }
+    for run_id, f in poll_futures.items():
+        try:
+            ctx.poll_results[run_id], ctx.poll_errors[run_id] = f.result()
+        except Exception as exc:  # noqa: BLE001
+            ctx.poll_results[run_id] = f"POLL_ERROR: {exc}"
+            ctx.poll_errors[run_id] = ""
+        print(f"  [{ctx.poll_results[run_id]}] {run_id[:8]}...")
+
+
+def _phase5_cleanup(cleanup_scripts: list[Path]) -> None:
+    """Phase 5: run all cleanup scripts in parallel (always, even on failure)."""
+    print("\nPhase 5: running cleanup scripts...")
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futs = [ex.submit(_run_cleanup, p) for p in cleanup_scripts if p.exists()]
+        for f in as_completed(futs):
+            f.result()  # already swallows exceptions inside _run_cleanup
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 
@@ -570,327 +901,55 @@ def run_all(
     dry_run: bool = False,
 ) -> dict[str, Result]:
     root = _REPO_ROOT
-    output_dir = root / "ci" / "output"
     results: dict[str, Result] = {}
+
+    mlflow_ok, _ = _preflight(results)
+    if not mlflow_ok and dry_run:
+        print("[dry-run] Would execute the following phases:")
+        for label in _DRY_RUN_PHASES:
+            print(f"  {label}")
+        return results
+
+    cleanup_scripts = [root / rel for rel in _CLEANUP_RELPATHS]
     poll_results: dict[str, str] = {}
     poll_errors: dict[str, str] = {}
 
-    _ensure_papermill()
-
-    # Pre-flight: validate MLflow credentials; skip dependent tests if unavailable
-    print("Pre-flight: checking MLflow credentials...")
-    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
-    if mlflow_ok:
-        print("  [OK] MLflow credentials valid")
-    else:
-        print(f"  [SKIP] {mlflow_reason}")
-        for name in _MLFLOW_DEPENDENT:
-            results[name] = Result(name=name, status="SKIP", error=mlflow_reason)
-
-        if dry_run:
-            print("[dry-run] Would execute the following phases:")
-            for label in [
-                "Phase 1: dask, mlflow-quickstart, mlflow-image, mlflow-kfp, minimal-s3-model, hf-vllm-completion",
-                "Phase 1 (opt-in): kserve-keda-autoscaling (--include-keda), minimal-example-shadow-deployment (--include-shadow)",
-                "Phase 2: mlflow-mobile-price, lightweight-components, lightweight-python-package",
-                "Phase 3: mlflow-kserve-minimal, mlflow-kserve-inference-protocols",
-                "Phase 4: KFP run polling",
-                "Phase 5: cleanup",
-            ]:
-                print(f"  {label}")
-            return results
-
-    cleanup_scripts = [
-        root / "notebooks" / "dask" / "cleanup.py",
-        root / "serving" / "minimal-s3-model" / "cleanup.py",
-        root / "serving" / "mlflow-kserve-minimal" / "cleanup.py",
-        root / "serving" / "mlflow-kserve-inference-protocols" / "cleanup.py",
-        root / "serving" / "hf-vllm-completion" / "cleanup.py",
-        root / "serving" / "kserve-keda-autoscaling" / "cleanup.py",
-        root / "serving" / "minimal-example-shadow-deployment" / "cleanup.py",
-        root / "hparam-tuning" / "minimal-mnist" / "cleanup.py",
-    ]
-
     try:
         with ThreadPoolExecutor(max_workers=8) as executor:
-            # ── Phase 1: independent notebooks ───────────────────────────────
-            print("Phase 1: running independent notebooks in parallel...")
-            phase1_futures = {}
-            for name, rel in [
-                ("notebooks/dask", "notebooks/dask/dask_example.ipynb"),
-                (
-                    "notebooks/mobile-price-classification",
-                    "notebooks/mobile-price-classification/mobile-price-classifications.ipynb",
-                ),
-                ("mlflow/mlflow-quickstart", "mlflow/mlflow-quickstart-example.ipynb"),
-                ("mlflow/mlflow-image-example", "mlflow/mlflow-image-example.ipynb"),
-                ("mlflow/mlflow-kfp-example", "mlflow/mlflow-kfp-example.ipynb"),
-                (
-                    "serving/minimal-s3-model",
-                    "serving/minimal-s3-model/minimal-s3-model.ipynb",
-                ),
-            ]:
-                if name in results:  # already SKIP from pre-flight
-                    print(f"  [SKIP  ] {name}")
-                    continue
-                f = _submit_notebook(
-                    executor, results, name, root / rel, output_dir, timeout_notebook
-                )
-                phase1_futures[name] = f
-
-            # hf-vllm-completion (CPU): self-contained, no KFP pipelines
-            phase1_futures["serving/hf-vllm-completion"] = _submit_script(
-                executor,
-                results,
-                "serving/hf-vllm-completion",
-                root / "serving" / "hf-vllm-completion" / "apply.py",
-                timeout_notebook,
+            ctx = _Context(
+                executor=executor,
+                root=root,
+                output_dir=root / "ci" / "output",
+                timeout_notebook=timeout_notebook,
+                timeout_pipeline=timeout_pipeline,
+                results=results,
+                poll_results=poll_results,
+                poll_errors=poll_errors,
             )
 
-            # kserve-keda-autoscaling: opt-in; apply.py self-checks KEDA CRDs
-            # and exits 0 with a skip message if KEDA is not installed.
-            if include_keda:
-                phase1_futures["serving/kserve-keda-autoscaling"] = _submit_script(
-                    executor,
-                    results,
-                    "serving/kserve-keda-autoscaling",
-                    root / "serving" / "kserve-keda-autoscaling" / "apply.py",
-                    timeout_notebook,
-                )
-            else:
-                print(
-                    "  [SKIP  ] serving/kserve-keda-autoscaling  (pass --include-keda to enable)"
-                )
-                results["serving/kserve-keda-autoscaling"] = Result(
-                    name="serving/kserve-keda-autoscaling",
-                    status="SKIP",
-                    error="opt-in: pass --include-keda to run this example",
-                )
+            _phase1(ctx, include_keda, include_shadow, include_pytorch)
+            phase2_futures = _phase2_submit(ctx)
 
-            # minimal-example-shadow-deployment: opt-in; apply.py self-checks for
-            # the postgres-operator CRD and exits 0 if not found. Istio
-            # VirtualService mirroring is not verified in CI (requires domain config).
-            if include_shadow:
-                phase1_futures["serving/minimal-example-shadow-deployment"] = (
-                    _submit_script(
-                        executor,
-                        results,
-                        "serving/minimal-example-shadow-deployment",
-                        root
-                        / "serving"
-                        / "minimal-example-shadow-deployment"
-                        / "apply.py",
-                        timeout_notebook,
-                    )
-                )
-            else:
-                print(
-                    "  [SKIP  ] serving/minimal-example-shadow-deployment  (pass --include-shadow to enable)"
-                )
-                results["serving/minimal-example-shadow-deployment"] = Result(
-                    name="serving/minimal-example-shadow-deployment",
-                    status="SKIP",
-                    error="opt-in: pass --include-shadow to run this example",
-                )
-
-            # mnist-vae: opt-in (requires pytorch_lightning, not in all images)
-            if include_pytorch:
-                phase1_futures["notebooks/mnist-vae"] = _submit_chain(
-                    executor,
-                    results,
-                    "notebooks/mnist-vae",
-                    steps=[
-                        # run_training.py self-installs pytorch-lightning if absent
-                        (
-                            "script",
-                            root / "notebooks/mnist-vae/run_training.py",
-                            {"extra_args": ["--max_epochs", "3"]},
-                        ),
-                        (
-                            "notebook",
-                            root / "notebooks/mnist-vae/visualizations.ipynb",
-                            {},
-                        ),
-                    ],
-                    output_dir=output_dir,
-                    timeout=timeout_notebook,
-                )
-            else:
-                print(
-                    "  [SKIP  ] notebooks/mnist-vae  (pass --include-pytorch to enable)"
-                )
-
-            # wait for all phase 1, printing results as each finishes
-            _future_to_name = {v: k for k, v in phase1_futures.items()}
-            for f in as_completed(phase1_futures.values()):
-                _print_result(results[_future_to_name[f]])
-
-            # ── Phase 2: pipeline submissions (return fast) ───────────────────
-            print("\nPhase 2: submitting pipelines...")
-            phase2_futures = {}
-            for name, rel in [
-                (
-                    "mlflow/mobile-price-classification",
-                    "mlflow/mobile-price-classification/mlflow-mobile-price-classification.ipynb",
-                ),
-                (
-                    "pipelines/lightweight-components",
-                    "pipelines/lightweight-components/mobile-price-classifications.ipynb",
-                ),
-            ]:
-                if name in results:  # already SKIP from pre-flight
-                    print(f"  [SKIP  ] {name}")
-                    continue
-                f = _submit_notebook(
-                    executor, results, name, root / rel, output_dir, timeout_notebook
-                )
-                phase2_futures[name] = f
-
-            lpp_future = _submit_script(
-                executor,
-                results,
-                "pipelines/lightweight-python-package",
-                root / "pipelines" / "lightweight-python-package" / "submit-cluster.py",
-                timeout_notebook,
-            )
-            phase2_futures["pipelines/lightweight-python-package"] = lpp_future
-
-            mcc_future = _submit_script(
-                executor,
-                results,
-                "pipelines/minimal-container-components",
-                root
-                / "pipelines"
-                / "minimal-container-components"
-                / "submit-cluster.py",
-                timeout_notebook,
-            )
-            phase2_futures["pipelines/minimal-container-components"] = mcc_future
-
-            # Wait for mlflow-mobile-price notebook; then poll its KFP run
-            # inline before Phase 3 — the ISVC needs the registered model.
-            _mobile_price_skipped = (
+            mobile_price_skipped = (
                 "mlflow/mobile-price-classification" not in phase2_futures
             )
-            if not _mobile_price_skipped:
-                phase2_futures["mlflow/mobile-price-classification"].result()
-                _print_result(results["mlflow/mobile-price-classification"])
-
-            _mobile_price_ok = (
-                not _mobile_price_skipped
-                and results["mlflow/mobile-price-classification"].status == "PASS"
-            )
-
-            if _mobile_price_ok:
-                _mobile_run_ids = results[
-                    "mlflow/mobile-price-classification"
-                ].kfp_run_ids
-                if _mobile_run_ids:
-                    print(
-                        "  Polling mlflow-mobile-price KFP pipeline (model must be registered before ISVCs)..."
-                    )
-                    for _run_id in _mobile_run_ids:
-                        _state, _err = _poll_kfp_run(_run_id, timeout_pipeline)
-                        poll_results[_run_id] = (
-                            _state  # recorded here; Phase 4 will skip it
-                        )
-                        poll_errors[_run_id] = _err
-                        print(f"    [{_state}] {_run_id[:8]}...")
-                        if _state.upper() != "SUCCEEDED":
-                            _mobile_price_ok = False
-
-            # ── Phase 3: MLflow KServe examples (need registered model) ───────
-            print("\nPhase 3: deploying MLflow KServe InferenceServices...")
-            if not _mobile_price_ok:
-                _reason = (
-                    "prerequisite mlflow/mobile-price-classification skipped (MLflow credentials)"
-                    if _mobile_price_skipped
-                    else "prerequisite mlflow/mobile-price-classification notebook or KFP pipeline did not succeed"
-                )
-                print(f"  [SKIP] {_reason}")
-                for name in (
-                    "serving/mlflow-kserve-minimal",
-                    "serving/mlflow-kserve-inference-protocols",
-                ):
-                    results[name] = Result(name=name, status="SKIP", error=_reason)
-                phase3_futures = {}
-            else:
-                phase3_futures = {}
-
-                # mlflow-kserve-minimal: deploy then immediately smoke-test
-                # deploy_and_test() in apply.py handles both steps
-                phase3_futures["serving/mlflow-kserve-minimal"] = _submit_script(
-                    executor,
-                    results,
-                    "serving/mlflow-kserve-minimal",
-                    root / "serving" / "mlflow-kserve-minimal" / "apply.py",
-                    timeout_notebook,
-                )
-
-                # inference-protocols notebook handles its own deploy + test.
-                # extract_run_ids=False: this notebook is not a pipeline submission;
-                # its output contains ISVC/request UUIDs that must not be polled
-                # as KFP run IDs (they return 404 from the KFP API).
-                phase3_futures["serving/mlflow-kserve-inference-protocols"] = (
-                    _submit_notebook(
-                        executor,
-                        results,
-                        "serving/mlflow-kserve-inference-protocols",
-                        root
-                        / "serving/mlflow-kserve-inference-protocols/inference_protocol_version_example.ipynb",
-                        output_dir,
-                        timeout_notebook,
-                        extract_run_ids=False,
-                    )
-                )
+            mobile_price_ok = _await_mobile_price(ctx, phase2_futures)
+            phase3_futures = _phase3_submit(ctx, mobile_price_ok, mobile_price_skipped)
 
             # Phase 2 remaining + phase 3 run concurrently; print as each finishes
             print("\nPhase 2 (remaining) + Phase 3 running concurrently...")
             remaining = {
-                **{
-                    k: v
-                    for k, v in phase2_futures.items()
-                    if k != "mlflow/mobile-price-classification"
-                },
-                **phase3_futures,
+                k: v
+                for k, v in phase2_futures.items()
+                if k != "mlflow/mobile-price-classification"
             }
-            _future_to_name2 = {v: k for k, v in remaining.items()}
-            for f in as_completed(remaining.values()):
-                _print_result(results[_future_to_name2[f]])
+            remaining.update(phase3_futures)
+            _drain(ctx, remaining)
 
-            # ── Phase 4: KFP run polling ──────────────────────────────────────
-            # Exclude run IDs already polled inline before Phase 3
-            all_run_ids: list[str] = [
-                rid
-                for r in results.values()
-                for rid in r.kfp_run_ids
-                if rid not in poll_results
-            ]
-
-            if all_run_ids:
-                print(f"\nPhase 4: polling {len(all_run_ids)} KFP run(s)...")
-                poll_futures = {
-                    run_id: executor.submit(_poll_kfp_run, run_id, timeout_pipeline)
-                    for run_id in all_run_ids
-                }
-                for run_id, f in poll_futures.items():
-                    try:
-                        poll_results[run_id], poll_errors[run_id] = f.result()
-                    except Exception as exc:  # noqa: BLE001
-                        poll_results[run_id] = f"POLL_ERROR: {exc}"
-                        poll_errors[run_id] = ""
-                    state = poll_results[run_id]
-                    print(f"  [{state}] {run_id[:8]}...")
-            else:
-                print("\nPhase 4: no KFP run IDs found, skipping poll.")
+            _phase4_poll(ctx)
 
     finally:
-        # ── Phase 5: cleanup ─────────────────────────────────────────────────
-        print("\nPhase 5: running cleanup scripts...")
-        with ThreadPoolExecutor(max_workers=4) as ex:
-            futs = [ex.submit(_run_cleanup, p) for p in cleanup_scripts if p.exists()]
-            for f in as_completed(futs):
-                f.result()  # already swallows exceptions inside _run_cleanup
+        _phase5_cleanup(cleanup_scripts)
 
     # Build run_id → source notebook name map from all results
     run_id_to_name: dict[str, str] = {}
