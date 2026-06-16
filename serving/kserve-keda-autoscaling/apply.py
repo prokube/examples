@@ -49,14 +49,29 @@ def _kubectl_apply(manifest: str, namespace: str) -> None:
     print(result.stdout.strip())
 
 
-def _keda_available() -> bool:
-    """Return True if KEDA CRDs are installed in this cluster."""
+def _try_apply_scaledobject(manifest: str, namespace: str) -> str | None:
+    """Apply the ScaledObject manifest; return an error string if KEDA is absent.
+
+    Returns None on success, or a non-empty string if kubectl rejected the
+    manifest because the ScaledObject CRD is not installed.  Any other error
+    is raised so CI marks the example as FAIL instead of silently skipping.
+    """
     result = subprocess.run(
-        ["kubectl", "get", "crd", "scaledobjects.keda.sh"],
-        capture_output=True,
+        ["kubectl", "apply", "-f", "-", "-n", namespace],
+        input=manifest,
         text=True,
+        capture_output=True,
     )
-    return result.returncode == 0
+    if result.returncode == 0:
+        print(result.stdout.strip())
+        return None
+    stderr = result.stderr or result.stdout
+    if (
+        "no matches for kind" in stderr
+        or "the server doesn't have a resource type" in stderr
+    ):
+        return stderr.strip()
+    raise RuntimeError(stderr)
 
 
 def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
@@ -154,14 +169,6 @@ def _smoke_test(namespace: str, timeout: int = 60) -> None:
 
 
 def deploy(timeout: int = 900) -> None:
-    if not _keda_available():
-        print(
-            "SKIP: KEDA CRDs (scaledobjects.keda.sh) not found in this cluster.\n"
-            "Ask your cluster admin to install KEDA, or pass --include-keda only\n"
-            "when targeting a cluster with KEDA installed."
-        )
-        sys.exit(0)
-
     ns = _namespace()
 
     with open(_ISVC_YAML) as fh:
@@ -172,9 +179,18 @@ def deploy(timeout: int = 900) -> None:
     _wait_isvc_ready(_ISVC_NAME, ns, timeout)
     print(f"InferenceService '{_ISVC_NAME}' is ready.")
 
+    # Apply ScaledObject — detect KEDA availability via the apply itself rather
+    # than 'kubectl get crd' which requires cluster-level RBAC notebook SAs lack.
     with open(_SO_YAML) as fh:
         so_manifest = fh.read()
-    _kubectl_apply(so_manifest, ns)
+    skip_reason = _try_apply_scaledobject(so_manifest, ns)
+    if skip_reason:
+        print(
+            f"SKIP: KEDA is not installed in this cluster "
+            f"(kubectl apply returned: {skip_reason}).\n"
+            "The ScaledObject was not created; the ISVC is running without autoscaling."
+        )
+        sys.exit(0)
     print(f"Applied ScaledObject '{_SCALED_OBJECT_NAME}' in namespace '{ns}'.")
 
     _wait_scaledobject_active(_SCALED_OBJECT_NAME, ns)
