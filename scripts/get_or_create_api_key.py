@@ -70,19 +70,19 @@ def _kubectl(*args: str, input: str | None = None) -> subprocess.CompletedProces
 def _aigatewaykey_crd_available() -> bool:
     """Return True if the AIGatewayKey CRD is registered in the cluster.
 
-    Used to distinguish new AI-Gateway deployments (CRD present) from older
-    deployments that rely on a hardcoded EnvoyFilter and an admin-provisioned
-    API key.
+    Uses the API discovery endpoint (kubectl api-resources) rather than
+    directly reading the CRD object, because notebook pod service accounts
+    typically lack RBAC permission to get cluster-scoped CRD resources.
+    API discovery is allowed for all authenticated Kubernetes users.
     """
     result = _kubectl(
-        "get",
-        "crd",
-        "aigatewaykeys.prokube.ai",
-        "--ignore-not-found",
+        "api-resources",
+        "--api-group=prokube.ai",
         "-o",
         "name",
+        "--no-headers",
     )
-    return result.returncode == 0 and bool(result.stdout.strip())
+    return result.returncode == 0 and "aigatewaykeys" in result.stdout
 
 
 def _key_exists(namespace: str) -> bool:
