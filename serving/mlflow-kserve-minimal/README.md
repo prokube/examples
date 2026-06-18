@@ -95,14 +95,22 @@ Alternatively, `apply.py` handles steps 1–4 automatically (see below).
 
 A test script and sample request body are provided to verify the deployment.
 
+> [!TIP]
+> `apply.py` automatically creates a dedicated `examples-key` AIGatewayKey and
+> its backing Secret (`examples-key-secret`) in your namespace — no manual key
+> management required.  If you'd rather supply your own key, set `API_KEY`
+> before running the test script:
+> ```sh
+> export API_KEY=your-key-here
+> ```
+
 1. Set the required environment variables (optional):
    ```sh
-   export API_KEY=<your-api-key>
+   export API_KEY=<your-api-key>          # auto-created by apply.py if omitted
    export INFERENCE_SERVICE_URI=<your-inference-service-url>
    export PROTOCOL_VERSION=v2
    ```
-   You can find the inference service URL in the Kubeflow Endpoints UI. If you
-   don't know your API key, reach out to your prokube admin.
+   You can find the inference service URL in the Kubeflow Endpoints UI.
 
 2. Run the test script:
    ```sh
