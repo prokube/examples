@@ -1,5 +1,5 @@
 """
-Utility to create or retrieve a prokube AIGatewayKey for use in examples.
+Utility to create or retrieve a prokube API key for use in examples.
 
 Usage from a notebook
 ---------------------
@@ -15,9 +15,23 @@ CLI usage
     python get_or_create_api_key.py
     # prints the key to stdout
 
-The key is stored as an AIGatewayKey CR named ``examples-key`` backed by a
-Secret named ``examples-key-secret`` in the notebook's namespace.  Both
-resources are created if they do not already exist.  Re-running is safe.
+Resolution order
+----------------
+The function returns a usable model-serving API key, choosing the mechanism
+that fits the deployment it runs on:
+
+1. **New deployments (AI Gateway).**  If the ``AIGatewayKey`` CRD is present,
+   the key is stored as an AIGatewayKey CR named ``examples-key`` backed by a
+   Secret named ``examples-key-secret`` in the notebook's namespace.  Both
+   resources are created if they do not already exist.  Re-running is safe.
+
+2. **Older deployments (hardcoded EnvoyFilter).**  Older clusters do not have
+   the AIGatewayKey CRD; instead an admin pre-provisions a single API key and
+   injects it into the notebook pod via the ``INFERENCE_SERVICE_API_KEY``
+   environment variable.  When the CRD is absent, that env var is used.
+
+3. **Fallback.**  If neither is available, the caller is prompted to paste the
+   key interactively, so the example degrades gracefully instead of crashing.
 """
 
 from __future__ import annotations
@@ -25,12 +39,18 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import secrets
 import subprocess
 import sys
+from getpass import getpass
 
 _KEY_NAME = "examples-key"
 _SECRET_NAME = "examples-key-secret"
+
+# Env var an admin injects into the notebook pod on older (pre-AI-Gateway)
+# deployments that rely on a hardcoded EnvoyFilter for auth.
+_API_KEY_ENV_VAR = "INFERENCE_SERVICE_API_KEY"
 
 
 def _namespace() -> str:
@@ -45,6 +65,24 @@ def _kubectl(*args: str, input: str | None = None) -> subprocess.CompletedProces
         capture_output=True,
         text=True,
     )
+
+
+def _aigatewaykey_crd_available() -> bool:
+    """Return True if the AIGatewayKey CRD is registered in the cluster.
+
+    Used to distinguish new AI-Gateway deployments (CRD present) from older
+    deployments that rely on a hardcoded EnvoyFilter and an admin-provisioned
+    API key.
+    """
+    result = _kubectl(
+        "get",
+        "crd",
+        "aigatewaykeys.prokube.ai",
+        "--ignore-not-found",
+        "-o",
+        "name",
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
 
 
 def _key_exists(namespace: str) -> bool:
@@ -124,17 +162,49 @@ def _create_key(namespace: str) -> str:
     return key_value
 
 
+def _key_from_env() -> str | None:
+    """Return the admin-provisioned API key from the environment, if set."""
+    value = os.environ.get(_API_KEY_ENV_VAR, "").strip()
+    return value or None
+
+
 def get_or_create_api_key(ns=None) -> str:
-    """Return the API key for the current namespace, creating it if needed."""
-    ns = ns or _namespace()
-    if _key_exists(ns):
-        return _read_key_from_secret(ns)
-    return _create_key(ns)
+    """Return a model-serving API key for the current namespace.
+
+    See the module docstring for the resolution order: AIGatewayKey CR on new
+    deployments, the ``INFERENCE_SERVICE_API_KEY`` env var on older ones, and an
+    interactive prompt as a last resort.
+    """
+    # New deployments: manage an AIGatewayKey CR (fully automated).
+    if _aigatewaykey_crd_available():
+        ns = ns or _namespace()
+        if _key_exists(ns):
+            return _read_key_from_secret(ns)
+        return _create_key(ns)
+
+    # Older deployments: admin injects the key via an env var.
+    env_key = _key_from_env()
+    if env_key:
+        return env_key
+
+    # Fallback: prompt instead of crashing.
+    key = getpass(
+        f"AIGatewayKey CRD not found and ${_API_KEY_ENV_VAR} is unset. "
+        "Please enter the model-serving API key (ask your cluster admin): "
+    ).strip()
+    if not key:
+        raise RuntimeError(
+            "No API key available: the AIGatewayKey CRD is absent, "
+            f"${_API_KEY_ENV_VAR} is unset, and no key was entered."
+        )
+    return key
 
 
 if __name__ == "__main__":
     try:
-        argparser = argparse.ArgumentParser(description="Get or create a prokube API key")
+        argparser = argparse.ArgumentParser(
+            description="Get or create a prokube API key"
+        )
         argparser.add_argument(
             "--namespace",
             "-n",
