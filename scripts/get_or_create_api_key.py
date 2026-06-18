@@ -22,6 +22,7 @@ resources are created if they do not already exist.  Re-running is safe.
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import secrets
@@ -123,9 +124,9 @@ def _create_key(namespace: str) -> str:
     return key_value
 
 
-def get_or_create_api_key() -> str:
+def get_or_create_api_key(ns=None) -> str:
     """Return the API key for the current namespace, creating it if needed."""
-    ns = _namespace()
+    ns = ns or _namespace()
     if _key_exists(ns):
         return _read_key_from_secret(ns)
     return _create_key(ns)
@@ -133,7 +134,14 @@ def get_or_create_api_key() -> str:
 
 if __name__ == "__main__":
     try:
-        print(get_or_create_api_key())
+        argparser = argparse.ArgumentParser(description="Get or create a prokube API key")
+        argparser.add_argument(
+            "--namespace",
+            "-n",
+            help="The Kubernetes namespace to use (defaults to the pods namespace)",
+        )
+        args = argparser.parse_args()
+        print(get_or_create_api_key(args.namespace))
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
