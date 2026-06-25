@@ -1,8 +1,6 @@
 # Shiny Iris Dashboard
 
-This example demonstrates how to build and run an interactive Shiny application from an RStudio environment on Kubeflow. It uses the built-in Iris dataset, so no external downloads, API credentials, or object storage configuration are required.
-
-**Libraries used:** `shiny`, `ggplot2`, `dplyr`
+This example demonstrates how to build and run an interactive Shiny application from an RStudio environment. It uses the built-in Iris dataset, so no external downloads, API credentials, or object storage configuration are required.
 
 The included `app.R` application demonstrates the following Shiny capabilities:
 
@@ -32,7 +30,6 @@ The included `app.R` application demonstrates the following Shiny capabilities:
 Open `app.R` in RStudio and click **Run App**, or run:
 
 ```r
-install.packages(c("shiny", "ggplot2", "dplyr"))
 shiny::runApp("app.R", host = "0.0.0.0", port = 3838)
 ```
 
@@ -45,4 +42,4 @@ shiny::runApp(host = "0.0.0.0", port = 3838)
 ## Notes
 
 - The app is intentionally self-contained and uses only data bundled with R.
-- This example is focused on running Shiny interactively from RStudio. A containerized Shiny deployment can be added separately if the app should be exposed as a standalone Kubeflow/Istio service.
+- This example is focused on running Shiny interactively from RStudio. A containerized Shiny deployment can be added separately if the app should be exposed as a standalone service.
