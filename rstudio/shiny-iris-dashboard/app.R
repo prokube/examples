@@ -1,11 +1,3 @@
-if ("promises" %in% loadedNamespaces() && getNamespaceVersion("promises") < "1.5.0") {
-  stop(
-    "Shiny requires promises >= 1.5.0, but an older promises namespace is already loaded. ",
-    "Install the current dependency with install.packages('promises'), then restart the R session and run the app again.",
-    call. = FALSE
-  )
-}
-
 library(shiny)
 library(ggplot2)
 library(dplyr)
