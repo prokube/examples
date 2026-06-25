@@ -16,7 +16,8 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
-└── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
+├── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
+└── storage          # object storage and database access examples
 ```
 
 The scripts in `src/pk_helpers` provide platform-specific utilities used by
@@ -46,6 +47,8 @@ to use other instances of object storage (e.g. self-hosted S3-compatible storage
 Many S3 libraries use environment variables for their configuration — those are usually:
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `S3_ENDPOINT`. They are likely already
 available in your environment. You can also ask your admin about them.
+
+See `storage/s3` for S3 examples and `storage/database-access` for relational database examples in Python and R.
 
 ## Platform compatibility
 
