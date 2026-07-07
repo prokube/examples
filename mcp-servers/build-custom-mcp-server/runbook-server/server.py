@@ -1,14 +1,24 @@
 import os
 import re
+import shutil
 from pathlib import Path
 
 from fastmcp import FastMCP
 
 
 RUNBOOK_DIR = Path(os.environ.get("RUNBOOK_DIR", "/data/runbooks"))
+SEED_RUNBOOK_DIR = Path(os.environ.get("SEED_RUNBOOK_DIR", "/app/seed-runbooks"))
+
 RUNBOOK_DIR.mkdir(parents=True, exist_ok=True)
 
 mcp = FastMCP("workspace-runbooks")
+
+
+def _seed_runbooks() -> None:
+    if any(RUNBOOK_DIR.glob("*.md")) or not SEED_RUNBOOK_DIR.exists():
+        return
+    for source in SEED_RUNBOOK_DIR.glob("*.md"):
+        shutil.copyfile(source, RUNBOOK_DIR / source.name)
 
 
 def _safe_name(name: str) -> str:
@@ -81,4 +91,5 @@ def delete_runbook(name: str) -> bool:
 
 
 if __name__ == "__main__":
+    _seed_runbooks()
     mcp.run()
