@@ -7,6 +7,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ```py
 .
 ├── .github          # workflows to build images
+├── agentops         # AgentOps examples (MCP servers, ToolHive)
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
 ├── mlflow           # MLflow experiment tracking examples
@@ -41,6 +42,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 
 | Example | Min platform version | Notes |
 |---|---|---|
+| `agentops/mcp-toolhive` | TBD | Requires MCP servers / ToolHive support |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## Contributing

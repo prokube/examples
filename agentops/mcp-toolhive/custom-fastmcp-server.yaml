@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: workspace-runbooks-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: workspace-runbooks
+spec:
+  image: IMAGE_PLACEHOLDER
+  transport: stdio
+  proxyPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: runbooks
+          persistentVolumeClaim:
+            claimName: workspace-runbooks-data
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: runbooks
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
