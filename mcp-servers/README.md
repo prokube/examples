@@ -10,13 +10,6 @@ Use the prokube **MCP** UI for the normal workflow. These examples are useful wh
 ## Prerequisites
 
 - Access to a prokube workspace with MCP servers enabled.
-- `kubectl` configured for the target workspace.
+- A prokube Lab or notebook running in the target workspace.
+- `kubectl` configured for the current workspace namespace.
 - Permission to create ToolHive `MCPServer` resources in the workspace namespace.
-
-Set your workspace namespace:
-
-```bash
-export NAMESPACE=<workspace-namespace>
-```
-
-For external MCP clients, create an API key scoped to the deployed MCP server and use the authentication format expected by the client. Existing MCP examples commonly use the `x-api-key` header.
