@@ -44,8 +44,8 @@ docker push "$IMAGE"
 Replace `IMAGE_PLACEHOLDER` with the pushed image and apply the manifest:
 
 ```bash
-sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl apply -n "$NAMESPACE" -f -
-kubectl get mcpservers.toolhive.stacklok.dev -n "$NAMESPACE"
+sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl apply -f -
+kubectl get mcpservers.toolhive.stacklok.dev
 ```
 
 After the server is running, open **MCP** in the prokube UI and copy the server URL from the deployed servers table or details page.
@@ -53,5 +53,5 @@ After the server is running, open **MCP** in the prokube UI and copy the server 
 ## Clean up
 
 ```bash
-sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl delete -n "$NAMESPACE" -f -
+sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl delete -f -
 ```
