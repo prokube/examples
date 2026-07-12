@@ -1,8 +1,8 @@
 # Sandbox SDK Quickstart
 
-This example shows how to use the Python Sandbox SDK from a notebook. It claims a sandbox from a WarmPool, runs stateful Python code, executes shell commands, writes and reads files, and cleans up the sandbox.
+This example shows how to use the Python Sandbox SDK from a notebook. It creates or uses a WarmPool, claims a sandbox, runs stateful Python code, executes shell commands, writes and reads files, and cleans up the sandbox.
 
-Use this example when you want to verify that your workspace can drive Agent Sandboxes programmatically before building a larger agent or automation workflow.
+Use this example to understand the SDK and the core Agent Sandbox features before wiring them into a larger agent or automation workflow. An example that integrates Sandboxes into an agent framework belongs in a separate example directory.
 
 ## Files
 
@@ -13,7 +13,7 @@ Use this example when you want to verify that your workspace can drive Agent San
 ## Prerequisites
 
 - A prokube workspace with the Sandbox module enabled.
-- A ready WarmPool in the workspace, for example `python-pool`.
+- A workspace that may create Sandbox WarmPools, or an existing WarmPool such as `python-pool`.
 - An API key with Sandbox API access if you run the notebook outside the cluster.
 
 In a managed Lab, this repository is usually available at `~/examples`. Open:
@@ -33,6 +33,7 @@ The notebook uses these environment variables:
 | `PROKUBE_USER_ID` | Usually | User identity for in-cluster access without an API key. In single-user workspaces, this is commonly the workspace name. |
 | `PROKUBE_API_KEY` | For external access | API key with Sandbox API access. In-cluster use can rely on the authenticated workspace identity if configured. |
 | `SANDBOX_POOL` | No | WarmPool name. Defaults to `python-pool`. |
+| `SANDBOX_IMAGE` | No | Image used when the notebook creates a WarmPool. Defaults to `pk-sandbox:python-datascience`; override it with an image available in your deployment. |
 
 Do not store real API keys in the notebook. Set them as environment variables or use your notebook environment's secret handling.
 
@@ -40,11 +41,12 @@ Do not store real API keys in the notebook. Set them as environment variables or
 
 1. Install the recommended Python SDK release.
 2. Validate the workspace and SDK configuration.
-3. Claim a sandbox from a WarmPool.
-4. Run stateful Python code with `run_code()`.
-5. Run shell commands with `commands.run()`.
-6. Write, read, and list files under `/workspace`.
-7. Clean up the claimed sandbox with `kill()`.
+3. Optionally create a WarmPool with the SDK.
+4. Claim a sandbox from a WarmPool.
+5. Run stateful Python code with `run_code()`.
+6. Run shell commands with `commands.run()`.
+7. Write, read, and list files under `/workspace`.
+8. Clean up the claimed sandbox with `kill()`.
 
 ## Next Step
 
