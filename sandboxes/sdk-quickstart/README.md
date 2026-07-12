@@ -1,6 +1,6 @@
 # Sandbox SDK Quickstart
 
-This example shows how to use the Python Sandbox SDK from a notebook. It creates or uses a WarmPool, claims a sandbox, runs stateful Python code, executes shell commands, writes and reads files, and cleans up the sandbox.
+This example shows how to use the Python Sandbox SDK from a notebook. It creates a WarmPool, claims a sandbox, runs stateful Python code, executes shell commands, writes and reads files, and cleans up the sandbox.
 
 Use this example to understand the SDK and the core Agent Sandbox features before wiring them into a larger agent or automation workflow. An example that integrates Sandboxes into an agent framework belongs in a separate example directory.
 
@@ -13,7 +13,7 @@ Use this example to understand the SDK and the core Agent Sandbox features befor
 ## Prerequisites
 
 - A prokube workspace with the Sandbox module enabled.
-- A workspace that may create Sandbox WarmPools, or an existing WarmPool such as `python-pool`.
+- A workspace that may create Sandbox WarmPools.
 - An API key with Sandbox API access if you run the notebook outside the cluster.
 
 In a managed Lab, this repository is usually available at `~/examples`. Open:
@@ -51,7 +51,7 @@ os.environ["PROKUBE_API_KEY"] = "<api-key>"
 
 1. Install the recommended Python SDK release.
 2. Validate the workspace and SDK configuration.
-3. Optionally create a WarmPool with the SDK.
+3. Create a WarmPool with the SDK.
 4. Claim a sandbox from a WarmPool.
 5. Run stateful Python code with `run_code()`.
 6. Run shell commands with `commands.run()`.
