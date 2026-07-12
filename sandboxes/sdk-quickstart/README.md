@@ -33,7 +33,7 @@ The notebook uses these environment variables:
 | `PROKUBE_USER_ID` | Usually | User identity for in-cluster access without an API key. In single-user workspaces, this is commonly the workspace name. |
 | `PROKUBE_API_KEY` | For external access | API key with Sandbox API access. In-cluster use can rely on the authenticated workspace identity if configured. |
 | `SANDBOX_POOL` | No | WarmPool name. Defaults to `python-pool`. |
-| `SANDBOX_IMAGE` | No | Image used when the notebook creates a WarmPool. Defaults to `pk-sandbox:python-datascience`; override it with an image available in your deployment. |
+| `SANDBOX_IMAGE` | No | Image used when the notebook creates a WarmPool. Defaults to `europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/pk-sandbox-base:v14-05-2026`; override it with an image available in your deployment. |
 
 Do not store real API keys in the notebook. Set them as environment variables or use your notebook environment's secret handling.
 
