@@ -28,8 +28,9 @@ The notebook uses these environment variables:
 
 | Variable | Required | Description |
 |---|---|---|
-| `PROKUBE_API_URL` | Yes | Base URL of pkui, including the path prefix, for example `https://<cluster-domain>/pkui`. |
+| `PROKUBE_API_URL` | Usually | Base URL of pkui for external access, for example `https://<cluster-domain>/pkui`. In a managed Lab, the notebook defaults to the in-cluster Agent Gateway service. |
 | `PROKUBE_WORKSPACE` | Usually | Workspace namespace. In a managed Lab, the notebook can detect it from the mounted service account. |
+| `PROKUBE_USER_ID` | Usually | User identity for in-cluster access without an API key. In single-user workspaces, this is commonly the workspace name. |
 | `PROKUBE_API_KEY` | For external access | API key with Sandbox API access. In-cluster use can rely on the authenticated workspace identity if configured. |
 | `SANDBOX_POOL` | No | WarmPool name. Defaults to `python-pool`. |
 
