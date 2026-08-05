@@ -39,12 +39,17 @@ Prerequisites
 -------------
     pip install papermill kfp
     python scripts/setup_mlflow_credentials.py
+    export INFERENCE_SERVICE_API_KEY=<model-serving API key>  # ask your
+        # cluster admin, or use pkui if available on your platform. Examples
+        # that call get_or_create_api_key() are skipped if this is unset,
+        # since CI runs headlessly and cannot prompt for it interactively.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -123,6 +128,9 @@ class Example:
     mlflow_dependent: bool = (
         False  # skip automatically when MLflow credentials are unavailable
     )
+    api_key_dependent: bool = (
+        False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -169,6 +177,7 @@ _EXAMPLES: list[Example] = [
         steps=[Step("notebook", "serving/minimal-s3-model/minimal-s3-model.ipynb")],
         phase=1,
         cleanup="serving/minimal-s3-model/cleanup.py",
+        api_key_dependent=True,
     ),
     Example(
         name="serving/hf-vllm-completion",
@@ -270,6 +279,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=3,
         mlflow_dependent=True,
+        api_key_dependent=True,
         cleanup="serving/mlflow-kserve-minimal/cleanup.py",
     ),
     Example(
@@ -283,6 +293,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=3,
         mlflow_dependent=True,
+        api_key_dependent=True,
         cleanup="serving/mlflow-kserve-inference-protocols/cleanup.py",
     ),
 ]
@@ -661,6 +672,8 @@ def _print_dry_run() -> None:
             label += f"  (--{ex.opt_in.replace('_', '-')})"
         if ex.mlflow_dependent:
             label += "  (mlflow)"
+        if ex.api_key_dependent:
+            label += "  (api-key)"
         by_phase.setdefault(ex.phase, []).append(label)
     phase_names = {
         1: "independent",
@@ -730,22 +743,54 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
         return False, f"Could not reach MLflow at {uri}: {exc}"
 
 
-def _preflight(results: dict[str, Result]) -> bool:
-    """Install papermill and validate MLflow credentials.
+def _check_kserve_api_key() -> tuple[bool, str]:
+    """Return (ok, reason). Checks that INFERENCE_SERVICE_API_KEY is set.
 
-    MLflow-dependent examples are recorded as SKIP in `results` on failure.
-    Returns True if MLflow credentials are valid.
+    CI runs headlessly, so get_or_create_api_key() cannot fall back to its
+    interactive getpass() prompt — the env var must be pre-populated. Ask
+    your cluster admin for a model-serving API key, or use pkui if it is
+    available on your platform.
+    """
+    if os.environ.get("INFERENCE_SERVICE_API_KEY", "").strip():
+        return True, "OK"
+    return False, (
+        "INFERENCE_SERVICE_API_KEY is unset — export a model-serving API key "
+        "(ask your cluster admin, or use pkui if available) before running CI"
+    )
+
+
+def _preflight(results: dict[str, Result]) -> bool:
+    """Install papermill and validate MLflow credentials and the kserve API key.
+
+    MLflow-dependent and API-key-dependent examples are recorded as SKIP in
+    `results` on failure. Returns True if MLflow credentials are valid.
     """
     _ensure_papermill()
+
     print("Pre-flight: checking MLflow credentials...")
-    mlflow_ok, reason = _check_mlflow_credentials()
+    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
     if mlflow_ok:
         print("  [OK] MLflow credentials valid")
     else:
-        print(f"  [SKIP] {reason}")
+        print(f"  [SKIP] {mlflow_reason}")
         for ex in _EXAMPLES:
             if ex.mlflow_dependent:
-                results[ex.name] = Result(name=ex.name, status="SKIP", error=reason)
+                results[ex.name] = Result(
+                    name=ex.name, status="SKIP", error=mlflow_reason
+                )
+
+    print("Pre-flight: checking kserve API key...")
+    api_key_ok, api_key_reason = _check_kserve_api_key()
+    if api_key_ok:
+        print("  [OK] INFERENCE_SERVICE_API_KEY is set")
+    else:
+        print(f"  [SKIP] {api_key_reason}")
+        for ex in _EXAMPLES:
+            if ex.api_key_dependent and ex.name not in results:
+                results[ex.name] = Result(
+                    name=ex.name, status="SKIP", error=api_key_reason
+                )
+
     return mlflow_ok
 
 

@@ -10,7 +10,7 @@
 
 Register it in the `_EXAMPLES` list in `run_all.py`.  Everything else —
 phase scheduling, opt-in gating, cleanup, dry-run output, MLflow-credential
-skipping — is derived from that entry automatically.
+and API-key skipping — is derived from that entry automatically.
 
 ```python
 Example(
@@ -24,6 +24,7 @@ Example(
     cleanup="serving/my-new-example/cleanup.py",  # omit if no K8s resources
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
+    api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
 )
 ```
 
@@ -127,6 +128,18 @@ from get_or_create_api_key import get_or_create_api_key
 
 API_KEY = get_or_create_api_key()
 ```
+
+CI runs headlessly and cannot answer the interactive prompt, so
+`INFERENCE_SERVICE_API_KEY` **must** be exported before running
+`ci/run_all.py`:
+
+```bash
+export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui if available
+```
+
+CI validates this in the preflight check and skips `api_key_dependent`
+examples if it is unset — mark any new example that calls
+`get_or_create_api_key()` with `api_key_dependent=True`.
 
 ---
 
