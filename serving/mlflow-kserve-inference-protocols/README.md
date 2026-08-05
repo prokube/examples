@@ -65,11 +65,10 @@ reference this SA.
 ## API key
 
 > [!TIP]
-> `apply.py` (and the notebook's `deploy()` call) automatically creates a
-> dedicated `examples-key` AIGatewayKey and its backing Secret
-> (`examples-key-secret`) in your namespace.  If you'd rather use your own key,
-> pass it to the smoke-test step directly or set `API_KEY` in the environment
-> before calling `apply.py`.
+> `apply.py` (and the notebook's `deploy()` call) need a model-serving API
+> key. Ask your cluster administrator for one, or use pkui if it is
+> available on your platform. Set `API_KEY` in the environment before
+> calling `apply.py`, or you'll be prompted for it interactively.
 
 ## Deploy
 

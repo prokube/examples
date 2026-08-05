@@ -3,12 +3,10 @@ Cleanup script for the minimal-s3-model example.
 
 Deletes (idempotently):
   - InferenceService ``kserve-object-storage-test``
-  - AIGatewayKey ``examples-key`` and its backing Secret ``examples-key-secret``
-    (only when --include-api-key is passed, since the key is shared across examples)
 
 Usage
 -----
-    python cleanup.py [--include-api-key] [--dry-run]
+    python cleanup.py [--dry-run]
 """
 
 from __future__ import annotations
@@ -35,16 +33,12 @@ def _kubectl_delete(*args: str, dry_run: bool = False) -> None:
         print(result.stdout.strip() or f"deleted (or not found): {' '.join(args)}")
 
 
-def cleanup(include_api_key: bool = False, dry_run: bool = False) -> None:
+def cleanup(dry_run: bool = False) -> None:
     ns = _namespace()
 
     _kubectl_delete(
         "inferenceservice", "kserve-object-storage-test", "-n", ns, dry_run=dry_run
     )
-
-    if include_api_key:
-        _kubectl_delete("aigatewaykey", "examples-key", "-n", ns, dry_run=dry_run)
-        _kubectl_delete("secret", "examples-key-secret", "-n", ns, dry_run=dry_run)
 
 
 if __name__ == "__main__":
@@ -52,12 +46,7 @@ if __name__ == "__main__":
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--include-api-key",
-        action="store_true",
-        help="Also delete the shared AIGatewayKey",
-    )
-    parser.add_argument(
         "--dry-run", action="store_true", help="Print commands without executing them"
     )
     args = parser.parse_args()
-    cleanup(include_api_key=args.include_api_key, dry_run=args.dry_run)
+    cleanup(dry_run=args.dry_run)

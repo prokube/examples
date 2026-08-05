@@ -96,17 +96,17 @@ Alternatively, `apply.py` handles steps 1–4 automatically (see below).
 A test script and sample request body are provided to verify the deployment.
 
 > [!TIP]
-> `apply.py` automatically creates a dedicated `examples-key` AIGatewayKey and
-> its backing Secret (`examples-key-secret`) in your namespace — no manual key
-> management required.  If you'd rather supply your own key, set `API_KEY`
+> `apply.py` needs a model-serving API key. Ask your cluster administrator
+> for one, or use pkui if it is available on your platform, then set it
 > before running the test script:
 > ```sh
 > export API_KEY=your-key-here
 > ```
+> If `API_KEY` is not set, `apply.py` will prompt for it interactively.
 
 1. Set the required environment variables (optional):
    ```sh
-   export API_KEY=<your-api-key>          # auto-created by apply.py if omitted
+   export API_KEY=<your-api-key>          # ask your admin, or use pkui if available
    export INFERENCE_SERVICE_URI=<your-inference-service-url>
    export PROTOCOL_VERSION=v2
    ```

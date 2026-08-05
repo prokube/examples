@@ -114,9 +114,10 @@ check and skips MLflow-dependent examples if it does not.
 
 ### get_or_create_api_key.py
 
-Idempotent, no human input.  Creates or retrieves the `examples-key`
-AIGatewayKey CR.  Call it from any notebook cell or script that needs an
-inference API key:
+Returns a model-serving API key: the `INFERENCE_SERVICE_API_KEY` env var if
+an admin has injected one into the pod, otherwise an interactive prompt
+(ask your cluster admin, or use pkui if available on your platform). Call it
+from any notebook cell or script that needs an inference API key:
 
 ```python
 import sys, subprocess, os
