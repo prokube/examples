@@ -77,8 +77,12 @@ def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
 
 def _smoke_test(namespace: str, timeout: int = 120) -> None:
     """POST to the internal cluster URL; retries until the model responds."""
+    # KServe's predictor Service is always named "<isvc-name>-predictor",
+    # never the bare ISVC name (see PredictorServiceName in kserve's
+    # pkg/constants/constants.go) — hitting "{_ISVC_NAME}.{namespace}"
+    # directly resolves to nothing.
     url = (
-        f"http://{_ISVC_NAME}.{namespace}.svc.cluster.local"
+        f"http://{_ISVC_NAME}-predictor.{namespace}.svc.cluster.local"
         f"/v1/models/{_MODEL_NAME}:predict"
     )
     payload = json.dumps({"instances": ["KServe is wonderful!"]}).encode()

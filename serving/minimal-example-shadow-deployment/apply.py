@@ -238,8 +238,11 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
     The doubler predictor multiplies each input value by FACTOR=2, so
     [1.0, 2.0, 3.0] must produce predictions [2.0, 4.0, 6.0].
     """
+    # KServe's predictor Service is always named "<isvc-name>-predictor",
+    # never the bare ISVC name.
     url = (
-        f"http://{_DOUBLER_ISVC}.{namespace}.svc.cluster.local/v1/models/model:predict"
+        f"http://{_DOUBLER_ISVC}-predictor.{namespace}.svc.cluster.local"
+        "/v1/models/model:predict"
     )
     inputs = [1.0, 2.0, 3.0]
     expected = [2.0, 4.0, 6.0]
