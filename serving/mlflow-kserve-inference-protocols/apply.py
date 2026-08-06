@@ -1,28 +1,4 @@
-"""
-Deploy the v1 and v2 MLflow KServe InferenceServices and smoke-test both.
-
-Substitutes ``<workspace-name>`` and ``<username>`` in the YAML manifests from
-the cluster environment, applies them, waits for readiness, and verifies that
-both endpoints return identical predictions for the same input.
-
-Usage from a notebook
----------------------
-    import sys
-    sys.path.insert(0, ".")   # run from the serving/mlflow-kserve-inference-protocols/ dir
-    from apply import deploy
-
-    v1_uri, v2_uri, api_key = deploy()
-
-CLI usage
----------
-    python apply.py
-
-Prerequisites
--------------
-- ``mlflow-credentials`` secret must exist (run scripts/setup_mlflow_credentials.py).
-- The MLflow model ``mobile-price-svm-<username>`` version 1 must be registered
-  (run mlflow/mobile-price-classification/mlflow-mobile-price-classification.ipynb first).
-"""
+"""Deploy and smoke-test the v1 and v2 MLflow KServe services."""
 
 from __future__ import annotations
 

@@ -1,30 +1,4 @@
-"""
-Deploy the mlflow-kserve-minimal InferenceService and run an inference test.
-
-Substitutes ``<workspace-name>`` and ``<your-user>`` in InferenceService.yaml
-from the cluster environment, applies it, waits for readiness, runs a smoke
-test via ``test_inference_service.py``, and prints the external URL.
-
-Usage from a notebook
----------------------
-    import sys, subprocess, os
-    _root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-    sys.path.insert(0, os.path.join(_root, "serving", "mlflow-kserve-minimal"))
-    from apply import deploy
-
-    isvc_uri = deploy()
-
-CLI usage
----------
-    python apply.py
-    # prints ISVC_URI=<url> and runs inference smoke test
-
-Prerequisites
--------------
-- ``mlflow-credentials`` secret must exist (run scripts/setup_mlflow_credentials.py).
-- The MLflow model ``mobile-price-svm-<username>`` version 1 must be registered
-  (run mlflow/mobile-price-classification/mlflow-mobile-price-classification.ipynb first).
-"""
+"""Deploy and smoke-test the MLflow-backed InferenceService."""
 
 from __future__ import annotations
 
@@ -66,9 +40,7 @@ def _mlflow_username(namespace: str) -> str:
         )
     data = json.loads(result.stdout)["data"]
     full = base64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode()
-    # Pipeline registers models as "mobile-price-svm-{local_user}" where
-    # local_user = MLFLOW_TRACKING_USERNAME.split('@')[0], e.g.
-    # "developer1@prokube.cloud" → "developer1"
+    # Model names use the username portion before "@".
     return full.split("@")[0]
 
 

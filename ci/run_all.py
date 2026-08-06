@@ -1,56 +1,4 @@
-"""
-CI orchestrator — runs all automatable examples and reports results.
-
-Execution model
----------------
-Phase 1a (sequential, env-mutating):
-    Phase-1 examples with env_mutating=True (e.g. ones that `pip install
-    --upgrade` into the shared notebook kernel env), run to completion one
-    at a time before Phase 1 starts, to avoid a concurrent pip install
-    corrupting another notebook's in-progress import of the same package.
-
-Phase 1 (parallel, self-contained):
-    All remaining examples whose phase=1 in _EXAMPLES, including opt-in
-    ones.
-
-Phase 2 (parallel, pipeline submissions — return fast):
-    All examples whose phase=2 in _EXAMPLES.
-
-Phase 3 (depends on Phase 2 mlflow-mobile-price notebook completing):
-    All examples whose phase=3 in _EXAMPLES.
-
-Phase 4 (KFP run polling — runs alongside Phase 3):
-    Poll all KFP run IDs extracted from Phase 2 output notebooks until
-    Succeeded or timeout.
-
-Phase 5 — cleanup (always, in finally block):
-    All cleanup.py scripts derived from _EXAMPLES, in parallel.
-
-Adding a new example
---------------------
-Add one entry to _EXAMPLES below. Everything else (cleanup, phase
-scheduling, opt-in gating, dry-run output) is derived from the table.
-
-Usage from a Jupyter notebook
-------------------------------
-    import subprocess
-    subprocess.run(["python", "ci/run_all.py"], check=True)
-
-CLI usage
----------
-    python ci/run_all.py [--timeout-notebook 1800] [--timeout-pipeline 3600]
-                         [--include-keda] [--include-shadow] [--include-pytorch]
-                         [--dry-run]
-
-Prerequisites
--------------
-    pip install papermill kfp
-    python scripts/setup_mlflow_credentials.py
-    export INFERENCE_SERVICE_API_KEY=<model-serving API key>  # ask your
-        # cluster admin, or use pkui if available on your platform. Examples
-        # that call get_or_create_api_key() are skipped if this is unset,
-        # since CI runs headlessly and cannot prompt for it interactively.
-"""
+"""Run registered examples by phase, poll KFP runs, and always clean up."""
 
 from __future__ import annotations
 
@@ -138,16 +86,7 @@ class Example:
     api_key_dependent: bool = (
         False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
     )
-    env_mutating: bool = (
-        False  # True = pip installs/upgrades packages into the shared
-        # notebook kernel environment. All papermill notebooks execute
-        # against the same site-packages (kernel_name="python3"), so an
-        # env_mutating example must finish before other same-phase
-        # examples start, or a concurrent `pip install` can corrupt an
-        # in-progress import in another notebook (e.g. partially replaced
-        # compiled extension modules). Run first within its phase, not
-        # concurrently with the rest.
-    )
+    env_mutating: bool = False  # run first; modifies the shared Python environment
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -764,13 +703,7 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
 
 
 def _check_kserve_api_key() -> tuple[bool, str]:
-    """Return (ok, reason). Checks that INFERENCE_SERVICE_API_KEY is set.
-
-    CI runs headlessly, so get_or_create_api_key() cannot fall back to its
-    interactive getpass() prompt — the env var must be pre-populated. Ask
-    your cluster admin for a model-serving API key, or use pkui if it is
-    available on your platform.
-    """
+    """Check that headless CI has an inference API key."""
     if os.environ.get("INFERENCE_SERVICE_API_KEY", "").strip():
         return True, "OK"
     return False, (

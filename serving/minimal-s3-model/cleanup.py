@@ -1,13 +1,4 @@
-"""
-Cleanup script for the minimal-s3-model example.
-
-Deletes (idempotently):
-  - InferenceService ``kserve-object-storage-test``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the object-storage InferenceService."""
 
 from __future__ import annotations
 

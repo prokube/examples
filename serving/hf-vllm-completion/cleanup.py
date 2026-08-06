@@ -1,13 +1,4 @@
-"""
-Cleanup script for the hf-vllm-completion example.
-
-Deletes (idempotently):
-  - InferenceService ``distilbert-inf-serv``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the DistilBERT InferenceService."""
 
 from __future__ import annotations
 

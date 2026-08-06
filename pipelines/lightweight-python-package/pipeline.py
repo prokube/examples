@@ -179,18 +179,7 @@ def mobile_price_classification_pipeline(
     scatter_plot_column_y: str = "battery_power",
     seed: int = 42,
 ):
-    """
-    Mobile price classification pipeline using containerized components.
-
-    This pipeline covers the following steps:
-    1. Read data from the specified paths.
-    2. Split the data into training and validation sets.
-    3. Fit the MinMax scaler.
-    4. Tune hyperparameters for the SVM model.
-    5. Train the SVM model with the best hyperparameters.
-    6. Evaluate the trained model.
-    7. Test the model and visualize the results with a scatter plot.
-    """
+    """Train, tune, evaluate, and visualize a mobile-price classifier."""
     from kfp import kubernetes
 
     # Step 1: Read the data

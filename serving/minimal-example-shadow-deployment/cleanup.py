@@ -1,15 +1,4 @@
-"""
-Cleanup script for the minimal-example-shadow-deployment example.
-
-Deletes (idempotently):
-  - InferenceService ``double-minimal-custom-inference``
-  - InferenceService ``triple-minimal-custom-inference``
-  - PostgresCluster  ``inferencing-postgres``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the shadow example's InferenceServices and Postgres cluster."""
 
 from __future__ import annotations
 

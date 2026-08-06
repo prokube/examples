@@ -1,14 +1,4 @@
-"""
-Deploy the DistilBERT CPU InferenceService (HuggingFace backend) and smoke-test it.
-
-The model (distilbert-base-uncased-finetuned-sst-2-english, ~250 MB) is
-downloaded from the HuggingFace Hub on first start, so the ISVC may take a
-few minutes to become ready.
-
-Usage
------
-    python apply.py
-"""
+"""Deploy and smoke-test the DistilBERT InferenceService."""
 
 from __future__ import annotations
 

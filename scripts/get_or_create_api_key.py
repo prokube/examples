@@ -1,34 +1,4 @@
-"""
-Utility to obtain a prokube model-serving API key for use in examples.
-
-Usage from a notebook
----------------------
-    import sys, subprocess, os
-    _root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-    sys.path.insert(0, os.path.join(_root, "scripts"))
-    from get_or_create_api_key import get_or_create_api_key
-
-    API_KEY = get_or_create_api_key()
-
-CLI usage
----------
-    python get_or_create_api_key.py
-    # prints the key to stdout
-
-Resolution order
-----------------
-There is no automated way to provision a model-serving API key from within a
-notebook or script.  This helper only looks for a key that has already been
-made available in the environment, and otherwise prompts for one:
-
-1. **Environment variable.**  If an admin has pre-provisioned a key and
-   injected it into the notebook pod via the ``INFERENCE_SERVICE_API_KEY``
-   environment variable, that value is used.
-
-2. **Interactive prompt.**  Otherwise, the caller is prompted to paste a key.
-   Obtain a key from your cluster administrator, or via the prokube UI
-   (``pkui``) if it is available on your platform.
-"""
+"""Read an inference API key from the environment or prompt for one."""
 
 from __future__ import annotations
 
@@ -37,8 +7,6 @@ import os
 import sys
 from getpass import getpass
 
-# Env var an admin injects into the notebook pod with a pre-provisioned
-# model-serving API key.
 _API_KEY_ENV_VAR = "INFERENCE_SERVICE_API_KEY"
 
 
@@ -49,12 +17,7 @@ def _key_from_env() -> str | None:
 
 
 def get_or_create_api_key() -> str:
-    """Return a model-serving API key.
-
-    See the module docstring for the resolution order: the
-    ``INFERENCE_SERVICE_API_KEY`` env var if set, otherwise an interactive
-    prompt.
-    """
+    """Return the configured API key, prompting if necessary."""
     env_key = _key_from_env()
     if env_key:
         return env_key

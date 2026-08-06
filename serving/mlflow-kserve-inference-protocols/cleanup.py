@@ -1,14 +1,4 @@
-"""
-Cleanup script for the mlflow-kserve-inference-protocols example.
-
-Deletes (idempotently):
-  - InferenceService ``v1-mobile-price-classification-inference``
-  - InferenceService ``v2-mobile-price-classification-inference``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the v1 and v2 MLflow InferenceServices."""
 
 from __future__ import annotations
 

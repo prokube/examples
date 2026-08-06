@@ -1,13 +1,4 @@
-"""
-Cleanup script for the mlflow-kserve-minimal example.
-
-Deletes (idempotently):
-  - InferenceService ``mobile-price-svm``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the minimal MLflow InferenceService."""
 
 from __future__ import annotations
 

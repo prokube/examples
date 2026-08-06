@@ -2,11 +2,7 @@ import os
 import subprocess
 import sys
 
-# Re-exec with conda's libstdc++ prepended to LD_LIBRARY_PATH when needed.
-# scipy 1.17+ requires CXXABI_1.3.15 which the system libstdc++ may lack; the
-# conda-bundled libstdc++ provides it. LD_LIBRARY_PATH must be set before the
-# process starts (the dynamic linker reads it once), so we re-exec if the
-# conda lib dir is not already in the path.
+# Re-exec with Conda's libstdc++ so SciPy can resolve its CXXABI symbols.
 _conda_lib = os.path.normpath(
     os.path.join(os.path.dirname(sys.executable), "..", "lib")
 )
@@ -55,14 +51,7 @@ import torch
 )
 @click.option("--max_epochs", default=50, type=int, help="Number of training epochs.")
 def run(hidden_dim: int, latent_dim: int, max_epochs: int) -> None:
-    """
-    Train a VAE model on the MNIST dataset using PyTorch Lightning.
-
-    Args:
-        hidden_dim (int): Dimension of the hidden layer.
-        latent_dim (int): Dimension of the latent space.
-        max_epochs (int): Number of training epochs.
-    """
+    """Train a VAE on MNIST."""
 
     # Initialize data module
     dm = MNISTDataModule(data_path="./data", num_workers=0, batch_size=32)

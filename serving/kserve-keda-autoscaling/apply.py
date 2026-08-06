@@ -1,17 +1,4 @@
-"""
-Deploy the KEDA autoscaling example (OPT-125M, vLLM backend, CPU) and verify
-that both the InferenceService and the ScaledObject become active.
-
-KEDA CRD check
---------------
-If the ``scaledobjects.keda.sh`` CRD is absent the script exits with 0 and a
-SKIP message rather than failing — the example is opt-in because KEDA is not
-installed in every prokube cluster.
-
-Usage
------
-    python apply.py
-"""
+"""Deploy and verify KEDA autoscaling, skipping when KEDA is unavailable."""
 
 from __future__ import annotations
 
@@ -50,12 +37,7 @@ def _kubectl_apply(manifest: str, namespace: str) -> None:
 
 
 def _try_apply_scaledobject(manifest: str, namespace: str) -> str | None:
-    """Apply the ScaledObject manifest; return an error string if KEDA is absent.
-
-    Returns None on success, or a non-empty string if kubectl rejected the
-    manifest because the ScaledObject CRD is not installed.  Any other error
-    is raised so CI marks the example as FAIL instead of silently skipping.
-    """
+    """Apply the ScaledObject, returning an error only when KEDA is absent."""
     result = subprocess.run(
         ["kubectl", "apply", "-f", "-", "-n", namespace],
         input=manifest,

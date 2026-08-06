@@ -1,15 +1,4 @@
-"""
-Cleanup script for the hparam-tuning/minimal-mnist example.
-
-Deletes (idempotently):
-  - Katib Experiment ``minimal-mnist``
-  - Any Trial pods created by the Experiment (Katib garbage-collects these
-    automatically, but this speeds things up if you need to clean up quickly)
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the minimal MNIST Katib experiment and its trial pods."""
 
 from __future__ import annotations
 

@@ -1,34 +1,4 @@
-"""
-One-time setup: store MLflow credentials in a Kubernetes secret so that
-example notebooks can read them without hardcoded values.
-
-This is the only step in the automation plan that requires human input —
-the MLflow Personal Access Token (PAT) must be created via the MLflow UI
-(Permissions → Create access key) and cannot be obtained programmatically.
-
-Usage from a notebook
----------------------
-    import sys, subprocess, os
-    _root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-    sys.path.insert(0, os.path.join(_root, "scripts"))
-    from setup_mlflow_credentials import setup_mlflow_credentials
-
-    setup_mlflow_credentials(
-        uri="https://my-cluster.example.com/mlflow/",
-        username="alice@example.com",
-        password="<paste PAT here>",
-    )
-
-CLI usage (any argument can be omitted; you will be prompted for it)
----------------------------------------------------------------------
-    python setup_mlflow_credentials.py \\
-        --uri https://my-cluster.example.com/mlflow/ \\
-        --username alice@example.com \\
-        --password <paste PAT here>
-
-The credentials are stored in a Secret named ``mlflow-credentials`` in the
-notebook's namespace.  Re-running updates the secret in place.
-"""
+"""Create or update the namespace's MLflow credentials Secret."""
 
 from __future__ import annotations
 

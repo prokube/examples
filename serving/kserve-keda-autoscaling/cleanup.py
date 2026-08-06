@@ -1,14 +1,4 @@
-"""
-Cleanup script for the kserve-keda-autoscaling example.
-
-Deletes (idempotently, ScaledObject first to stop KEDA activity):
-  - ScaledObject  ``opt-125m-scaledobject``
-  - InferenceService ``opt-125m``
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the KEDA ScaledObject and InferenceService."""
 
 from __future__ import annotations
 

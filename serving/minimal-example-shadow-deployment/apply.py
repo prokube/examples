@@ -1,30 +1,4 @@
-"""
-Deploy the shadow deployment example and smoke-test the primary InferenceService.
-
-What this script does
----------------------
-1. Checks for the CrunchyData postgres-operator CRD — exits 0 with a SKIP
-   message if not found (it is installed by default in prokube clusters).
-2. Deploys the PostgresCluster (postgres-cluster.yaml) and waits for the
-   primary pod to become ready.
-3. Creates the two tables the transformer needs (inference_requests and
-   inference_response) via a short-lived psql pod.
-4. Deploys the primary (doubler) and shadow (tripler) InferenceServices and
-   waits for both to become ready.
-5. Sends a smoke-test request to the primary via its cluster-internal URL
-   and verifies the response contains predictions.
-
-What this script does NOT do
------------------------------
-- Apply the Istio VirtualService manifests — those embed namespace and domain
-  name and must be configured manually for each environment.
-- Verify the shadow mirroring behaviour (that requires traffic via the
-  VirtualService, which is out of scope for automated CI).
-
-Usage
------
-    python apply.py
-"""
+"""Deploy Postgres and the doubler/tripler services, then test the primary."""
 
 from __future__ import annotations
 

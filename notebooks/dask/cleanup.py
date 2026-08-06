@@ -1,15 +1,4 @@
-"""
-Cleanup script for the dask example.
-
-Deletes (idempotently):
-  - Any DaskCluster CRs left running in the current namespace
-    (dask-kubernetes names them after the KubeCluster object; the example
-    uses the default name ``dask-cluster``)
-
-Usage
------
-    python cleanup.py [--dry-run]
-"""
+"""Delete the Dask cluster created by the example."""
 
 from __future__ import annotations
 
