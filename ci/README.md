@@ -10,7 +10,8 @@
 
 Register it in the `_EXAMPLES` list in `run_all.py`.  Everything else —
 phase scheduling, opt-in gating, cleanup, dry-run output, MLflow-credential
-and API-key skipping — is derived from that entry automatically.
+and API-key skipping, env-mutating ordering — is derived from that entry
+automatically.
 
 ```python
 Example(
@@ -25,8 +26,30 @@ Example(
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
     api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
+    env_mutating=False,                  # True = pip installs/upgrades packages;
+                                          # runs before the rest of its phase (see below)
 )
 ```
+
+### env_mutating flag
+
+Every notebook in a phase is executed via papermill against the **same**
+`python3` kernel/site-packages — there is no per-notebook virtualenv.  If a
+notebook runs `pip install --upgrade <pkg>` while another notebook in the
+same phase is concurrently importing that package, the concurrent
+reinstall can corrupt the import (e.g. `ModuleNotFoundError:
+No module named 'pandas._libs.internals'` from a partially-replaced
+compiled extension).
+
+Set `env_mutating=True` on any example whose steps run `pip install` /
+`%pip install` (uncommented, not `-q`-only-metadata, actually mutating
+installed packages) against packages that other examples in the same
+phase might import.  `run_all.py` runs all `env_mutating` examples in a
+phase to completion **before** starting the rest of that phase, instead of
+throwing everything into the same parallel batch.  Prefer avoiding
+`pip install --upgrade` in new examples entirely (pin/bake deps into the
+notebook image) — reach for `env_mutating=True` only when that isn't
+possible.
 
 ### Phase rules
 

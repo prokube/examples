@@ -3,8 +3,15 @@ CI orchestrator — runs all automatable examples and reports results.
 
 Execution model
 ---------------
+Phase 1a (sequential, env-mutating):
+    Phase-1 examples with env_mutating=True (e.g. ones that `pip install
+    --upgrade` into the shared notebook kernel env), run to completion one
+    at a time before Phase 1 starts, to avoid a concurrent pip install
+    corrupting another notebook's in-progress import of the same package.
+
 Phase 1 (parallel, self-contained):
-    All examples whose phase=1 in _EXAMPLES, including opt-in ones.
+    All remaining examples whose phase=1 in _EXAMPLES, including opt-in
+    ones.
 
 Phase 2 (parallel, pipeline submissions — return fast):
     All examples whose phase=2 in _EXAMPLES.
@@ -131,6 +138,16 @@ class Example:
     api_key_dependent: bool = (
         False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
     )
+    env_mutating: bool = (
+        False  # True = pip installs/upgrades packages into the shared
+        # notebook kernel environment. All papermill notebooks execute
+        # against the same site-packages (kernel_name="python3"), so an
+        # env_mutating example must finish before other same-phase
+        # examples start, or a concurrent `pip install` can corrupt an
+        # in-progress import in another notebook (e.g. partially replaced
+        # compiled extension modules). Run first within its phase, not
+        # concurrently with the rest.
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -143,6 +160,7 @@ _EXAMPLES: list[Example] = [
         steps=[Step("notebook", "notebooks/dask/dask_example.ipynb")],
         phase=1,
         cleanup="notebooks/dask/cleanup.py",
+        env_mutating=True,
     ),
     Example(
         name="notebooks/mobile-price-classification",
@@ -674,6 +692,8 @@ def _print_dry_run() -> None:
             label += "  (mlflow)"
         if ex.api_key_dependent:
             label += "  (api-key)"
+        if ex.env_mutating:
+            label += "  (env-mutating, runs first in its phase)"
         by_phase.setdefault(ex.phase, []).append(label)
     phase_names = {
         1: "independent",
@@ -801,11 +821,18 @@ def _run_phase(
     ctx: _Context,
     phase: int,
     opts: dict[str, bool],
+    predicate: Callable[[Example], bool] | None = None,
 ) -> dict[str, Future]:
-    """Submit all examples for a given phase; return {name: Future}."""
+    """Submit all examples for a given phase; return {name: Future}.
+
+    If `predicate` is given, only examples for which it returns True are
+    submitted (used to run env_mutating examples in their own sub-step).
+    """
     futures: dict[str, Future] = {}
     for ex in _EXAMPLES:
         if ex.phase != phase:
+            continue
+        if predicate is not None and not predicate(ex):
             continue
         if ex.name in ctx.results:  # already SKIP from pre-flight
             print(f"  [SKIP  ] {ex.name}")
@@ -930,8 +957,17 @@ def run_all(
                 poll_errors=poll_errors,
             )
 
+            print(
+                "Phase 1a: running environment-mutating examples "
+                "(pip install into the shared kernel env) sequentially first..."
+            )
+            _drain(ctx, _run_phase(ctx, 1, opts, predicate=lambda ex: ex.env_mutating))
+
             print("Phase 1: running independent examples in parallel...")
-            _drain(ctx, _run_phase(ctx, 1, opts))
+            _drain(
+                ctx,
+                _run_phase(ctx, 1, opts, predicate=lambda ex: not ex.env_mutating),
+            )
 
             print("\nPhase 2: submitting pipelines...")
             phase2_futures = _run_phase(ctx, 2, opts)
