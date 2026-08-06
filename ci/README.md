@@ -118,9 +118,9 @@ If you add an `apply.py`, always add the matching `cleanup.py` as well.
 
 ## scripts/ utilities
 
-`scripts/` contains two cluster utilities importable from notebooks and apply
-scripts.  Both work identically whether called from a notebook cell or from an
-`apply.py`.
+`scripts/` contains cluster utilities importable from notebooks and apply
+scripts.  All of them work identically whether called from a notebook cell
+or from an `apply.py`.
 
 ### setup_mlflow_credentials.py
 
@@ -163,6 +163,34 @@ export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui 
 CI validates this in the preflight check and skips `api_key_dependent`
 examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
+
+### kserve_internal_url.py
+
+Returns the correct **internal, in-cluster** predict URL for a KServe
+InferenceService, compatible with both prokube generations:
+
+- Currently released: hits the predictor Service directly —
+  `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/v1/models/<model-name>:predict`.
+- Upcoming (agentgateway-based, not yet released): routes through the
+  shared `agentgateway-proxy` Service instead —
+  `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v2/models/<model-name>/infer`.
+
+It picks the URL by probing for the `agentgateway-proxy` Service once
+(cached for the process) — no config flag needed. The request/response
+payload format is unchanged either way (plain KServe V1 JSON, e.g.
+`{"instances": [...]}`) — only the URL differs. Any example that predicts
+against an InferenceService via its internal cluster URL (not the external
+gateway URL) should use this instead of hardcoding the `<isvc>-predictor`
+pattern:
+
+```python
+import sys, subprocess, os
+_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+sys.path.insert(0, os.path.join(_root, "scripts"))
+from kserve_internal_url import internal_predict_url
+
+url = internal_predict_url(isvc_name, namespace, model_name)
+```
 
 ---
 
