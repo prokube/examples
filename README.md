@@ -42,7 +42,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 
 | Example | Min platform version | Notes |
 |---|---|---|
-| `mcp-servers` | TBD | Requires MCP servers / ToolHive support |
+| `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## Contributing
