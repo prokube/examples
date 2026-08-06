@@ -175,8 +175,11 @@ InferenceService, compatible with both prokube generations:
   shared `agentgateway-proxy` Service instead —
   `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v2/models/<model-name>/infer`.
 
-It picks the URL by probing for the `agentgateway-proxy` Service once
-(cached for the process) — no config flag needed. The request/response
+It picks the URL via a plain DNS lookup for the `agentgateway-proxy` Service
+(cached for the process) — no config flag needed, and no RBAC required
+(unlike `kubectl get service`, which notebook pod service accounts
+typically can't do cross-namespace; DNS resolution needs no permissions,
+and a non-existent Service just fails to resolve). The request/response
 payload format is unchanged either way (plain KServe V1 JSON, e.g.
 `{"instances": [...]}`) — only the URL differs. Any example that predicts
 against an InferenceService via its internal cluster URL (not the external
