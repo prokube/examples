@@ -14,9 +14,13 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
-├── scripts          # shared utilities (credential setup, API key management)
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
+└── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
 ```
+
+The shared `pk_helpers` package is installable from the repo root
+(`pip install -e .`); notebooks install it via a `%pip install -q -e ~/kubeflow-examples`
+setup cell and import helpers with `from pk_helpers import ...`.
 
 Many serving examples include an `apply.py` (deploy + smoke-test) and a `cleanup.py`
 (teardown of Kubernetes resources) alongside the notebook. These are used by the CI

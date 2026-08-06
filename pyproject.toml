@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pk-helpers"
+version = "0.1.0"
+description = "Prokube platform helpers shared across the Kubeflow examples."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+pk-get-api-key = "pk_helpers.api_key:main"
+pk-setup-mlflow-credentials = "pk_helpers.mlflow_credentials:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pk_helpers"]

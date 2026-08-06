@@ -212,11 +212,7 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
     The doubler predictor multiplies each input value by FACTOR=2, so
     [1.0, 2.0, 3.0] must produce predictions [2.0, 4.0, 6.0].
     """
-    _root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], text=True
-    ).strip()
-    sys.path.insert(0, os.path.join(_root, "scripts"))
-    from kserve_internal_url import internal_predict_url  # noqa: PLC0415
+    from pk_helpers import internal_predict_url
 
     url = internal_predict_url(_DOUBLER_ISVC, namespace, "model")
     inputs = [1.0, 2.0, 3.0]

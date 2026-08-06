@@ -77,7 +77,8 @@ def setup_mlflow_credentials(
     print(f"Secret '{_SECRET_NAME}' created/updated in namespace '{ns}'.")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point: create/update the MLflow credentials secret."""
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -93,3 +94,7 @@ if __name__ == "__main__":
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

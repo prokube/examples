@@ -53,7 +53,7 @@ def _mlflow_username(namespace: str) -> str:
     if result.returncode != 0:
         raise RuntimeError(
             "mlflow-credentials secret not found.\n"
-            "Run scripts/setup_mlflow_credentials.py to create it."
+            "Run `pk-setup-mlflow-credentials` to create it."
         )
     data = json.loads(result.stdout)["data"]
     return base64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode().split("@")[0]
@@ -117,11 +117,7 @@ def _isvc_url(name: str, namespace: str) -> str:
 
 
 def _get_api_key() -> str:
-    root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], text=True
-    ).strip()
-    sys.path.insert(0, os.path.join(root, "scripts"))
-    from get_or_create_api_key import get_or_create_api_key
+    from pk_helpers import get_or_create_api_key
 
     return get_or_create_api_key()
 

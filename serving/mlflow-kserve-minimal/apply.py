@@ -36,7 +36,7 @@ def _mlflow_username(namespace: str) -> str:
     if result.returncode != 0:
         raise RuntimeError(
             "mlflow-credentials secret not found.\n"
-            "Run scripts/setup_mlflow_credentials.py to create it."
+            "Run `pk-setup-mlflow-credentials` to create it."
         )
     data = json.loads(result.stdout)["data"]
     full = base64.b64decode(data["MLFLOW_TRACKING_USERNAME"]).decode()
@@ -133,11 +133,7 @@ _TEST_JSON = os.path.join(_HERE, "v2-mlflow-inference-body.json")
 def test(uri: str) -> None:
     """Run the inference smoke test against the deployed ISVC."""
     # Get / create the API key
-    _root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], text=True
-    ).strip()
-    sys.path.insert(0, os.path.join(_root, "scripts"))
-    from get_or_create_api_key import get_or_create_api_key  # noqa: PLC0415
+    from pk_helpers import get_or_create_api_key
 
     api_key = get_or_create_api_key()
 

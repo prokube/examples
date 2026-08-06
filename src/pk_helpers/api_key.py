@@ -35,7 +35,8 @@ def get_or_create_api_key() -> str:
     return key
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console-script entry point: print the resolved API key."""
     try:
         argparser = argparse.ArgumentParser(
             description="Get a prokube model-serving API key"
@@ -45,3 +46,7 @@ if __name__ == "__main__":
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

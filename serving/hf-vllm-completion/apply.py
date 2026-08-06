@@ -67,11 +67,7 @@ def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
 
 def _smoke_test(namespace: str, timeout: int = 120) -> None:
     """POST to the internal cluster URL; retries until the model responds."""
-    _root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], text=True
-    ).strip()
-    sys.path.insert(0, os.path.join(_root, "scripts"))
-    from kserve_internal_url import internal_predict_url  # noqa: PLC0415
+    from pk_helpers import internal_predict_url
 
     url = internal_predict_url(_ISVC_NAME, namespace, _MODEL_NAME)
     payload = json.dumps({"instances": ["KServe is wonderful!"]}).encode()

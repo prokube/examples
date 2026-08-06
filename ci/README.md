@@ -116,27 +116,42 @@ If you add an `apply.py`, always add the matching `cleanup.py` as well.
 
 ---
 
-## scripts/ utilities
+## pk_helpers package
 
-`scripts/` contains cluster utilities importable from notebooks and apply
-scripts.  All of them work identically whether called from a notebook cell
+`pk_helpers` (source in `src/pk_helpers/`) bundles the prokube-platform
+utilities importable from notebooks and apply scripts.  It is a regular,
+installable Python package — install it once, editable, from the repo root:
+
+```bash
+pip install -e .
+```
+
+In notebooks, do this from a setup cell near the top:
+
+```python
+%pip install -q -e ~/kubeflow-examples
+```
+
+CI installs it automatically in the preflight step (`_ensure_pk_helpers`),
+so `apply.py` scripts can `from pk_helpers import ...` without any path
+wiring.  Every helper works identically whether called from a notebook cell
 or from an `apply.py`.
 
-### setup_mlflow_credentials.py
+### setup_mlflow_credentials
 
 One-time, interactive.  Stores MLflow credentials in the
 `mlflow-credentials` K8s secret.  **Requires human input** (the MLflow
 Personal Access Token cannot be obtained programmatically).  Run it once from
-a JupyterLab terminal:
+a JupyterLab terminal via the installed console script:
 
 ```bash
-python examples/scripts/setup_mlflow_credentials.py
+pk-setup-mlflow-credentials
 ```
 
 Do not call this from CI.  CI validates the secret exists in the preflight
 check and skips MLflow-dependent examples if it does not.
 
-### get_or_create_api_key.py
+### get_or_create_api_key
 
 Returns a model-serving API key: the `INFERENCE_SERVICE_API_KEY` env var if
 an admin has injected one into the pod, otherwise an interactive prompt
@@ -144,10 +159,7 @@ an admin has injected one into the pod, otherwise an interactive prompt
 from any notebook cell or script that needs an inference API key:
 
 ```python
-import sys, subprocess, os
-_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-sys.path.insert(0, os.path.join(_root, "scripts"))
-from get_or_create_api_key import get_or_create_api_key
+from pk_helpers import get_or_create_api_key
 
 API_KEY = get_or_create_api_key()
 ```
@@ -164,7 +176,7 @@ CI validates this in the preflight check and skips `api_key_dependent`
 examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
-### kserve_internal_url.py
+### internal_predict_url
 
 Returns the correct **internal, in-cluster** predict URL for a KServe
 InferenceService, compatible with both prokube generations:
@@ -187,10 +199,7 @@ gateway URL) should use this instead of hardcoding the `<isvc>-predictor`
 pattern:
 
 ```python
-import sys, subprocess, os
-_root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-sys.path.insert(0, os.path.join(_root, "scripts"))
-from kserve_internal_url import internal_predict_url
+from pk_helpers import internal_predict_url
 
 url = internal_predict_url(isvc_name, namespace, model_name)
 ```

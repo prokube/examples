@@ -37,6 +37,24 @@ def _ensure_papermill() -> None:
         print("papermill installed.")
 
 
+def _ensure_pk_helpers() -> None:
+    """Editable-install the pk_helpers package if it is not importable.
+
+    Notebooks and serving apply.py scripts import shared prokube helpers via
+    ``from pk_helpers import ...``. Installing the repo editable makes the same
+    interpreter used by the CI subprocesses able to resolve those imports.
+    """
+    try:
+        import pk_helpers  # noqa: F401
+    except ImportError:
+        print("pk_helpers not found — installing repo editable...")
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-e", str(_REPO_ROOT)],
+            check=True,
+        )
+        print("pk_helpers installed.")
+
+
 # ── KFP run ID pattern (UUID v4) ─────────────────────────────────────────────
 _RUN_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
@@ -667,7 +685,7 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
     if r.returncode != 0:
         return False, (
             "mlflow-credentials secret not found — "
-            "run scripts/setup_mlflow_credentials.py first"
+            "run `pk-setup-mlflow-credentials` first"
         )
     try:
         data = _json.loads(r.stdout)["data"]
@@ -677,7 +695,7 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
     except KeyError as exc:
         return (
             False,
-            f"mlflow-credentials secret is missing key {exc} — re-run setup_mlflow_credentials.py",
+            f"mlflow-credentials secret is missing key {exc} — re-run `pk-setup-mlflow-credentials`",
         )
 
     creds = _b64.b64encode(f"{username}:{password}".encode()).decode()
@@ -692,7 +710,7 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
         if exc.code in (401, 403):
             return False, (
                 "MLflow credentials are invalid or the PAT has expired — "
-                "re-run scripts/setup_mlflow_credentials.py"
+                "re-run `pk-setup-mlflow-credentials`"
             )
         return (
             False,
@@ -719,6 +737,7 @@ def _preflight(results: dict[str, Result]) -> bool:
     `results` on failure. Returns True if MLflow credentials are valid.
     """
     _ensure_papermill()
+    _ensure_pk_helpers()
 
     print("Pre-flight: checking MLflow credentials...")
     mlflow_ok, mlflow_reason = _check_mlflow_credentials()
