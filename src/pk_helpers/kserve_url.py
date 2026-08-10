@@ -25,7 +25,7 @@ def internal_predict_url(isvc_name: str, namespace: str, model_name: str) -> str
     if _agentgateway_available():
         return (
             f"http://{_AGENTGATEWAY_HOST}"
-            f"/_platform/serving/{namespace}/{isvc_name}/v2/models/{model_name}/infer"
+            f"/_platform/serving/{namespace}/{isvc_name}/v1/models/{model_name}:predict"
         )
     return (
         f"http://{isvc_name}-predictor.{namespace}.svc.cluster.local"
