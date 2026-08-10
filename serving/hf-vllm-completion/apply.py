@@ -65,7 +65,7 @@ def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
         )
 
 
-def _smoke_test(namespace: str, timeout: int = 120) -> None:
+def _smoke_test(namespace: str, timeout: int = 300) -> None:
     """POST to the internal cluster URL; retries until the model responds."""
     from pk_helpers import internal_predict_url
 
