@@ -307,4 +307,4 @@ For production GPU deployments, use the plateau value from your own calibration 
 - [prokube autoscaling documentation](https://docs.prokube.ai/latest/user_docs/model_serving_autoscaling/#keda-kubernetes-event-driven-autoscaling)
 - [KServe KEDA autoscaler docs](https://kserve.github.io/website/docs/model-serving/predictive-inference/autoscaling/keda-autoscaler)
 - [KEDA Prometheus scaler](https://keda.sh/docs/scalers/prometheus/)
-- [vLLM metrics reference](https://docs.vllm.ai/en/latest/serving/metrics.html)
+- [vLLM metrics reference](https://docs.vllm.ai/en/latest/design/metrics)
