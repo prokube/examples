@@ -4,7 +4,9 @@ from pipeline import mobile_price_classification_pipeline
 
 
 if __name__ == "__main__":
-    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r", encoding="utf-8") as namespace_file:
+    with open(
+        "/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r", encoding="utf-8"
+    ) as namespace_file:
         namespace = namespace_file.read().strip()
 
     s3_bucket = f"{namespace}-data"
@@ -30,3 +32,4 @@ if __name__ == "__main__":
         experiment_name="mobile-price-classification-containerized",
         run_name=f"Containerized pipeline {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
     )
+    print(f"KFP_RUN_ID={run.run_id}")

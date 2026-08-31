@@ -7,6 +7,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ```py
 .
 ├── .github          # workflows to build images
+├── ci               # CI orchestrator (run_all.py) and contributor conventions
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
 ├── mlflow           # MLflow experiment tracking examples
@@ -14,7 +15,16 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
+└── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
 ```
+
+The shared `pk_helpers` package is installable from the repo root
+(`pip install -e .`); notebooks install it via a `%pip install -q -e ~/kubeflow-examples`
+setup cell and import helpers with `from pk_helpers import ...`.
+
+Many serving examples include an `apply.py` (deploy + smoke-test) and a `cleanup.py`
+(teardown of Kubernetes resources) alongside the notebook. These are used by the CI
+orchestrator and can also be run manually.
 
 ## Note about storage
 Storage on Kubernetes is a complex topic and a deep dive is outside the scope of this repository. There are two types
@@ -42,6 +52,12 @@ Some examples require a minimum prokube platform version. If an example is not l
 | Example | Min platform version | Notes |
 |---|---|---|
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
+
+## CI
+
+Examples are tested end-to-end by `ci/run_all.py`, which runs inside a Kubeflow
+notebook pod. See [`ci/README.md`](ci/README.md) for how the orchestrator works and
+how to add a new example to CI.
 
 ## Contributing
 All code contributions should go via pull requests. Make sure your code is clearly documented and that it adheres
