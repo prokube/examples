@@ -6,7 +6,7 @@ It scales based on total token throughput rather than simple request count,
 which is better suited for LLM inference workloads.
 
 For full documentation, see the
-[prokube autoscaling docs](https://docs.prokube.cloud/user_docs/model_serving_autoscaling/#keda-kubernetes-event-driven-autoscaling).
+[prokube autoscaling docs](https://docs.prokube.ai/latest/user_docs/model_serving_autoscaling/#keda-kubernetes-event-driven-autoscaling).
 
 ## Architecture
 
@@ -304,7 +304,7 @@ For production GPU deployments, use the plateau value from your own calibration 
 
 ## References
 
-- [prokube autoscaling documentation](https://docs.prokube.cloud/user_docs/model_serving_autoscaling/)
+- [prokube autoscaling documentation](https://docs.prokube.ai/latest/user_docs/model_serving_autoscaling/#keda-kubernetes-event-driven-autoscaling)
 - [KServe KEDA autoscaler docs](https://kserve.github.io/website/docs/model-serving/predictive-inference/autoscaling/keda-autoscaler)
 - [KEDA Prometheus scaler](https://keda.sh/docs/scalers/prometheus/)
 - [vLLM metrics reference](https://docs.vllm.ai/en/latest/serving/metrics.html)
