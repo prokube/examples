@@ -1,0 +1,60 @@
+# NetworkPolicies for Feast registry and online store isolation.
+#
+# These policies restrict registry and Redis access to pods within the same
+# namespace, providing defense-in-depth alongside Istio AuthorizationPolicies.
+# NetworkPolicies operate at the CNI layer and enforce isolation regardless of
+# sidecar configuration.
+#
+# Note: the namespaceSelector inside each ingress rule is intentional.
+# Calico eBPF mode does not reliably enforce same-namespace restriction when
+# only podSelector: {} is used in the from clause — an explicit
+# namespaceSelector is required to lock access to a specific namespace.
+#
+# The <namespace> placeholder is filled in by the notebook at apply time
+# (it reads the namespace from the pod's service account token).
+#
+# ---------------------------------------------------------------------------
+
+# Feast registry server: allow ingress on port 6570 only from pods in the
+# same namespace. Pods in other namespaces are blocked at the CNI layer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: feast-my-store-registry-ingress
+spec:
+  podSelector:
+    matchLabels:
+      feast.dev/name: my-store   # label applied by the Feast operator to the server pod
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <namespace>
+      ports:
+        - port: 6570
+          protocol: TCP
+---
+# Redis online store: allow ingress on port 6379 only from pods in the
+# same namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-feast-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: redis-feast    # label applied by the OpsTree Redis operator (app: <cr-name>)
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <namespace>
+      ports:
+        - port: 6379
+          protocol: TCP
