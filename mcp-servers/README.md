@@ -46,10 +46,6 @@ kubectl get -n "$NAMESPACE" mcpservers.toolhive.stacklok.dev/time \
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,URL:.status.url'
 ```
 
-Use the complete `mcpservers.toolhive.stacklok.dev` resource name. Some prokube
-clusters also install a kagent resource named `MCPServer`; the short name is
-therefore ambiguous.
-
 Open the **MCP** page in the prokube UI to inspect the server. It should appear
 as **Running** with logs, events, metrics, configuration, and connection
 information.
