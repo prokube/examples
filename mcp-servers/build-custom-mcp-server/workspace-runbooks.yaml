@@ -26,6 +26,8 @@ spec:
       memory: 256Mi
   podTemplateSpec:
     spec:
+      imagePullSecrets:
+      - name: regcred-prokube
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch

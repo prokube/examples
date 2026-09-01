@@ -41,7 +41,9 @@ europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks
 ```
 
 The workflow also publishes an immutable `commit-<git-sha>` tag. Pin that tag in
-the manifest when you need a reproducible deployment.
+the manifest when you need a reproducible deployment. The ToolHive backend uses
+its own ServiceAccount, so the manifest explicitly attaches the workspace's
+`regcred-prokube` pull secret for this prepared private image.
 
 ## Deploy
 
