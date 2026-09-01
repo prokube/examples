@@ -19,14 +19,14 @@ search.
 
 ## Image
 
-The `Build Markdown Notes MCP Image` workflow builds `markdown-notes-server/`
-and publishes:
+A prebuilt image is available, so you can deploy the example as is:
 
 ```text
 europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/markdown-notes-mcp:latest
 ```
 
-It also publishes a `commit-<git-sha>` tag for reproducible deployments.
+If you change the server, follow [Build your own image](#build-your-own-image)
+below and update the manifest with your image.
 
 ## Deploy
 
