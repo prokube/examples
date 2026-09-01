@@ -1,12 +1,12 @@
-name: Build Workspace Runbooks MCP Image
+name: Build Markdown Notes MCP Image
 
 on:
   workflow_dispatch:
 
 env:
-  DOCKERFILE_PATH: "mcp-servers/build-custom-mcp-server/runbook-server/Dockerfile"
-  BUILD_CONTEXT_DIR: "mcp-servers/build-custom-mcp-server/runbook-server/"
-  IMAGE_NAME: "workspace-runbooks-mcp"
+  DOCKERFILE_PATH: "mcp-servers/build-custom-mcp-server/markdown-notes-server/Dockerfile"
+  BUILD_CONTEXT_DIR: "mcp-servers/build-custom-mcp-server/markdown-notes-server/"
+  IMAGE_NAME: "markdown-notes-mcp"
   IMAGE_PUSH_PATH: "${{ secrets.GCP_ARTIFACT_REGISTRY_PATH }}"
   IMAGE_PUSH_SECRET: "${{ secrets.GCP_SA_KEY }}"
 

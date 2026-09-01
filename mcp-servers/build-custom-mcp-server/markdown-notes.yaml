@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: workspace-runbooks-data
+  name: markdown-notes-data
 spec:
   accessModes:
   - ReadWriteOnce
@@ -12,9 +12,9 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: workspace-runbooks
+  name: markdown-notes
 spec:
-  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks-mcp:latest
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/markdown-notes-mcp:latest
   transport: stdio
   proxyPort: 8080
   resources:
@@ -32,15 +32,15 @@ spec:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
       volumes:
-      - name: runbooks
+      - name: notes
         persistentVolumeClaim:
-          claimName: workspace-runbooks-data
+          claimName: markdown-notes-data
       - name: tmp
         emptyDir: {}
       containers:
       - name: mcp
         volumeMounts:
-        - name: runbooks
+        - name: notes
           mountPath: /data
         - name: tmp
           mountPath: /tmp
