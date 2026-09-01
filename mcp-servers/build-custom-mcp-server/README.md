@@ -63,8 +63,8 @@ readiness.
 
 After the server is running, use the included
 [`mcp-client.py`](../mcp-client.py) to list or call tools as shown in the parent
-[MCP server examples](../README.md) guide. You can optionally open **MCP** in
-prokube to inspect the externally authored root and its observed status.
+[MCP server examples](../README.md) guide. The server also appears on the
+prokube **MCP** page for inspection.
 
 ## Build your own image
 
