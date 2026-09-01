@@ -4,9 +4,11 @@ MCP servers give agents and MCP clients access to tools. prokube runs them as
 Kubernetes workloads managed by ToolHive and makes eligible servers available
 through Agent Gateway.
 
-Use the prokube **MCP** page for the normal catalog and custom-image workflow.
-Use these examples when you want to inspect the underlying Kubernetes resource,
-deploy it from version-controlled YAML, or build your own server.
+The normal workflow is to keep the ToolHive `MCPServer` root in
+version-controlled YAML and apply it with GitOps or `kubectl`. ToolHive
+reconciles the runtime resources from that durable Kubernetes intent. The
+prokube **MCP** page can author and inspect the same roots, but the workload does
+not depend on pkui remaining installed or available.
 
 ## Examples
 
@@ -51,9 +53,10 @@ Use the complete `mcpservers.toolhive.stacklok.dev` resource name. Some prokube
 clusters also install a kagent resource named `MCPServer`; the short name is
 therefore ambiguous.
 
-Open **MCP** in prokube and select the same workspace. The `time` server should
-appear as **Running**, with logs, events, metrics, configuration, and connection
-information on its details page.
+Optionally open **MCP** in prokube and select the same workspace to inspect the
+externally authored root. The `time` server should appear as **Running**, with
+logs, events, metrics, configuration, and connection information on its details
+page.
 
 ## Call the server from the Lab
 
