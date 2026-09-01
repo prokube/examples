@@ -1,56 +1,78 @@
 # Build and deploy a custom MCP server
 
-This example deploys a FastMCP server for workspace runbooks. It stores Markdown
-files on a PVC and uses simple text search without a vector database.
+This example builds an [MCP](https://modelcontextprotocol.io/) server with
+[FastMCP](https://gofastmcp.com/) and deploys it through
+[ToolHive](https://docs.stacklok.com/toolhive/). It stores Markdown notes on a
+PVC and lets MCP clients list, read, save, search, and delete them.
+
+The server is deliberately simple: notes are plain files and search is basic
+case-insensitive text matching. It uses no database, embeddings, or vector
+search.
 
 ## Tools
 
-The server exposes:
-
-- `list_runbooks`
-- `get_runbook`
-- `save_runbook`
-- `search_runbooks`
-- `delete_runbook`
+- `list_notes`
+- `get_note`
+- `save_note`
+- `search_notes`
+- `delete_note`
 
 ## Image
 
-The example manifest uses an image built from `runbook-server/` by this
-repository's `Build Workspace Runbooks MCP Image` GitHub workflow:
+The `Build Markdown Notes MCP Image` workflow builds `markdown-notes-server/`
+and publishes:
 
 ```text
-europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks-mcp:latest
+europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/markdown-notes-mcp:latest
 ```
 
-The workflow also publishes a `commit-<git-sha>` tag for reproducible
-deployments.
+It also publishes a `commit-<git-sha>` tag for reproducible deployments.
 
 ## Deploy
 
-```bash
-export NAMESPACE="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
-kubectl apply -n "$NAMESPACE" -f workspace-runbooks.yaml
+From a prokube Lab terminal, use its current namespace:
 
-kubectl wait -n "$NAMESPACE" --for=condition=Ready \
-  mcpservers.toolhive.stacklok.dev/workspace-runbooks --timeout=3m
+```bash
+kubectl apply -f markdown-notes.yaml
+
+kubectl wait --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/markdown-notes --timeout=3m
 ```
 
-Wait for the `MCPServer` as shown above. Initial image pull and PVC
-provisioning can take a short while.
+From a terminal outside a Lab, set the workspace namespace explicitly:
+
+```bash
+export NAMESPACE=<workspace>
+kubectl apply -n "$NAMESPACE" -f markdown-notes.yaml
+
+kubectl wait -n "$NAMESPACE" --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/markdown-notes --timeout=3m
+```
 
 ## Connect
 
-Create a Bearer API key for `workspace-runbooks` on the **API Keys** page in the
-prokube UI. Copy the external URL from the server's page under **MCP**.
+From a Lab in the workspace, use the internal Agent Gateway URL without an API
+key:
+
+```bash
+curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/mcp/<workspace> \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
+```
+
+From outside the cluster, create a Bearer API key for `markdown-notes` on the
+**API Keys** page in the prokube UI. Copy the external URL from the server's
+page under **MCP**.
 
 For clients using the `mcpServers` configuration format:
 
 ```json
 {
   "mcpServers": {
-    "workspace-runbooks": {
+    "markdown-notes": {
       "type": "http",
-      "url": "https://<your-prokube-domain>/mcp/<workspace>/workspace-runbooks",
+      "url": "https://<your-prokube-domain>/mcp/<workspace>/markdown-notes",
       "headers": {
         "Authorization": "Bearer <API_KEY>"
       }
@@ -61,25 +83,30 @@ For clients using the `mcpServers` configuration format:
 
 ## Build your own image
 
-Build your own image after changing the server. Managed prokube Labs use a
-remote BuildKit service and do not run a local Docker daemon, so build and push
-in one operation:
+After changing the server, build and push an image from a prokube Lab with its
+remote BuildKit service:
 
 ```bash
-export IMAGE=<registry>/<project>/workspace-runbooks-mcp:0.1.0
+export IMAGE=<registry>/<project>/markdown-notes-mcp:0.1.0
 docker login <registry>
-docker buildx build --push -t "$IMAGE" runbook-server
+docker buildx build --push -t "$IMAGE" markdown-notes-server
 ```
 
-Replace the `spec.image` value in `workspace-runbooks.yaml` with your pushed
-image. Add registry credentials to the workspace before deployment when the
-image is private.
+Replace `spec.image` in `markdown-notes.yaml` with the pushed image. Add
+registry credentials to the workspace first when the image is private.
 
 ## Clean up
 
+From a Lab:
+
 ```bash
-kubectl delete -n "$NAMESPACE" -f workspace-runbooks.yaml
+kubectl delete -f markdown-notes.yaml
 ```
 
-The PVC is part of the manifest and is deleted by this command. Export any
-runbooks you want to retain before cleanup.
+From outside a Lab:
+
+```bash
+kubectl delete -n "$NAMESPACE" -f markdown-notes.yaml
+```
+
+This also deletes the PVC. Export notes you want to retain before cleanup.
