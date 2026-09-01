@@ -12,10 +12,8 @@ From a prokube Lab terminal, use its current namespace:
 ```bash
 kubectl apply -f fetch-server.yaml
 
-kubectl wait \
-  --for=jsonpath='{.status.phase}'=Ready \
-  mcpservers.toolhive.stacklok.dev/fetch \
-  --timeout=180s
+kubectl wait --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/fetch --timeout=3m
 ```
 
 From a terminal outside a Lab, set the workspace namespace explicitly:
@@ -24,10 +22,8 @@ From a terminal outside a Lab, set the workspace namespace explicitly:
 export NAMESPACE=<workspace>
 kubectl apply -n "$NAMESPACE" -f fetch-server.yaml
 
-kubectl wait -n "$NAMESPACE" \
-  --for=jsonpath='{.status.phase}'=Ready \
-  mcpservers.toolhive.stacklok.dev/fetch \
-  --timeout=180s
+kubectl wait -n "$NAMESPACE" --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/fetch --timeout=3m
 ```
 
 ## Connect
