@@ -1,16 +1,7 @@
 # Build and deploy a custom MCP server
 
-This example builds a small FastMCP server for workspace-specific operational runbooks.
-
-The server stores Markdown files in `/data/runbooks`, which is backed by a PVC in `workspace-runbooks.yaml`. It does not use RAG, embeddings, or a vector database. Search is simple case-insensitive text matching over Markdown files.
-
-The example demonstrates:
-
-- a readable custom MCP server implementation;
-- a non-root container image;
-- read-only root filesystem compatibility;
-- persistent workspace data;
-- seeding initial Markdown files into the PVC on first start.
+This example deploys a FastMCP server for workspace runbooks. It stores Markdown
+files on a PVC and uses simple text search without a vector database.
 
 ## Tools
 
@@ -22,16 +13,7 @@ The server exposes:
 - `search_runbooks`
 - `delete_runbook`
 
-## How runbooks get into the server
-
-There are two paths:
-
-- Seed files in `runbook-server/seed-runbooks/` are copied into `/data/runbooks` when the server starts and the PVC is empty.
-- MCP clients can create or update runbooks later with the `save_runbook` tool.
-
-Because `/data` is backed by a PVC, runbooks created through MCP tools survive pod restarts.
-
-## Use the prepared image
+## Image
 
 The example manifest uses an image built from `runbook-server/` by this
 repository's `Build Workspace Runbooks MCP Image` GitHub workflow:
@@ -40,10 +22,8 @@ repository's `Build Workspace Runbooks MCP Image` GitHub workflow:
 europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks-mcp:latest
 ```
 
-The workflow also publishes an immutable `commit-<git-sha>` tag. Pin that tag in
-the manifest when you need a reproducible deployment. The ToolHive backend uses
-its own ServiceAccount, so the manifest explicitly attaches the workspace's
-`regcred-prokube` pull secret for this prepared private image.
+The workflow also publishes a `commit-<git-sha>` tag for reproducible
+deployments.
 
 ## Deploy
 
@@ -57,14 +37,29 @@ kubectl wait -n "$NAMESPACE" \
   --timeout=180s
 ```
 
-The initial image pull and PVC provisioning can take a short while. Wait for the
-ToolHive `MCPServer` phase as shown above rather than relying only on Pod
-readiness.
+Wait for the `MCPServer` phase as shown above. Initial image pull and PVC
+provisioning can take a short while.
 
-After the server is running, use the included
-[`mcp-client.py`](../mcp-client.py) to list or call tools as shown in the parent
-[MCP server examples](../README.md) guide. The server also appears on the
-**MCP** page in the prokube UI for inspection.
+## Connect
+
+Create a Bearer API key for `workspace-runbooks` on the **API Keys** page in the
+prokube UI. Copy the external URL from the server's page under **MCP**.
+
+For clients using the `mcpServers` configuration format:
+
+```json
+{
+  "mcpServers": {
+    "workspace-runbooks": {
+      "type": "http",
+      "url": "https://<your-prokube-domain>/mcp/<workspace>/workspace-runbooks",
+      "headers": {
+        "Authorization": "Bearer <API_KEY>"
+      }
+    }
+  }
+}
+```
 
 ## Build your own image
 
