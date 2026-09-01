@@ -32,10 +32,11 @@ kubectl wait -n "$NAMESPACE" \
 
 ## Connect
 
-From a Lab in the same namespace, test the internal endpoint directly:
+From a Lab in the workspace, use the internal Agent Gateway URL without an API
+key:
 
 ```bash
-curl -sS http://mcp-fetch-proxy:8080/mcp \
+curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/mcp/<workspace> \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
   --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
