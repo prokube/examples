@@ -9,8 +9,8 @@ kubectl get -n "$NAMESPACE" mcpservers.toolhive.stacklok.dev
 ```
 
 If you are not running in a prokube Lab, set `NAMESPACE` to the target workspace
-namespace instead. Always pass it explicitly because a Lab does not necessarily
-have a `kubectl` current context.
+namespace instead. A managed Lab already defaults to its workspace; passing the
+namespace explicitly also makes the commands safe with a broader kubeconfig.
 
 The server exposes the `get_current_time` and `convert_time` tools.
 

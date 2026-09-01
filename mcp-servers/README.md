@@ -21,9 +21,10 @@ deploy it from version-controlled YAML, or build your own server.
 - A prokube Lab or notebook running in the target workspace.
 - Permission to create ToolHive `MCPServer` resources in that workspace.
 
-Managed Labs clone this repository into `~/examples` by default. The commands
-below deliberately read the current namespace from the Lab's service account.
-Do not rely on a `kubectl` current context inside a Lab.
+Managed Labs clone this repository into `~/examples` by default. Their in-cluster
+`kubectl` access defaults to the Lab's workspace. The commands below still read
+and pass that namespace explicitly so they are also safe to adapt for an
+external kubeconfig that can access more than one workspace.
 
 ```bash
 export NAMESPACE="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
