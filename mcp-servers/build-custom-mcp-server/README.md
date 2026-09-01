@@ -57,6 +57,11 @@ kubectl wait -n "$NAMESPACE" \
   --timeout=180s
 ```
 
+The initial image pull and PVC provisioning can take a short while. Wait for the
+ToolHive `MCPServer` phase as shown above rather than relying only on Pod
+readiness. After a manual backend Pod restart, the MCP proxy may briefly return
+`503` while it reconnects; retry after a few seconds.
+
 After the server is running, open **MCP** in the prokube UI. Use the included
 [`mcp-client.py`](../mcp-client.py) to list or call tools as shown in the parent
 [MCP server examples](../README.md) guide.
