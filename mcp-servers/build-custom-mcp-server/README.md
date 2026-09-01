@@ -31,13 +31,11 @@ deployments.
 export NAMESPACE="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
 kubectl apply -n "$NAMESPACE" -f workspace-runbooks.yaml
 
-kubectl wait -n "$NAMESPACE" \
-  --for=jsonpath='{.status.phase}'=Ready \
-  mcpservers.toolhive.stacklok.dev/workspace-runbooks \
-  --timeout=180s
+kubectl wait -n "$NAMESPACE" --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/workspace-runbooks --timeout=3m
 ```
 
-Wait for the `MCPServer` phase as shown above. Initial image pull and PVC
+Wait for the `MCPServer` as shown above. Initial image pull and PVC
 provisioning can take a short while.
 
 ## Connect
