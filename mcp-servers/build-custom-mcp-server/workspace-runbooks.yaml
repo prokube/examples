@@ -4,17 +4,17 @@ metadata:
   name: workspace-runbooks-data
 spec:
   accessModes:
-    - ReadWriteOnce
+  - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
----
+---  # yamllint disable-line rule:document-start
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
   name: workspace-runbooks
 spec:
-  image: IMAGE_PLACEHOLDER
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks-mcp:latest
   transport: stdio
   proxyPort: 8080
   resources:
@@ -26,20 +26,27 @@ spec:
       memory: 256Mi
   podTemplateSpec:
     spec:
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
       volumes:
-        - name: runbooks
-          persistentVolumeClaim:
-            claimName: workspace-runbooks-data
+      - name: runbooks
+        persistentVolumeClaim:
+          claimName: workspace-runbooks-data
+      - name: tmp
+        emptyDir: {}
       containers:
-        - name: mcp
-          volumeMounts:
-            - name: runbooks
-              mountPath: /data
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 10001
-            capabilities:
-              drop:
-                - ALL
+      - name: mcp
+        volumeMounts:
+        - name: runbooks
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
