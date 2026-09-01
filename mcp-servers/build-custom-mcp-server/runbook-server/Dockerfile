@@ -2,6 +2,7 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    HOME=/tmp \
     RUNBOOK_DIR=/data/runbooks \
     SEED_RUNBOOK_DIR=/app/seed-runbooks
 
