@@ -31,27 +31,55 @@ There are two paths:
 
 Because `/data` is backed by a PVC, runbooks created through MCP tools survive pod restarts.
 
-## Build and push the image
+## Use the prepared image
 
-```bash
-export IMAGE=<registry>/<project>/workspace-runbooks-mcp:0.1.0
-docker build -t "$IMAGE" runbook-server
-docker push "$IMAGE"
+The example manifest uses an image built from `runbook-server/` by this
+repository's `Build Workspace Runbooks MCP Image` GitHub workflow:
+
+```text
+europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/workspace-runbooks-mcp:latest
 ```
+
+The workflow also publishes an immutable `commit-<git-sha>` tag. Pin that tag in
+the manifest when you need a reproducible deployment.
 
 ## Deploy
 
-Replace `IMAGE_PLACEHOLDER` with the pushed image and apply the manifest:
-
 ```bash
-sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl apply -f -
-kubectl get mcpservers.toolhive.stacklok.dev
+export NAMESPACE="$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)"
+kubectl apply -n "$NAMESPACE" -f workspace-runbooks.yaml
+
+kubectl wait -n "$NAMESPACE" \
+  --for=jsonpath='{.status.phase}'=Ready \
+  mcpservers.toolhive.stacklok.dev/workspace-runbooks \
+  --timeout=180s
 ```
 
-After the server is running, open **MCP** in the prokube UI and copy the server URL from the deployed servers table or details page.
+After the server is running, open **MCP** in the prokube UI. Use the included
+[`mcp-client.py`](../mcp-client.py) to list or call tools as shown in the parent
+[MCP server examples](../README.md) guide.
+
+## Build your own image
+
+Build your own image after changing the server. Managed prokube Labs use a
+remote BuildKit service and do not run a local Docker daemon, so build and push
+in one operation:
+
+```bash
+export IMAGE=<registry>/<project>/workspace-runbooks-mcp:0.1.0
+docker login <registry>
+docker buildx build --push -t "$IMAGE" runbook-server
+```
+
+Replace the `spec.image` value in `workspace-runbooks.yaml` with your pushed
+image. Add registry credentials to the workspace before deployment when the
+image is private.
 
 ## Clean up
 
 ```bash
-sed "s|IMAGE_PLACEHOLDER|$IMAGE|g" workspace-runbooks.yaml | kubectl delete -f -
+kubectl delete -n "$NAMESPACE" -f workspace-runbooks.yaml
 ```
+
+The PVC is part of the manifest and is deleted by this command. Export any
+runbooks you want to retain before cleanup.

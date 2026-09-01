@@ -72,11 +72,15 @@ def search_runbooks(query: str) -> list[dict[str, str]]:
         haystack = f"{path.stem}\n{content}".lower()
         if needle not in haystack:
             continue
-        lines = [line.strip() for line in content.splitlines() if needle in line.lower()]
-        matches.append({
-            "name": path.stem,
-            "snippet": lines[0] if lines else content[:160],
-        })
+        lines = [
+            line.strip() for line in content.splitlines() if needle in line.lower()
+        ]
+        matches.append(
+            {
+                "name": path.stem,
+                "snippet": lines[0] if lines else content[:160],
+            }
+        )
     return matches
 
 
