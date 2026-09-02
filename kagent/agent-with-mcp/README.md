@@ -6,7 +6,13 @@ This example adds web access to a kagent agent through MCP. It builds on the
 First deploy the Fetch server from the
 [`mcp-servers/deploy-upstream-mcp-server`](../../mcp-servers/deploy-upstream-mcp-server/)
 example. prokube then publishes the workspace's MCP tools through the
-`gateway-mcp` RemoteMCPServer.
+`gateway-mcp` `RemoteMCPServer`. This platform-managed resource connects kagent
+to the workspace's internal MCP route; you do not need to create it yourself.
+
+You can instead create your own `RemoteMCPServer` for any MCP endpoint that
+kagent can reach. See the upstream
+[MCP tools guide](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool/)
+for that workflow.
 
 The commands below run from a prokube Lab terminal and use its current workspace
 namespace. From another terminal, add `-n <workspace>` to each `kubectl` command.
@@ -18,7 +24,15 @@ Wait until kagent has discovered the workspace MCP tools:
 ```bash
 kubectl wait --for=condition=Accepted \
   remotemcpservers.kagent.dev/gateway-mcp --timeout=3m
+
+kubectl get remotemcpservers.kagent.dev gateway-mcp \
+  -o jsonpath='{.status.discoveredTools[*].name}{"\n"}'
 ```
+
+With only the Fetch server deployed, the output includes `fetch`. The agent
+manifest uses `toolNames` to grant access to that tool only. If the workspace
+contains multiple MCP servers, Agent Gateway may prefix the name; use the exact
+name shown by the command above.
 
 Create the agent:
 
@@ -27,9 +41,6 @@ kubectl apply -f web-researcher.yaml
 kubectl wait --for=condition=Ready \
   agents.kagent.dev/web-researcher --timeout=3m
 ```
-
-For simplicity, the agent can use all tools published by `gateway-mcp`. Limit
-`toolNames` in production when it should only access specific tools.
 
 ## Try it
 

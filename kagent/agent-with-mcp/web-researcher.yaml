@@ -19,3 +19,5 @@ spec:
         name: gateway-mcp
         kind: RemoteMCPServer
         apiGroup: kagent.dev
+        toolNames:
+        - fetch
