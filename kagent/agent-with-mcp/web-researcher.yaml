@@ -6,7 +6,7 @@ spec:
   type: Declarative
   description: An assistant that can research information on the web
   declarative:
-    runtime: python
+    runtime: go
     modelConfig: anthropic-haiku
     stream: true
     systemMessage: |
