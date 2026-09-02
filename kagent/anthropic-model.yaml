@@ -1,0 +1,9 @@
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: anthropic-haiku
+spec:
+  provider: Anthropic
+  model: claude-haiku-4-5-20251001
+  apiKeySecret: anthropic-api-key
+  apiKeySecretKey: ANTHROPIC_API_KEY
