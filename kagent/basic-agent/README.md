@@ -46,21 +46,25 @@ kubectl wait --for=condition=Ready \
 After the agent reaches `Ready`, open **Agents** in the prokube UI, select
 `simple-assistant`, and start a chat.
 
-From a Lab in the workspace, inspect the agent through the internal Agent
-Gateway route without an API key:
+From a Lab in the workspace, send a message through the internal Agent Gateway
+route without an API key:
 
 ```bash
-curl -sS \
-  http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/<workspace>/simple-assistant/.well-known/agent-card.json
+curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/<workspace>/simple-assistant \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What can you help me with?"}],"messageId":"message-1"}}}' |
+  jq -r '.result.artifacts[0].parts[0].text'
 ```
 
 From outside the cluster, create a Bearer API key for `simple-assistant` on
 the **API Keys** page. Then use its external route:
 
 ```bash
-curl -sS \
-  https://<your-prokube-domain>/a2a/<workspace>/simple-assistant/.well-known/agent-card.json \
-  -H 'Authorization: Bearer <API_KEY>'
+curl -sS https://<your-prokube-domain>/a2a/<workspace>/simple-assistant \
+  -H 'Authorization: Bearer <API_KEY>' \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What can you help me with?"}],"messageId":"message-1"}}}' |
+  jq -r '.result.artifacts[0].parts[0].text'
 ```
 
 ## Clean up
