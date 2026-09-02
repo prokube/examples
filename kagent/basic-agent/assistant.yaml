@@ -6,7 +6,7 @@ spec:
   type: Declarative
   description: A simple general-purpose assistant
   declarative:
-    runtime: python
+    runtime: go
     modelConfig: anthropic-haiku
     stream: true
     systemMessage: |
