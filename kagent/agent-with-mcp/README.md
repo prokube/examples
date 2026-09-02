@@ -9,9 +9,9 @@ example. prokube then publishes the workspace's MCP tools through the
 `gateway-mcp` `RemoteMCPServer`. This platform-managed resource connects kagent
 to the workspace's internal MCP route; you do not need to create it yourself.
 
-You can instead create your own `RemoteMCPServer` for any MCP endpoint that
-kagent can reach. See the upstream
-[MCP tools guide](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool/)
+To explore how kagent connects to external MCP servers, you can also register
+an MCP endpoint as a dedicated `RemoteMCPServer` under a different name. See
+the upstream [MCP tools guide](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool/)
 for that workflow.
 
 The commands below run from a prokube Lab terminal and use its current workspace
