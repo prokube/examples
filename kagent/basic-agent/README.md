@@ -1,7 +1,7 @@
 # Deploy a basic agent
 
 This example deploys a simple [kagent](https://kagent.dev/) agent without tools.
-The agent references a ModelConfig, so its configuration is independent of the
+The agent references a `ModelConfig`, so its configuration is independent of the
 model provider.
 
 The included ModelConfig uses Anthropic Claude as a concrete example. The same
@@ -43,8 +43,8 @@ kubectl wait --for=condition=Ready \
 
 ## Connect
 
-Open **Agents** in the prokube UI, select `simple-assistant`, and start a
-chat.
+After the agent reaches `Ready`, open **Agents** in the prokube UI, select
+`simple-assistant`, and start a chat.
 
 From a Lab in the workspace, inspect the agent through the internal Agent
 Gateway route without an API key:
