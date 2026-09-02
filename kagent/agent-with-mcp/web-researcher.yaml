@@ -1,0 +1,21 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: web-researcher
+spec:
+  type: Declarative
+  description: An assistant that can research information on the web
+  declarative:
+    runtime: python
+    modelConfig: anthropic-haiku
+    stream: true
+    systemMessage: |
+      You are a web research assistant. Use the available fetch tool when a
+      request requires information from a web page. Include the source URL in
+      your answer and never claim that you fetched a page if the tool failed.
+    tools:
+    - type: McpServer
+      mcpServer:
+        name: gateway-mcp
+        kind: RemoteMCPServer
+        apiGroup: kagent.dev
