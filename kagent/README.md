@@ -1,12 +1,12 @@
 # Deploy a kagent agent
 
-This example deploys a simple [kagent](https://kagent.dev/) agent backed by an
-Anthropic Claude model.
+This example deploys a simple [kagent](https://kagent.dev/) agent. The agent
+references a ModelConfig, so its configuration is independent of the model
+provider.
 
-A ModelConfig may already exist because an administrator granted access to a
-model. It can also point to a self-hosted model or use your own credentials for
-an external provider. This example uses an Anthropic API key to keep the setup
-self-contained.
+The included ModelConfig uses Anthropic Claude as a concrete example. The same
+pattern works with an existing model granted by an administrator, a self-hosted
+model, or another external provider, including OpenAI-compatible models.
 
 The commands below run from a prokube Lab terminal and use its current workspace
 namespace. From another terminal, add `-n <workspace>` to each `kubectl` command.
@@ -38,12 +38,12 @@ Create the agent:
 ```bash
 kubectl apply -f assistant.yaml
 kubectl wait --for=condition=Ready \
-  agents.kagent.dev/anthropic-assistant --timeout=3m
+  agents.kagent.dev/simple-assistant --timeout=3m
 ```
 
 ## Connect
 
-Open **Agents** in the prokube UI, select `anthropic-assistant`, and start a
+Open **Agents** in the prokube UI, select `simple-assistant`, and start a
 chat.
 
 From a Lab in the workspace, inspect the agent through the internal Agent
@@ -51,15 +51,15 @@ Gateway route without an API key:
 
 ```bash
 curl -sS \
-  http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/<workspace>/anthropic-assistant/.well-known/agent-card.json
+  http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/<workspace>/simple-assistant/.well-known/agent-card.json
 ```
 
-From outside the cluster, create a Bearer API key for `anthropic-assistant` on
+From outside the cluster, create a Bearer API key for `simple-assistant` on
 the **API Keys** page. Then use its external route:
 
 ```bash
 curl -sS \
-  https://<your-prokube-domain>/a2a/<workspace>/anthropic-assistant/.well-known/agent-card.json \
+  https://<your-prokube-domain>/a2a/<workspace>/simple-assistant/.well-known/agent-card.json \
   -H 'Authorization: Bearer <API_KEY>'
 ```
 
