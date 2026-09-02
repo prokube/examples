@@ -7,7 +7,8 @@ PVC and lets MCP clients list, read, save, search, and delete them.
 
 The server is deliberately simple: notes are plain files and search is basic
 case-insensitive text matching. It uses no database, embeddings, or vector
-search.
+search. This keeps the focus on the complete workflow: writing a custom MCP
+server, packaging it as an image, deploying it, and connecting a client.
 
 ## Tools
 
