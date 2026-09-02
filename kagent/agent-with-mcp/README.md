@@ -36,8 +36,8 @@ For simplicity, the agent can use all tools published by `gateway-mcp`. Limit
 Open **Agents** in the prokube UI, select `web-researcher`, and ask:
 
 ```text
-Fetch https://example.com and summarize it in one sentence. Include the source
-URL.
+Fetch https://prokube.ai and summarize what prokube offers in one sentence.
+Include the source URL.
 ```
 
 From a Lab in the workspace, inspect the agent without an API key:

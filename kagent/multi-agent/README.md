@@ -20,8 +20,8 @@ kubectl wait --for=condition=Ready \
 Open **Agents** in the prokube UI, select `research-coordinator`, and ask:
 
 ```text
-Research https://example.com and summarize it in one sentence. Include the
-source URL.
+Research https://prokube.ai and summarize what prokube offers in one sentence.
+Include the source URL.
 ```
 
 The coordinator delegates the request to `web-researcher`, which fetches the
