@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: markdown-notes-data
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---  # yamllint disable-line rule:document-start
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: markdown-notes
+spec:
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/markdown-notes-mcp:latest
+  transport: stdio
+  proxyPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  podTemplateSpec:
+    spec:
+      imagePullSecrets:
+      - name: regcred-prokube
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: notes
+        persistentVolumeClaim:
+          claimName: markdown-notes-data
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: mcp
+        volumeMounts:
+        - name: notes
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL

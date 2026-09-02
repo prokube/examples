@@ -11,6 +11,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── images           # custom container images used by examples
 ├── kagent           # AI agent examples with kagent
 ├── mlflow           # MLflow experiment tracking examples
+├── mcp-servers      # MCP server examples with ToolHive
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
@@ -42,6 +43,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 
 | Example | Min platform version | Notes |
 |---|---|---|
+| `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## Contributing
