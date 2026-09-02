@@ -84,13 +84,19 @@ For clients using the `mcpServers` configuration format:
 
 ## Build your own image
 
-After changing the server, build and push an image from a prokube Lab with its
-remote BuildKit service:
+After changing the server, run these commands from this example's directory in
+a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service and
+do not require a local Docker daemon:
 
 ```bash
 export IMAGE=<registry>/<project>/markdown-notes-mcp:0.1.0
 docker login <registry>
-docker buildx build --push -t "$IMAGE" markdown-notes-server
+docker buildx build \
+  --builder pk-builder \
+  --platform linux/amd64 \
+  --push \
+  -t "$IMAGE" \
+  markdown-notes-server
 ```
 
 Replace `spec.image` in `markdown-notes.yaml` with the pushed image. Add
