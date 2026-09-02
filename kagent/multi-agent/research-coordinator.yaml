@@ -1,0 +1,19 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: research-coordinator
+spec:
+  type: Declarative
+  description: An assistant that delegates web research to a specialist
+  declarative:
+    runtime: python
+    modelConfig: anthropic-haiku
+    stream: true
+    systemMessage: |
+      You coordinate research tasks. Delegate every request that requires web
+      research to the configured web researcher. Return its findings clearly
+      and include the source URL.
+    tools:
+    - type: Agent
+      agent:
+        name: web-researcher
