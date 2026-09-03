@@ -2,8 +2,13 @@
 
 This example packages a custom
 [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) workflow
-as a kagent BYO agent. Unlike the declarative agents in the earlier examples,
-the workflow controls every processing step:
+as a kagent BYO agent. The agent researches the prokube website and returns a
+concise summary that includes the source URL. It demonstrates how to bring a
+custom, deterministic workflow into kagent when a declarative agent does not
+provide enough control.
+
+Unlike the declarative agents in the earlier examples, the workflow controls
+every processing step:
 
 1. Validate that the request contains a `https://prokube.ai` URL.
 2. Fetch and extract readable page text without an LLM call.
