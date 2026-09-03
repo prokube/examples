@@ -1,0 +1,39 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: langgraph-researcher
+spec:
+  type: BYO
+  description: A deterministic LangGraph website research workflow
+  byo:
+    deployment:
+      image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/langgraph-researcher:latest
+      imagePullSecrets:
+      - name: regcred-prokube
+      env:
+      - name: ANTHROPIC_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: anthropic-api-key
+            key: ANTHROPIC_API_KEY
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 10001
