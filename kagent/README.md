@@ -14,6 +14,11 @@ Complete the first three examples in order. The BYO example is standalone.
 Each example has a notebook to run in a prokube Lab. Its README also covers the
 same steps in a terminal and connecting from outside the cluster.
 
+## Observability
+
+[`observability/mlflow-tracing`](./observability/mlflow-tracing/) shows how to
+send kagent traces from a workspace to an MLflow experiment.
+
 ## Terms
 
 - **Agent**: a kagent resource that runs an LLM-based agent in your workspace.
