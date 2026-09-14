@@ -446,7 +446,7 @@ def _run_notebook(
             str(output_path),
             kernel_name="python3",
             execution_timeout=timeout,
-            cwd=str(nb_path.parent),
+            resources={"metadata": {"path": str(nb_path.parent)}},
             progress_bar=False,
         )
     except PapermillExecutionError as exc:
