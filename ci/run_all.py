@@ -32,7 +32,7 @@ def _require_ci_dependencies() -> None:
     except ImportError as exc:
         raise RuntimeError(
             "CI dependencies are missing. Install them with "
-            '`python -m pip install -e ".[ci]"`.'
+            f'`python -m pip install -e "{_REPO_ROOT}[ci]"`.'
         ) from exc
 
 
@@ -801,12 +801,20 @@ def _check_mlflow_credentials() -> tuple[bool, str]:
             "interactive credential setup cell",
         )
 
+    if not re.match(r"^https?://", uri):
+        return (
+            False,
+            f"mlflow-credentials secret has a malformed MLFLOW_TRACKING_URI "
+            f"({uri!r}) — re-run the interactive credential setup cell and "
+            "enter the full https://<domain>/mlflow URL",
+        )
+
     creds = _b64.b64encode(f"{username}:{password}".encode()).decode()
-    req = urllib.request.Request(
-        f"{uri}/api/2.0/mlflow/experiments/search?max_results=1",
-        headers={"Authorization": f"Basic {creds}"},
-    )
     try:
+        req = urllib.request.Request(
+            f"{uri}/api/2.0/mlflow/experiments/search?max_results=1",
+            headers={"Authorization": f"Basic {creds}"},
+        )
         urllib.request.urlopen(req, timeout=8)
         return True, "OK"
     except urllib.error.HTTPError as exc:
