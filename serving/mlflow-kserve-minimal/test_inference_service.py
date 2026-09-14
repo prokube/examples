@@ -55,27 +55,17 @@ if not INFERENCE_SERVICE_URI:
 with open(JSON_FILE_PATH, "r") as f:
     request_body = jsonlib.load(f)
 
-# external_predict_url() returns candidate URLs in priority order: the
-# Agent Gateway /svc-prefixed route, then the plain URI (used if
-# aiGateway.controller isn't enabled and no /svc route exists).
-urls = external_predict_url(
+url = external_predict_url(
     INFERENCE_SERVICE_URI, INFERENCE_SERVICE_NAME, protocol=PROTOCOL_VERSION
 )
-result = None
-for url in urls:
-    response = requests.post(
-        url, headers={"X-Api-Key": INFERENCE_SERVICE_API_KEY}, json=request_body
-    )
-    if response.status_code == 404:
-        continue  # try the next candidate URL
-    try:
-        response.raise_for_status()
-    except requests.HTTPError as exc:
-        raise RuntimeError(f"inference request failed: {response.text}") from exc
-    result = response.json()
-    break
-if result is None:
-    raise RuntimeError(f"All predict URLs 404'd (route not found): {urls}")
+response = requests.post(
+    url, headers={"X-Api-Key": INFERENCE_SERVICE_API_KEY}, json=request_body
+)
+try:
+    response.raise_for_status()
+except requests.HTTPError as exc:
+    raise RuntimeError(f"inference request failed: {response.text}") from exc
+result = response.json()
 
 pred_key = "outputs" if PROTOCOL_VERSION == "v2" else "predictions"
 if pred_key not in result:
