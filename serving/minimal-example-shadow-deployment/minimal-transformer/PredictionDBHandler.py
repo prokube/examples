@@ -117,7 +117,12 @@ class PredictionDBHandler:
                     await con.execute(*query)
 
         except Exception as e:
-            logger.error("Database error: %s", e)
+            # Not re-raised: this runs on a daemon thread with no
+            # retry/reconnect logic, so an escaping exception would kill
+            # persistence for the pod's remaining lifetime.
+            logger.error(
+                "Database error while storing batch of %d item(s): %s", len(batch), e
+            )
 
     def shutdown(self):
         self.running = False
