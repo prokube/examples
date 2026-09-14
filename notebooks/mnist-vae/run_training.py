@@ -2,6 +2,39 @@ import os
 import subprocess
 import sys
 
+
+def _cgroup_cpu_quota() -> int | None:
+    """CPU core budget from the cgroup limit, or None if unset/unlimited."""
+    try:
+        with open("/sys/fs/cgroup/cpu.max") as fh:  # cgroup v2
+            quota, period = fh.read().split()
+        if quota == "max":
+            return None
+        return max(1, int(int(quota) / int(period)))
+    except (FileNotFoundError, ValueError):
+        pass
+    try:  # cgroup v1
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as fh:
+            quota = int(fh.read())
+        if quota <= 0:
+            return None
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_period_us") as fh:
+            period = int(fh.read())
+        return max(1, quota // period)
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+# torch/BLAS default their thread count to nproc (host core count), which can
+# be far higher than the pod's actual cgroup CPU limit (e.g. 16 host cores vs
+# a 4-CPU quota) — over-threading against a tight quota causes CFS throttling
+# instead of faster training. Must be set before numpy/torch import to affect
+# their BLAS thread pools; torch.set_num_threads() below covers torch itself.
+_quota = _cgroup_cpu_quota()
+if _quota is not None:
+    os.environ.setdefault("OMP_NUM_THREADS", str(_quota))
+    os.environ.setdefault("MKL_NUM_THREADS", str(_quota))
+
 # Re-exec with Conda's libstdc++ so SciPy can resolve its CXXABI symbols.
 _conda_lib = os.path.normpath(
     os.path.join(os.path.dirname(sys.executable), "..", "lib")
@@ -45,6 +78,9 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from model.vae import VAE
 from model.datamodule import MNISTDataModule
 import torch
+
+if _quota is not None:
+    torch.set_num_threads(_quota)
 
 
 @click.command()

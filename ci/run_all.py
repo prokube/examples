@@ -307,11 +307,28 @@ def _stop_process(proc: subprocess.Popen[str]) -> tuple[str, str]:
     try:
         return proc.communicate(timeout=10)
     except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        return proc.communicate(timeout=15)
+    except subprocess.TimeoutExpired:
+        # A grandchild can inherit the stdout/stderr pipe fds and keep them
+        # open after the direct child is dead, which makes communicate()
+        # block forever waiting for EOF even though SIGKILL was delivered.
+        # Close our end and fall back to wait(), which only waits on the
+        # pid's exit status, so a stuck example can't hang the whole run.
+        if proc.stdout:
+            proc.stdout.close()
+        if proc.stderr:
+            proc.stderr.close()
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
             pass
-        return proc.communicate()
+        return "", ""
 
 
 def _run_process(
