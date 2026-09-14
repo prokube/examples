@@ -249,34 +249,29 @@ CI validates this in the preflight check and skips `api_key_dependent`
 examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
-Serving routes require `aiGateway.controller.enabled=true` on the cluster.
+Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
 
 ### internal_predict_url / external_predict_url
 
-Agent Gateway is the only supported routing path — there is no live cluster
-without it, so these helpers don't probe for it, they assume it.
+The helpers detect the cluster generation by checking whether the
+`agentgateway-proxy` Service resolves through cluster DNS. Legacy clusters use
+the predictor Service internally and the InferenceService's `.status.url`
+externally. Clusters with Agent Gateway use its internal and external routes;
+these clusters are expected to have `aiGateway.controller.enabled=true`.
 
-- `internal_predict_url(isvc_name, namespace, model_name)` — the
-  **internal, in-cluster** predict URL, routed through the shared
-  `agentgateway-proxy` Service:
-  `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v1/models/<model-name>:predict`.
-  Use this instead of hardcoding the `<isvc-name>-predictor` Service pattern.
-- `external_predict_url(isvc_url, model_name, protocol="v1")` — candidate
-  **external** predict URLs from an ISVC's `.status.url`, most likely to work
-  first. Agent Gateway routes external traffic through a `/svc` prefix
-  (`https://<domain>/svc/serving/<namespace>/<isvc-name>/...`) when
-  `aiGateway.controller.enabled=true` created that route; `.status.url` alone
-  404s with `route not found` in that case. But if the controller is
-  disabled, no `/svc` route exists and `.status.url` itself is the one that
-  works — there's no way to detect the controller's enabled-state from
-  inside a pod, so this returns **both** URLs in priority order (`/svc`
-  first) instead of one. Try each and fall back to the next on a 404.
+- `internal_predict_url(isvc_name, namespace, model_name)` returns the
+  **internal, in-cluster** predict URL. Agent Gateway clusters use
+  `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/...`;
+  legacy clusters use `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/...`.
+- `external_predict_url(isvc_url, model_name, protocol="v1")` returns one
+  **external** predict URL from an ISVC's `.status.url`. Agent Gateway clusters
+  use `https://<domain>/svc/serving/<namespace>/<isvc-name>/...`; legacy
+  clusters use the unmodified `/serving` path from `.status.url`.
 
 ```python
 %run -n ../src/pk_helpers/kserve_url.py
 internal_url = internal_predict_url(isvc_name, namespace, model_name)
-for external_url in external_predict_url(isvc_status_url, model_name):
-    ...  # try external_url, move to the next candidate on a 404
+external_url = external_predict_url(isvc_status_url, model_name)
 ```
 
 ---
