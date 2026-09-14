@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -173,38 +174,61 @@ def _get_secret_value(name: str, key: str, namespace: str) -> str:
     return base64.b64decode(result.stdout.strip()).decode()
 
 
-def _create_schema(namespace: str, password: str) -> None:
-    """Run a one-shot psql pod to create the required tables."""
+def _create_schema(namespace: str, password: str, attempts: int = 6) -> None:
+    """Run a one-shot psql pod to create the required tables.
+
+    Retries: right after the pguser Secret appears, PGO/Patroni can still be
+    finishing internal setup, so the first psql connection attempt can fail
+    even though the primary already reports Ready (observed live: 2/2 initial
+    attempts failed with psql exit 2 within ~2 min of Ready; 4/4 succeeded
+    afterwards). Each attempt uses a fresh pod name since a failed attempt's
+    --rm delete can still be in flight when the next one starts.
+    """
     print("Creating database schema via temporary psql pod...")
     host = _PG_HOST_TEMPLATE.format(ns=namespace)
-    result = subprocess.run(
-        [
-            "kubectl",
-            "run",
-            "pg-schema-init",
-            "--rm",
-            "-i",
-            "--restart=Never",
-            f"-n={namespace}",
-            "--image=postgres:17",
-            f"--env=PGPASSWORD={password}",
-            "--",
-            "psql",
-            "-h",
-            host,
-            "-U",
-            _PG_USER,
-            "-d",
-            _PG_DB,
-        ],
-        input=_SCHEMA_SQL,
-        text=True,
-        capture_output=True,
-        timeout=120,
+    result: subprocess.CompletedProcess[str] | None = None
+    for attempt in range(1, attempts + 1):
+        result = subprocess.run(
+            [
+                "kubectl",
+                "run",
+                f"pg-schema-init-{attempt}",
+                "--rm",
+                "-i",
+                "--restart=Never",
+                f"-n={namespace}",
+                "--image=postgres:17",
+                f"--env=PGPASSWORD={password}",
+                "--",
+                "psql",
+                "-h",
+                host,
+                "-U",
+                _PG_USER,
+                "-d",
+                _PG_DB,
+            ],
+            input=_SCHEMA_SQL,
+            text=True,
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            print("Schema created (or already existed).")
+            return
+        print(
+            f"  Schema init attempt {attempt}/{attempts} failed "
+            f"(rc={result.returncode}), retrying in 15s..."
+        )
+        if attempt < attempts:
+            time.sleep(15)
+    # kubectl run -i's own attach warnings always fill stderr, so
+    # `stderr or stdout` (the old check) hid psql's real error, which only
+    # ever appears in stdout. Show both explicitly.
+    raise RuntimeError(
+        f"Schema creation failed after {attempts} attempts (rc={result.returncode})\n"
+        f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"Schema creation failed:\n{result.stderr or result.stdout}")
-    print("Schema created (or already existed).")
 
 
 def _wait_isvc_ready(name: str, namespace: str, timeout: int) -> None:
@@ -263,13 +287,21 @@ def _internal_isvc_url(name: str, namespace: str) -> str:
 def _smoke_test(namespace: str, password: str, timeout: int = 120) -> None:
     """POST numeric values to the primary (doubler) ISVC and verify predictions.
 
-    The doubler predictor multiplies each input value by FACTOR=2, so
-    [1.0, 2.0, 3.0] must produce predictions [2.0, 4.0, 6.0].
+    The doubler predictor multiplies each input value by FACTOR=2. Inputs
+    include a random marker so the persistence check below can find this
+    request's rows: the Knative activator/Envoy hop rewrites x-request-id
+    before the transformer ever sees it, so correlating by that header (as
+    this used to) can never match — the request_id column always holds a
+    mesh-generated UUID, never the client's. The transformer does store the
+    raw request/response JSON bodies verbatim, so a marker embedded in the
+    payload survives and is safe to correlate on instead.
     """
     url = _internal_isvc_url(_DOUBLER_ISVC, namespace) + "/v1/models/model:predict"
-    inputs = [1.0, 2.0, 3.0]
-    expected = [2.0, 4.0, 6.0]
+    marker = round(random.uniform(1000, 9999), 3)
+    inputs = [1.0, 2.0, marker]
+    expected = [2.0, 4.0, marker * 2]
     payload = json.dumps({"values": inputs}).encode()
+    # Sent for tracing only — not used for correlation, see docstring above.
     request_id = uuid.uuid4()
     deadline = time.monotonic() + timeout
     last_err: Exception | None = None
@@ -304,29 +336,32 @@ def _smoke_test(namespace: str, password: str, timeout: int = 120) -> None:
         raise RuntimeError(
             f"Prediction smoke test failed after {timeout}s: {last_err}"
         )
-    print(f"Prediction verified for request {request_id}: {inputs} -> {predictions}")
+    print(f"Prediction verified: {inputs} -> {predictions} (marker {marker})")
 
     host = _PG_HOST_TEMPLATE.format(ns=namespace)
+    response_marker = expected[2]
     sql = (
         "SELECT "
         "(SELECT COUNT(*) FROM public.inference_requests "
-        f"WHERE request_id = UUID '{request_id}') || '|' || "
+        f"WHERE request_data::text LIKE '%{marker}%') || '|' || "
         "(SELECT COUNT(*) FROM public.inference_response "
-        f"WHERE request_id = UUID '{request_id}');"
+        f"WHERE response_data::text LIKE '%{response_marker}%');"
     )
+    attempt = 0
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise RuntimeError(
-                f"Persistence smoke test timed out after {timeout}s: request "
-                f"{request_id} was not found in both persistence tables."
+                f"Persistence smoke test timed out after {timeout}s: marker "
+                f"{marker} was not found in both persistence tables."
             )
+        attempt += 1
         try:
             result = subprocess.run(
                 [
                     "kubectl",
                     "run",
-                    f"pg-smoke-{request_id.hex[:12]}",
+                    f"pg-smoke-{attempt}-{uuid.uuid4().hex[:8]}",
                     "--rm",
                     "-i",
                     "--quiet",
@@ -355,29 +390,36 @@ def _smoke_test(namespace: str, password: str, timeout: int = 120) -> None:
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(
                 f"Persistence smoke test timed out after {timeout}s while querying "
-                f"the persistence tables for request {request_id}."
+                f"the persistence tables for marker {marker}."
             ) from exc
         if result.returncode != 0:
+            # kubectl run -i's attach warnings always fill stderr, hiding
+            # psql's real error, which only appears in stdout.
             raise RuntimeError(
-                f"Persistence query failed for request {request_id}:\n"
-                + (result.stderr or result.stdout)
+                f"Persistence query failed for marker {marker} (rc={result.returncode})\n"
+                f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
             )
+        stdout = result.stdout.strip()
+        if not stdout:
+            # kubectl run --rm -i can return rc=0 with nothing relayed if the
+            # pod finishes and is deleted before the attach connects (observed
+            # live, 1/5 runs). Retryable, same as "count not yet visible".
+            time.sleep(min(5, max(0, deadline - time.monotonic())))
+            continue
         try:
-            request_count, response_count = map(
-                int, result.stdout.strip().split("|", maxsplit=1)
-            )
+            request_count, response_count = map(int, stdout.split("|", maxsplit=1))
         except (ValueError, TypeError) as exc:
             raise RuntimeError(
-                f"Persistence query returned invalid counts for request {request_id}: "
+                f"Persistence query returned invalid counts for marker {marker}: "
                 f"{result.stdout!r}"
             ) from exc
         if request_count == response_count == 1:
-            print(f"Persistence verified for request {request_id}.")
+            print(f"Persistence verified for marker {marker}.")
             return
         if request_count > 1 or response_count > 1:
             raise RuntimeError(
                 f"Persistence check found {request_count} request row(s) and "
-                f"{response_count} response row(s) for request {request_id}; "
+                f"{response_count} response row(s) matching marker {marker}; "
                 "expected exactly one of each."
             )
         time.sleep(min(5, max(0, deadline - time.monotonic())))
