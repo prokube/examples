@@ -18,7 +18,7 @@ CREATE TABLE public.inference_requests (
 
 CREATE TABLE public.inference_response(
 	request_id uuid NOT NULL,
-	request_data json NULL,
+	response_data json NULL,
 	created_at timestamp NULL,
 	PRIMARY KEY (request_id)
 );
