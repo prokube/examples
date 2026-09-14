@@ -47,4 +47,12 @@ response = requests.post(
     headers={"X-Api-Key": INFERENCE_SERVICE_API_KEY},
     json=request_body,
 )
-print(response.json())
+try:
+    response.raise_for_status()
+except requests.HTTPError as exc:
+    raise RuntimeError(f"inference request failed: {response.text}") from exc
+result = response.json()
+pred_key = "outputs" if PROTOCOL_VERSION == "v2" else "predictions"
+if pred_key not in result:
+    raise RuntimeError(f"unexpected response body: {result}")
+print(result)
