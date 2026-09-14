@@ -76,6 +76,12 @@ kubectl config set-context --current --namespace=<your-namespace>
 
 ### 1. Postgres (optional — skip if you already have a database)
 
+Requires the notebook ServiceAccount to manage
+`postgresclusters.postgres-operator.crunchydata.com`, which it can't by
+default. Patching `ClusterRole/kubeflow-kubernetes-edit` is reverted by
+ArgoCD within minutes; ask your admin for a namespaced `Role`/`RoleBinding`
+on `default-editor` in your workspace instead.
+
 If you have the CrunchyData postgres-operator installed, deploy the cluster:
 
 ```bash
@@ -102,7 +108,7 @@ CREATE TABLE IF NOT EXISTS public.inference_requests (
 );
 CREATE TABLE IF NOT EXISTS public.inference_response(
   request_id uuid NOT NULL,
-  request_data json NULL,
+  response_data json NULL,
   created_at timestamp NULL,
   PRIMARY KEY (request_id)
 );
@@ -184,7 +190,7 @@ SELECT predict_url, COUNT(*) FROM inference_requests GROUP BY predict_url;
 SELECT
   req.predict_url,
   req.request_data  AS input,
-  res.request_data  AS output,
+  res.response_data AS output,
   req.created_at
 FROM inference_requests req
 JOIN inference_response res USING (request_id)
