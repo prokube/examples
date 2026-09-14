@@ -704,6 +704,15 @@ def _print_report(
     col = 50
     passed = sum(1 for r in results.values() if r.status != "FAIL")
     failed = sum(1 for r in results.values() if r.status == "FAIL")
+    skipped = [r for r in results.values() if r.status == "SKIP" and r.error]
+
+    if skipped:
+        print("\nSkipped details:")
+        print("-" * 70)
+        for r in skipped:
+            print(f"\n{r.name}:")
+            for line in r.error.splitlines():
+                print(f"  {line}")
 
     if failed:
         print("\nFailed details:")
@@ -841,6 +850,30 @@ def _check_kserve_api_key() -> tuple[bool, str]:
     )
 
 
+def _check_credentials() -> tuple[bool, str, bool, str]:
+    """Run the MLflow and kserve API key checks, printing their outcome.
+
+    Returns (mlflow_ok, mlflow_reason, api_key_ok, api_key_reason). Shared by
+    `_preflight` (real runs) and `--dry-run` so contributors can see what
+    would be skipped before committing to a full run.
+    """
+    print("Pre-flight: checking MLflow credentials...")
+    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
+    if mlflow_ok:
+        print("  [OK] MLflow credentials valid")
+    else:
+        print(f"  [SKIP] {mlflow_reason}")
+
+    print("Pre-flight: checking kserve API key...")
+    api_key_ok, api_key_reason = _check_kserve_api_key()
+    if api_key_ok:
+        print("  [OK] INFERENCE_SERVICE_API_KEY is set")
+    else:
+        print(f"  [SKIP] {api_key_reason}")
+
+    return mlflow_ok, mlflow_reason, api_key_ok, api_key_reason
+
+
 def _preflight(results: dict[str, Result]) -> bool:
     """Validate CI dependencies, MLflow credentials, and the kserve API key.
 
@@ -850,24 +883,16 @@ def _preflight(results: dict[str, Result]) -> bool:
     _require_ci_dependencies()
     _ensure_pk_helpers()
 
-    print("Pre-flight: checking MLflow credentials...")
-    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
-    if mlflow_ok:
-        print("  [OK] MLflow credentials valid")
-    else:
-        print(f"  [SKIP] {mlflow_reason}")
+    mlflow_ok, mlflow_reason, api_key_ok, api_key_reason = _check_credentials()
+
+    if not mlflow_ok:
         for ex in _EXAMPLES:
             if ex.mlflow_dependent:
                 results[ex.name] = Result(
                     name=ex.name, status="SKIP", error=mlflow_reason
                 )
 
-    print("Pre-flight: checking kserve API key...")
-    api_key_ok, api_key_reason = _check_kserve_api_key()
-    if api_key_ok:
-        print("  [OK] INFERENCE_SERVICE_API_KEY is set")
-    else:
-        print(f"  [SKIP] {api_key_reason}")
+    if not api_key_ok:
         for ex in _EXAMPLES:
             if ex.api_key_dependent and ex.name not in results:
                 results[ex.name] = Result(
@@ -1008,6 +1033,8 @@ def run_all(
     results: dict[str, Result] = {}
 
     if dry_run:
+        _check_credentials()
+        print()
         _print_dry_run()
         return results
 
