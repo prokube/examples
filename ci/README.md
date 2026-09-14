@@ -26,6 +26,11 @@ examples that use external authentication require
 reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
 options.
 
+If the notebook was created by hand (not via the JupyterLab UI), it needs the
+prokube PodDefault labels `access-ml-pipeline=true` and
+`add-minio-service-account-token=true` — without them the s3 and KFP examples
+fail instantly with missing `AWS_*` / `KF_PIPELINES_SA_TOKEN`.
+
 ---
 
 ## Adding a new example
@@ -88,6 +93,12 @@ Use opt-in when an example requires cluster add-ons (KEDA,
 `opt_in="include_foo"` to the `Example`, add an `include_foo` parameter to
 `run_all()`, include it in the `opts` mapping, define the `--include-foo`
 argument, and pass the parsed value to `run_all()`.
+
+`--include-shadow` also needs the notebook ServiceAccount to manage
+`postgresclusters.postgres-operator.crunchydata.com`, which it can't out of
+the box. Patching `ClusterRole/kubeflow-kubernetes-edit` is reverted by
+ArgoCD within minutes; a namespaced `Role`/`RoleBinding` on `default-editor`
+in the workspace holds instead.
 
 ---
 

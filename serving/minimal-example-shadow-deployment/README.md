@@ -76,6 +76,12 @@ kubectl config set-context --current --namespace=<your-namespace>
 
 ### 1. Postgres (optional — skip if you already have a database)
 
+Requires the notebook ServiceAccount to manage
+`postgresclusters.postgres-operator.crunchydata.com`, which it can't by
+default. Patching `ClusterRole/kubeflow-kubernetes-edit` is reverted by
+ArgoCD within minutes; ask your admin for a namespaced `Role`/`RoleBinding`
+on `default-editor` in your workspace instead.
+
 If you have the CrunchyData postgres-operator installed, deploy the cluster:
 
 ```bash
