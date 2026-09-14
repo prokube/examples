@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS public.inference_requests (
 );
 CREATE TABLE IF NOT EXISTS public.inference_response(
   request_id uuid NOT NULL,
-  request_data json NULL,
+  response_data json NULL,
   created_at timestamp NULL,
   PRIMARY KEY (request_id)
 );
@@ -184,7 +184,7 @@ SELECT predict_url, COUNT(*) FROM inference_requests GROUP BY predict_url;
 SELECT
   req.predict_url,
   req.request_data  AS input,
-  res.request_data  AS output,
+  res.response_data AS output,
   req.created_at
 FROM inference_requests req
 JOIN inference_response res USING (request_id)

@@ -7,11 +7,16 @@ _conda_lib = os.path.normpath(
     os.path.join(os.path.dirname(sys.executable), "..", "lib")
 )
 _ld = os.environ.get("LD_LIBRARY_PATH", "")
-if os.path.isdir(_conda_lib) and _conda_lib not in _ld.split(":"):
+if os.path.isdir(_conda_lib) and _conda_lib not in _ld.split(os.pathsep):
     os.execvpe(
         sys.executable,
         [sys.executable] + sys.argv,
-        {**os.environ, "LD_LIBRARY_PATH": f"{_conda_lib}:{_ld}"},
+        {
+            **os.environ,
+            "LD_LIBRARY_PATH": os.pathsep.join(
+                value for value in (_conda_lib, _ld) if value
+            ),
+        },
     )
 
 # pytorch-lightning, torchvision, and tensorboard are not bundled in all notebook images

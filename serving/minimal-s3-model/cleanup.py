@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from pathlib import Path
 
 
 def _namespace() -> str:
@@ -42,6 +43,19 @@ def _delete_s3_model(namespace: str, dry_run: bool = False) -> None:
         print(f"WARNING: could not delete s3://{s3_path}: {exc}", file=sys.stderr)
 
 
+def _delete_local_artifacts(dry_run: bool = False) -> None:
+    script_dir = Path(__file__).parent
+    for name in ("model.joblib", "inferenceservice.yaml"):
+        path = script_dir / name
+        if dry_run:
+            print(f"[dry-run] delete {path}")
+            continue
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            print(f"WARNING: could not delete {path}: {exc}", file=sys.stderr)
+
+
 def cleanup(dry_run: bool = False) -> None:
     ns = _namespace()
 
@@ -49,6 +63,7 @@ def cleanup(dry_run: bool = False) -> None:
         "inferenceservice", "kserve-object-storage-test", "-n", ns, dry_run=dry_run
     )
     _delete_s3_model(ns, dry_run=dry_run)
+    _delete_local_artifacts(dry_run=dry_run)
 
 
 if __name__ == "__main__":

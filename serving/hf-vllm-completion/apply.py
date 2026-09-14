@@ -33,9 +33,9 @@ def _ensure_pk_helpers() -> None:
     try:
         import pk_helpers  # noqa: F401
     except ImportError:
-        repo_root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True
-        ).strip()
+        repo_root = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..")
+        )
         # --user outside a virtualenv (e.g. in a Kubeflow notebook pod) so the
         # install lands under the persistent $HOME/.local instead of the
         # container image's site-packages, which is wiped on the next pod

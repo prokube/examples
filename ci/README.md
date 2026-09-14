@@ -10,6 +10,7 @@ suite and register new examples in `ci/run_all.py`.
 Run the suite from a Kubeflow notebook pod with this repository checked out:
 
 ```bash
+python -m pip install -e ".[ci]"
 python ci/run_all.py
 ```
 
@@ -143,11 +144,12 @@ If you add an `apply.py`, always add the matching `cleanup.py` as well.
 ## pk_helpers
 
 `pk_helpers` (source in `src/pk_helpers/`) contains prokube platform utilities
-for notebooks and apply scripts. Notebooks load only the required script, so
-users do not need to install the package:
+for notebooks and apply scripts. Notebooks load only the required script using
+a path relative to the notebook directory, so users do not need to install the
+package (this example assumes a notebook one directory below the repository root):
 
 ```python
-%run -n ~/examples/src/pk_helpers/mlflow_credentials.py
+%run -n ../src/pk_helpers/mlflow_credentials.py
 ```
 
 The `-n` option loads the functions without running the script's command-line
@@ -194,7 +196,7 @@ the resolved values and `MLFLOW_ENABLE_PROXY_MULTIPART_UPLOAD=true` to
 available.
 
 ```python
-%run -n ~/examples/src/pk_helpers/mlflow_credentials.py
+%run -n ../src/pk_helpers/mlflow_credentials.py
 load_mlflow_credentials()
 ```
 
@@ -208,7 +210,7 @@ run in separate pods and must read credentials from the Kubernetes secret;
 variables set only in the notebook are not available to them.
 
 ```python
-%run -n ~/examples/src/pk_helpers/mlflow_credentials.py
+%run -n ../src/pk_helpers/mlflow_credentials.py
 require_mlflow_secret()
 ```
 
@@ -220,7 +222,7 @@ an admin has injected one into the pod, otherwise an interactive prompt
 from any notebook cell or script that needs an inference API key:
 
 ```python
-%run -n ~/examples/src/pk_helpers/api_key.py
+%run -n ../src/pk_helpers/api_key.py
 API_KEY = get_or_create_api_key()
 ```
 
@@ -236,15 +238,17 @@ CI validates this in the preflight check and skips `api_key_dependent`
 examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
+Serving routes require `aiGateway.controller.enabled=true` on the cluster.
+
 ### internal_predict_url
 
 Returns the correct **internal, in-cluster** predict URL for a KServe
-InferenceService, compatible with both prokube generations:
+InferenceService across prokube generations:
 
-- Currently released: hits the predictor Service directly —
+- Legacy installations: hits the predictor Service directly —
   `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/v1/models/<model-name>:predict`.
-- Upcoming (agentgateway-based, not yet released): routes through the
-  shared `agentgateway-proxy` Service instead —
+- Agent Gateway installations route through the shared `agentgateway-proxy`
+  Service —
   `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v1/models/<model-name>:predict`.
 
 It picks the URL via a plain DNS lookup for the `agentgateway-proxy` Service
@@ -258,8 +262,12 @@ against an InferenceService via its internal cluster URL (not the external
 gateway URL) should use this instead of hardcoding the `<isvc>-predictor`
 pattern:
 
+If `agentgateway-proxy` is installed, `aiGateway.controller.enabled=true` is
+required so these routes are created; otherwise the helper selects the proxy
+but requests return 404.
+
 ```python
-%run -n ~/examples/src/pk_helpers/kserve_url.py
+%run -n ../src/pk_helpers/kserve_url.py
 url = internal_predict_url(isvc_name, namespace, model_name)
 ```
 

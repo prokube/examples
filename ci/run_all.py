@@ -6,8 +6,10 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -19,20 +21,19 @@ from typing import Callable, Literal
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-# ── Prerequisite: papermill ───────────────────────────────────────────────────
+# ── CI dependencies ───────────────────────────────────────────────────────────
 
 
-def _ensure_papermill() -> None:
-    """Install papermill if it is not already available."""
+def _require_ci_dependencies() -> None:
+    """Fail before starting work if the CI-only dependencies are unavailable."""
     try:
         import papermill  # noqa: F401
-    except ImportError:
-        print("papermill not found — installing...")
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "papermill"],
-            check=True,
-        )
-        print("papermill installed.")
+        from kfp.client import Client  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError(
+            "CI dependencies are missing. Install them with "
+            '`python -m pip install -e ".[ci]"`.'
+        ) from exc
 
 
 def _ensure_pk_helpers() -> None:
@@ -293,31 +294,57 @@ def _namespace() -> str:
         return fh.read().strip()
 
 
-def _format_papermill_error(exc: Exception) -> str:
-    """Extract a human-readable summary from a PapermillExecutionError."""
+class _CancellationRequested(Exception):
+    pass
+
+
+def _stop_process(proc: subprocess.Popen[str]) -> tuple[str, str]:
+    """Interrupt a subprocess group, then kill it if it does not exit promptly."""
     try:
-        from papermill.exceptions import PapermillExecutionError
+        os.killpg(proc.pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass
+    try:
+        return proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return proc.communicate()
 
-        if not isinstance(exc, PapermillExecutionError):
-            return str(exc)
-    except ImportError:
-        return str(exc)
 
-    lines = [
-        f"Cell {exc.exec_count} raised {exc.ename}: {exc.evalue}",
-    ]
-    if exc.source:
-        src_lines = exc.source.strip().splitlines()[:5]
-        lines.append("  Cell source:")
-        for src_line in src_lines:
-            lines.append(f"    {src_line}")
-        if len(exc.source.strip().splitlines()) > 5:
-            lines.append("    ...")
-    if exc.traceback:
-        tb_lines = [l for l in exc.traceback if l.strip()]
-        if tb_lines:
-            lines.append(f"  Traceback (last): {tb_lines[-1].strip()}")
-    return "\n".join(lines)
+def _run_process(
+    cmd: list[str],
+    cwd: Path,
+    cancel_event: threading.Event,
+    timeout: int | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a cancellable process and reap its process group before returning."""
+    if cancel_event.is_set():
+        raise _CancellationRequested()
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    while True:
+        if cancel_event.is_set():
+            _stop_process(proc)
+            raise _CancellationRequested()
+        if deadline is not None and time.monotonic() >= deadline:
+            stdout, stderr = _stop_process(proc)
+            detail = (stderr or stdout or "(no output)").strip()
+            raise RuntimeError(f"Timed out after {timeout}s: {detail}")
+        try:
+            stdout, stderr = proc.communicate(timeout=0.5)
+            return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 def _strip_ci_skip_cells(nb_path: Path, output_dir: Path) -> Path:
@@ -339,7 +366,13 @@ def _strip_ci_skip_cells(nb_path: Path, output_dir: Path) -> Path:
     return stripped
 
 
-def _run_notebook(nb_path: Path, output_dir: Path, timeout: int, root: Path) -> Path:
+def _run_notebook(
+    nb_path: Path,
+    output_dir: Path,
+    timeout: int,
+    root: Path,
+    cancel_event: threading.Event,
+) -> Path:
     """Execute a notebook with papermill. Returns the output notebook path.
 
     Output notebooks are nested under their path relative to `root` (not
@@ -348,40 +381,47 @@ def _run_notebook(nb_path: Path, output_dir: Path, timeout: int, root: Path) -> 
     pipelines/lightweight-components/, both mobile-price-classifications.ipynb
     — don't overwrite each other's output.
     """
-    import papermill as pm
-    from papermill.exceptions import PapermillExecutionError
-
     output_dir = output_dir / nb_path.parent.relative_to(root)
     output_dir.mkdir(parents=True, exist_ok=True)
     nb_to_run = _strip_ci_skip_cells(nb_path, output_dir)
     output_path = output_dir / nb_path.name
-    try:
-        pm.execute_notebook(
+    result = _run_process(
+        [
+            sys.executable,
+            "-m",
+            "papermill",
             str(nb_to_run),
             str(output_path),
-            kernel_name="python3",
-            execution_timeout=timeout,
-            cwd=str(nb_path.parent),
-            progress_bar=False,
-        )
-    except PapermillExecutionError as exc:
-        raise RuntimeError(_format_papermill_error(exc)) from exc
+            "--kernel",
+            "python3",
+            "--execution-timeout",
+            str(timeout),
+            "--cwd",
+            str(nb_path.parent),
+            "--no-progress-bar",
+        ],
+        cwd=nb_path.parent,
+        cancel_event=cancel_event,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "(no output)").strip()
+        raise RuntimeError(detail)
     return output_path
 
 
 def _run_script(
     script_path: Path,
     timeout: int,
+    cancel_event: threading.Event,
     extra_args: list[str] | None = None,
 ) -> tuple[str, str]:
     """Run a plain Python script. Returns (stdout, stderr)."""
     cmd = [sys.executable, str(script_path)] + (extra_args or [])
-    result = subprocess.run(
+    result = _run_process(
         cmd,
-        capture_output=True,
-        text=True,
+        cwd=script_path.parent,
+        cancel_event=cancel_event,
         timeout=timeout,
-        cwd=str(script_path.parent),
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "(no output)").strip()
@@ -460,21 +500,28 @@ def _get_failed_task_logs(run: object, namespace: str) -> str:
     return ""
 
 
-def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, str]:
+def _poll_kfp_run(
+    run_id: str,
+    timeout: int,
+    cancel_event: threading.Event,
+    interval: int = 30,
+) -> tuple[str, str]:
     """Poll a KFP run until terminal state. Returns (status, error_detail)."""
-    try:
-        from kfp.client import Client
-    except ImportError:
-        return "SKIP (kfp not installed)", ""
+    from kfp.client import Client
+
     client = Client()
     try:
         with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as fh:
             namespace = fh.read().strip()
     except OSError:
         namespace = ""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if cancel_event.is_set():
+            raise _CancellationRequested()
         run = client.get_run(run_id)
+        if cancel_event.is_set():
+            raise _CancellationRequested()
         state = str(
             getattr(run, "state", None)
             or getattr(getattr(run, "run", None), "status", None)
@@ -488,20 +535,29 @@ def _poll_kfp_run(run_id: str, timeout: int, interval: int = 30) -> tuple[str, s
                 if not error_detail and namespace:
                     error_detail = _get_failed_task_logs(run, namespace)
             return state, error_detail
-        time.sleep(interval)
+        remaining = deadline - time.monotonic()
+        if remaining > 0 and cancel_event.wait(min(interval, remaining)):
+            raise _CancellationRequested()
     return f"TIMEOUT after {timeout}s", ""
 
 
 def _run_cleanup(cleanup_path: Path) -> None:
     """Run a cleanup.py; log but don't raise on failure."""
     try:
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, str(cleanup_path)],
             capture_output=True,
             text=True,
             cwd=str(cleanup_path.parent),
             timeout=120,
         )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "(no output)").strip()
+            print(
+                f"  WARNING: cleanup {cleanup_path.name} exited "
+                f"{result.returncode}: {detail}",
+                file=sys.stderr,
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"  WARNING: cleanup {cleanup_path.name} failed: {exc}", file=sys.stderr)
 
@@ -521,26 +577,36 @@ class _Context:
     results: dict[str, Result]
     poll_results: dict[str, str]
     poll_errors: dict[str, str]
+    cancel_event: threading.Event
 
 
 # ── Execution primitives ──────────────────────────────────────────────────────
 
 
 def _make_work(
-    steps: list[Step], root: Path, output_dir: Path, timeout: int
+    steps: list[Step],
+    root: Path,
+    output_dir: Path,
+    timeout: int,
+    cancel_event: threading.Event,
 ) -> Callable[[Result], None]:
     """Build a work(result) closure from a list of Steps."""
 
     def work(result: Result) -> None:
         for step in steps:
+            if cancel_event.is_set():
+                raise _CancellationRequested()
             if step.kind == "notebook":
-                out = _run_notebook(root / step.path, output_dir, timeout, root)
+                out = _run_notebook(
+                    root / step.path, output_dir, timeout, root, cancel_event
+                )
                 if step.extract_run_ids:
                     result.kfp_run_ids.extend(_extract_run_ids_from_notebook(out))
             elif step.kind == "script":
                 stdout, _ = _run_script(
                     root / step.path,
                     timeout,
+                    cancel_event,
                     extra_args=step.extra_args or None,
                 )
                 if step.extract_run_ids:
@@ -565,6 +631,9 @@ def _timed_run(
         try:
             work(result)
             result.status = "PASS"
+        except _CancellationRequested:
+            result.status = "SKIP"
+            result.error = "cancelled"
         except Exception as exc:  # noqa: BLE001
             result.status = "FAIL"
             result.error = str(exc)
@@ -765,12 +834,12 @@ def _check_kserve_api_key() -> tuple[bool, str]:
 
 
 def _preflight(results: dict[str, Result]) -> bool:
-    """Install papermill and validate MLflow credentials and the kserve API key.
+    """Validate CI dependencies, MLflow credentials, and the kserve API key.
 
     MLflow-dependent and API-key-dependent examples are recorded as SKIP in
     `results` on failure. Returns True if MLflow credentials are valid.
     """
-    _ensure_papermill()
+    _require_ci_dependencies()
     _ensure_pk_helpers()
 
     print("Pre-flight: checking MLflow credentials...")
@@ -828,7 +897,13 @@ def _run_phase(
                 ctx, ex.name, f"opt-in: pass --{ex.opt_in.replace('_', '-')} to enable"
             )
             continue
-        work = _make_work(ex.steps, ctx.root, ctx.output_dir, ctx.timeout_notebook)
+        work = _make_work(
+            ex.steps,
+            ctx.root,
+            ctx.output_dir,
+            ctx.timeout_notebook,
+            ctx.cancel_event,
+        )
         futures[ex.name] = _timed_run(ctx.executor, ctx.results, ex.name, work)
     return futures
 
@@ -858,7 +933,11 @@ def _await_mobile_price(ctx: _Context, phase2_futures: dict[str, Future]) -> boo
     ok = True
     for run_id in run_ids:
         try:
-            state, err = _poll_kfp_run(run_id, ctx.timeout_pipeline)
+            state, err = _poll_kfp_run(
+                run_id, ctx.timeout_pipeline, ctx.cancel_event
+            )
+        except _CancellationRequested:
+            raise
         except Exception as exc:  # noqa: BLE001
             state, err = f"POLL_ERROR: {exc}", ""
         ctx.poll_results[run_id] = state
@@ -882,12 +961,16 @@ def _phase4_poll(ctx: _Context) -> None:
 
     print(f"\nPhase 4: polling {len(all_run_ids)} KFP run(s)...")
     poll_futures = {
-        run_id: ctx.executor.submit(_poll_kfp_run, run_id, ctx.timeout_pipeline)
+        run_id: ctx.executor.submit(
+            _poll_kfp_run, run_id, ctx.timeout_pipeline, ctx.cancel_event
+        )
         for run_id in all_run_ids
     }
     for run_id, f in poll_futures.items():
         try:
             ctx.poll_results[run_id], ctx.poll_errors[run_id] = f.result()
+        except _CancellationRequested:
+            raise
         except Exception as exc:  # noqa: BLE001
             ctx.poll_results[run_id] = f"POLL_ERROR: {exc}"
             ctx.poll_errors[run_id] = ""
@@ -932,14 +1015,9 @@ def run_all(
     ]
     poll_results: dict[str, str] = {}
     poll_errors: dict[str, str] = {}
+    cancel_event = threading.Event()
 
-    # Not using `with ThreadPoolExecutor(...) as executor` on purpose: its
-    # __exit__ always calls shutdown(wait=True), which blocks until every
-    # already-running example finishes (up to timeout_notebook each) before
-    # cleanup gets a chance to run. On Ctrl-C we instead cancel queued work
-    # and skip straight to cleanup instead of waiting.
     executor = ThreadPoolExecutor(max_workers=8)
-    interrupted = False
     try:
         try:
             ctx = _Context(
@@ -951,6 +1029,7 @@ def run_all(
                 results=results,
                 poll_results=poll_results,
                 poll_errors=poll_errors,
+                cancel_event=cancel_event,
             )
 
             print(
@@ -998,11 +1077,14 @@ def run_all(
 
             _phase4_poll(ctx)
         except KeyboardInterrupt:
-            interrupted = True
-            print("\nInterrupted — cancelling queued work and skipping to cleanup...")
+            cancel_event.set()
+            print("\nInterrupted — stopping active work before cleanup...")
+            raise
+        except BaseException:
+            cancel_event.set()
             raise
     finally:
-        executor.shutdown(wait=not interrupted, cancel_futures=interrupted)
+        executor.shutdown(wait=True, cancel_futures=cancel_event.is_set())
         _phase5_cleanup(cleanup_scripts)
 
     run_id_to_name = {
@@ -1022,7 +1104,10 @@ if __name__ == "__main__":
         "--timeout-notebook",
         type=int,
         default=1800,
-        help="Per-notebook execution timeout in seconds (default: 1800)",
+        help=(
+            "Per-cell timeout for notebooks and whole-process timeout for scripts, "
+            "in seconds (default: 1800)"
+        ),
     )
     parser.add_argument(
         "--timeout-pipeline",

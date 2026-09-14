@@ -154,7 +154,8 @@ def _get_api_key() -> str:
 
 def _smoke_test(uri: str, name: str, protocol: str, api_key: str) -> None:
     """POST one inference request; raise on non-2xx or missing predictions."""
-    body = json.load(open(_BODY_FILES[protocol]))
+    with open(_BODY_FILES[protocol]) as fh:
+        body = json.load(fh)
     if protocol == "v1":
         url = f"{uri}/v1/models/{name}:predict"
         pred_key = "predictions"

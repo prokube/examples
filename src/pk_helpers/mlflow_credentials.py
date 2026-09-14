@@ -106,8 +106,9 @@ def setup_mlflow_credentials(
         ],
         capture_output=True,
         text=True,
-        check=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError(f"kubectl create secret failed:\n{result.stderr}")
 
     apply = subprocess.run(
         ["kubectl", "apply", "-n", ns, "-f", "-"],

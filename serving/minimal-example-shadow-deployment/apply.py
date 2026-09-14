@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import uuid
 
 _ROOT = os.path.dirname(__file__)
 
@@ -259,7 +260,7 @@ def _internal_isvc_url(name: str, namespace: str) -> str:
     return result.stdout.strip()
 
 
-def _smoke_test(namespace: str, timeout: int = 120) -> None:
+def _smoke_test(namespace: str, password: str, timeout: int = 120) -> None:
     """POST numeric values to the primary (doubler) ISVC and verify predictions.
 
     The doubler predictor multiplies each input value by FACTOR=2, so
@@ -269,17 +270,23 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
     inputs = [1.0, 2.0, 3.0]
     expected = [2.0, 4.0, 6.0]
     payload = json.dumps({"values": inputs}).encode()
-    deadline = time.time() + timeout
+    request_id = uuid.uuid4()
+    deadline = time.monotonic() + timeout
     last_err: Exception | None = None
-    while time.time() < deadline:
+    while time.monotonic() < deadline:
         try:
             req = urllib.request.Request(
                 url,
                 data=payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "x-request-id": str(request_id),
+                },
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(
+                req, timeout=min(15, max(1, deadline - time.monotonic()))
+            ) as resp:
                 body = json.loads(resp.read())
             predictions = body.get("results")
             if predictions is None:
@@ -289,12 +296,91 @@ def _smoke_test(namespace: str, timeout: int = 120) -> None:
                     f"doubler (FACTOR=2) returned wrong predictions: "
                     f"got {predictions}, expected {expected}"
                 )
-            print(f"Smoke test passed: {inputs} → {predictions} (FACTOR=2 verified)")
-            return
+            break
         except Exception as exc:
             last_err = exc
-            time.sleep(5)
-    raise RuntimeError(f"Smoke test failed after {timeout}s: {last_err}")
+            time.sleep(min(5, max(0, deadline - time.monotonic())))
+    else:
+        raise RuntimeError(
+            f"Prediction smoke test failed after {timeout}s: {last_err}"
+        )
+    print(f"Prediction verified for request {request_id}: {inputs} -> {predictions}")
+
+    host = _PG_HOST_TEMPLATE.format(ns=namespace)
+    sql = (
+        "SELECT "
+        "(SELECT COUNT(*) FROM public.inference_requests "
+        f"WHERE request_id = UUID '{request_id}') || '|' || "
+        "(SELECT COUNT(*) FROM public.inference_response "
+        f"WHERE request_id = UUID '{request_id}');"
+    )
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"Persistence smoke test timed out after {timeout}s: request "
+                f"{request_id} was not found in both persistence tables."
+            )
+        try:
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "run",
+                    f"pg-smoke-{request_id.hex[:12]}",
+                    "--rm",
+                    "-i",
+                    "--quiet",
+                    "--restart=Never",
+                    f"-n={namespace}",
+                    "--image=postgres:17",
+                    f"--env=PGPASSWORD={password}",
+                    "--",
+                    "psql",
+                    "-qAt",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-h",
+                    host,
+                    "-U",
+                    _PG_USER,
+                    "-d",
+                    _PG_DB,
+                    "-c",
+                    sql,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Persistence smoke test timed out after {timeout}s while querying "
+                f"the persistence tables for request {request_id}."
+            ) from exc
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Persistence query failed for request {request_id}:\n"
+                + (result.stderr or result.stdout)
+            )
+        try:
+            request_count, response_count = map(
+                int, result.stdout.strip().split("|", maxsplit=1)
+            )
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError(
+                f"Persistence query returned invalid counts for request {request_id}: "
+                f"{result.stdout!r}"
+            ) from exc
+        if request_count == response_count == 1:
+            print(f"Persistence verified for request {request_id}.")
+            return
+        if request_count > 1 or response_count > 1:
+            raise RuntimeError(
+                f"Persistence check found {request_count} request row(s) and "
+                f"{response_count} response row(s) for request {request_id}; "
+                "expected exactly one of each."
+            )
+        time.sleep(min(5, max(0, deadline - time.monotonic())))
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -327,8 +413,15 @@ def deploy(timeout: int = 600) -> None:
 
     print("Applied doubler and tripler InferenceServices.")
 
+    readiness_deadline = time.monotonic() + timeout
     for isvc_name in (_DOUBLER_ISVC, _TRIPLER_ISVC):
-        _wait_isvc_ready(isvc_name, ns, timeout)
+        remaining = readiness_deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"Combined {timeout}s readiness deadline was exhausted before waiting "
+                f"for InferenceService '{isvc_name}'."
+            )
+        _wait_isvc_ready(isvc_name, ns, max(1, int(remaining)))
 
     print("Both InferenceServices are ready.")
     print(
@@ -336,7 +429,7 @@ def deploy(timeout: int = 600) -> None:
         "they require namespace and domain substitution and must be configured manually."
     )
 
-    _smoke_test(ns)
+    _smoke_test(ns, password)
 
 
 if __name__ == "__main__":

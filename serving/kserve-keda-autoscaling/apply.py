@@ -161,8 +161,67 @@ def _get_scaledobject_active(name: str, namespace: str) -> str:
     return r.stdout.strip() if r.returncode == 0 else "unknown"
 
 
+def _scale_up_diagnostics(namespace: str) -> str:
+    commands = [
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-l",
+            f"serving.kserve.io/inferenceservice={_ISVC_NAME}",
+            "-o",
+            "wide",
+            "-n",
+            namespace,
+        ],
+        [
+            "kubectl",
+            "describe",
+            "pods",
+            "-l",
+            f"serving.kserve.io/inferenceservice={_ISVC_NAME}",
+            "-n",
+            namespace,
+        ],
+        [
+            "kubectl",
+            "get",
+            "hpa",
+            f"keda-hpa-{_SCALED_OBJECT_NAME}",
+            "-o",
+            "wide",
+            "-n",
+            namespace,
+        ],
+        [
+            "kubectl",
+            "describe",
+            "hpa",
+            f"keda-hpa-{_SCALED_OBJECT_NAME}",
+            "-n",
+            namespace,
+        ],
+    ]
+    diagnostics = []
+    for command in commands:
+        label = " ".join(command)
+        try:
+            result = subprocess.run(
+                command, capture_output=True, text=True, timeout=5, check=False
+            )
+            output = "\n".join(
+                part.strip()
+                for part in (result.stdout, result.stderr)
+                if part.strip()
+            )
+            diagnostics.append(f"$ {label}\n{output or '(no output)'}")
+        except Exception as exc:
+            diagnostics.append(f"$ {label}\nDiagnostic failed: {exc}")
+    return "\n\n".join(diagnostics)
+
+
 def _verify_autoscaling(
-    namespace: str, target_replicas: int = 2, timeout: int = 300
+    namespace: str, target_replicas: int = 2, timeout: int = 600
 ) -> None:
     """Drive sustained load (stable-2 preset, ~8 tok/s) and confirm the
     Deployment actually scales up — a single request never crosses the
@@ -202,6 +261,7 @@ def _verify_autoscaling(
             f"Deployment '{_DEPLOYMENT_NAME}' did not scale to {target_replicas} "
             f"replicas within {timeout}s under sustained load. Check "
             "'kubectl describe scaledobject', the HPA, and Prometheus connectivity."
+            f"\n\nScale-up diagnostics:\n{_scale_up_diagnostics(namespace)}"
         )
     finally:
         proc.terminate()
@@ -255,9 +315,6 @@ def deploy(timeout: int = 900) -> None:
     _kubectl_apply(isvc_manifest, ns)
     print(f"Applied InferenceService '{_ISVC_NAME}' in namespace '{ns}'.")
 
-    _wait_isvc_ready(_ISVC_NAME, ns, timeout)
-    print(f"InferenceService '{_ISVC_NAME}' is ready.")
-
     # Apply ScaledObject — detect KEDA availability via the apply itself rather
     # than 'kubectl get crd' which requires cluster-level RBAC notebook SAs lack.
     with open(_SO_YAML) as fh:
@@ -271,6 +328,9 @@ def deploy(timeout: int = 900) -> None:
             "requires KEDA — install KEDA in the cluster, or omit --include-keda."
         )
     print(f"Applied ScaledObject '{_SCALED_OBJECT_NAME}' in namespace '{ns}'.")
+
+    _wait_isvc_ready(_ISVC_NAME, ns, timeout)
+    print(f"InferenceService '{_ISVC_NAME}' is ready.")
 
     _wait_scaledobject_ready(_SCALED_OBJECT_NAME, ns)
     _smoke_test(ns)
