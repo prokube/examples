@@ -5,6 +5,7 @@ metadata:
   namespace: "<workspace-name>"
 spec:
   predictor:
+    serviceAccountName: mlflow-isvc-sa
     model:
       modelFormat:
         name: mlflow

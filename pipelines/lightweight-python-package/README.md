@@ -35,7 +35,7 @@ Instead of defining all code inline in the component decorator:
 ```python
 @dsl.component(
     packages_to_install=["pandas", "scikit-learn"],
-    base_image="python:3.9",
+    base_image="python:3.11",
 )
 def train_model(...):
     # All the code here...
@@ -44,7 +44,7 @@ def train_model(...):
 We use a custom base image with our package pre-installed:
 
 ```python
-COMPONENTS_IMAGE = "<your-registry>/mobile-price-classification:v1"
+COMPONENTS_IMAGE = os.environ.get("COMPONENTS_IMAGE", "<your-registry>/mobile-price-classification:v2")
 
 @dsl.component(base_image=COMPONENTS_IMAGE)
 def train_model(train_x: Input[Dataset], ...):
@@ -58,18 +58,20 @@ def train_model(train_x: Input[Dataset], ...):
 
 ```sh
 # Build the image (use --platform linux/amd64 when building on ARM Macs)
-docker build --platform linux/amd64 -t <your-registry>/mobile-price-classification:v1 .
+docker build --platform linux/amd64 -t <your-registry>/mobile-price-classification:v2 .
 
 # Push to your registry
-docker push <your-registry>/mobile-price-classification:v1
+docker push <your-registry>/mobile-price-classification:v2
 ```
 
 ### 2. Update the Image Reference
 
-Edit `pipeline.py` and update `COMPONENTS_IMAGE` to point to your registry:
+`pipeline.py` defaults `COMPONENTS_IMAGE` to prokube's internal image; point it
+at your own registry via the `COMPONENTS_IMAGE` environment variable instead
+of editing the file:
 
-```python
-COMPONENTS_IMAGE = "<your-registry>/mobile-price-classification:v1"
+```sh
+export COMPONENTS_IMAGE=<your-registry>/mobile-price-classification:v2
 ```
 
 ### 3. Prepare the Dataset
