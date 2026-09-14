@@ -168,17 +168,20 @@ python -m pip install -e .
 Interactive. Stores MLflow credentials in the `mlflow-credentials` Kubernetes
 Secret. First, create a Personal Access Token from `/mlflow/oidc/ui/auth` on
 your prokube domain. Then run the setup cell; the script prompts for the MLflow
-URI, email address, and token, and creates or updates the Secret:
+URI, email address, and token, and creates the Secret:
 
 ```python
-# Prompts for your MLflow URI, email, and PAT, then creates or updates the Secret.
+# Creates the Secret if it doesn't exist.
 setup_mlflow_credentials()
+
+# To recreate the secret with new credentials, run:
+# setup_mlflow_credentials(rerun=True)
 ```
 
-If the secret already exists, the script asks before replacing it and leaves
-it unchanged by default. Tag this interactive cell with `ci-skip`. CI removes
-the cell before execution, validates the preconfigured secret during
-preflight, and skips MLflow-dependent examples if the secret is unavailable.
+If the secret exists, the cell skips setup. Use
+`setup_mlflow_credentials(rerun=True)` to replace it. Tag this interactive cell
+with `ci-skip`. CI removes it before execution and validates the preconfigured
+secret during preflight.
 
 ### load_mlflow_credentials
 

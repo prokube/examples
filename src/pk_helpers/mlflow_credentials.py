@@ -55,21 +55,21 @@ def setup_mlflow_credentials(
     uri: str | None = None,
     username: str | None = None,
     password: str | None = None,
+    rerun: bool = False,
 ) -> None:
-    """Create or update the ``mlflow-credentials`` secret.
+    """Create the ``mlflow-credentials`` secret if it doesn't already exist.
 
     Any parameter left as ``None`` will be requested interactively.
+
+    Pass ``rerun=True`` to replace an existing secret.
     """
     ns = _namespace()
-    all_supplied = uri is not None and username is not None and password is not None
-    if not all_supplied and _secret_exists(ns):
-        overwrite = _prompt(
-            f"Secret '{_SECRET_NAME}' already exists in namespace '{ns}'. "
-            "Replace it? [y/N]"
-        ).lower()
-        if overwrite not in {"y", "yes"}:
-            print(f"Secret '{_SECRET_NAME}' already exists; leaving it unchanged.")
-            return
+    if not rerun and _secret_exists(ns):
+        print(
+            f"Secret '{_SECRET_NAME}' already exists in namespace '{ns}'; skipping. "
+            "Run `setup_mlflow_credentials(rerun=True)` to replace it."
+        )
+        return
 
     if uri is None:
         print("MLflow tracking URI — typically https://<your-cluster-domain>/mlflow/")
@@ -199,10 +199,17 @@ def main() -> None:
     parser.add_argument(
         "--password", default=None, help="MLFLOW_TRACKING_PASSWORD (PAT)"
     )
+    parser.add_argument(
+        "--rerun",
+        action="store_true",
+        help="Replace the secret even if it already exists",
+    )
     args = parser.parse_args()
 
     try:
-        setup_mlflow_credentials(args.uri, args.username, args.password)
+        setup_mlflow_credentials(
+            args.uri, args.username, args.password, rerun=args.rerun
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
