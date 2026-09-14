@@ -402,26 +402,16 @@ def _run_notebook(
 ) -> Path:
     """Execute a notebook with papermill, in-process. Returns the output notebook path.
 
-    Deliberately calls papermill's library API (`pm.execute_notebook`)
-    rather than spawning `python -m papermill` as a subprocess: importing
-    papermill + jupyter_client + nbformat + nbclient costs ~75MB+ RSS, paid
-    once per process. Spawning it as a subprocess pays that cost once per
-    *concurrent notebook* instead — at max_workers=8 that alone was enough
-    extra overhead to OOM-kill the 1Gi-limited notebook pod this suite runs
-    in. The kernel papermill launches to actually execute cells is already
-    a separate OS process either way, so this doesn't change isolation of
-    notebook code from run_all.py itself.
+    In-process (not `python -m papermill` as a subprocess): see commit
+    message for the ~75MB/notebook memory reason. Cancellation is only
+    checked before start, not mid-run — execution_timeout still hard-stops
+    a stuck cell either way.
 
     Output notebooks are nested under their path relative to `root` (not
     just the basename) so two examples with same-named notebooks — e.g.
     notebooks/mobile-price-classification/ and
     pipelines/lightweight-components/, both mobile-price-classifications.ipynb
     — don't overwrite each other's output.
-
-    Cancellation is checked before a notebook starts. An already-running
-    notebook finishes rather than being hard-killed on Ctrl-C — nbclient's
-    own kernel-interrupt handling already covers a genuinely stuck cell via
-    `execution_timeout`.
     """
     if cancel_event.is_set():
         raise _CancellationRequested()
