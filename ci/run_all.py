@@ -347,6 +347,33 @@ def _run_process(
             pass
 
 
+def _format_papermill_error(exc: Exception) -> str:
+    """Extract a human-readable summary from a PapermillExecutionError."""
+    try:
+        from papermill.exceptions import PapermillExecutionError
+
+        if not isinstance(exc, PapermillExecutionError):
+            return str(exc)
+    except ImportError:
+        return str(exc)
+
+    lines = [
+        f"Cell {exc.exec_count} raised {exc.ename}: {exc.evalue}",
+    ]
+    if exc.source:
+        src_lines = exc.source.strip().splitlines()[:5]
+        lines.append("  Cell source:")
+        for src_line in src_lines:
+            lines.append(f"    {src_line}")
+        if len(exc.source.strip().splitlines()) > 5:
+            lines.append("    ...")
+    if exc.traceback:
+        tb_lines = [l for l in exc.traceback if l.strip()]
+        if tb_lines:
+            lines.append(f"  Traceback (last): {tb_lines[-1].strip()}")
+    return "\n".join(lines)
+
+
 def _strip_ci_skip_cells(nb_path: Path, output_dir: Path) -> Path:
     """Return a copy of the notebook with 'ci-skip' tagged cells replaced by a comment."""
     with open(nb_path) as fh:
@@ -373,39 +400,50 @@ def _run_notebook(
     root: Path,
     cancel_event: threading.Event,
 ) -> Path:
-    """Execute a notebook with papermill. Returns the output notebook path.
+    """Execute a notebook with papermill, in-process. Returns the output notebook path.
+
+    Deliberately calls papermill's library API (`pm.execute_notebook`)
+    rather than spawning `python -m papermill` as a subprocess: importing
+    papermill + jupyter_client + nbformat + nbclient costs ~75MB+ RSS, paid
+    once per process. Spawning it as a subprocess pays that cost once per
+    *concurrent notebook* instead — at max_workers=8 that alone was enough
+    extra overhead to OOM-kill the 1Gi-limited notebook pod this suite runs
+    in. The kernel papermill launches to actually execute cells is already
+    a separate OS process either way, so this doesn't change isolation of
+    notebook code from run_all.py itself.
 
     Output notebooks are nested under their path relative to `root` (not
     just the basename) so two examples with same-named notebooks — e.g.
     notebooks/mobile-price-classification/ and
     pipelines/lightweight-components/, both mobile-price-classifications.ipynb
     — don't overwrite each other's output.
+
+    Cancellation is checked before a notebook starts. An already-running
+    notebook finishes rather than being hard-killed on Ctrl-C — nbclient's
+    own kernel-interrupt handling already covers a genuinely stuck cell via
+    `execution_timeout`.
     """
+    if cancel_event.is_set():
+        raise _CancellationRequested()
+
+    import papermill as pm
+    from papermill.exceptions import PapermillExecutionError
+
     output_dir = output_dir / nb_path.parent.relative_to(root)
     output_dir.mkdir(parents=True, exist_ok=True)
     nb_to_run = _strip_ci_skip_cells(nb_path, output_dir)
     output_path = output_dir / nb_path.name
-    result = _run_process(
-        [
-            sys.executable,
-            "-m",
-            "papermill",
+    try:
+        pm.execute_notebook(
             str(nb_to_run),
             str(output_path),
-            "--kernel",
-            "python3",
-            "--execution-timeout",
-            str(timeout),
-            "--cwd",
-            str(nb_path.parent),
-            "--no-progress-bar",
-        ],
-        cwd=nb_path.parent,
-        cancel_event=cancel_event,
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "(no output)").strip()
-        raise RuntimeError(detail)
+            kernel_name="python3",
+            execution_timeout=timeout,
+            cwd=str(nb_path.parent),
+            progress_bar=False,
+        )
+    except PapermillExecutionError as exc:
+        raise RuntimeError(_format_papermill_error(exc)) from exc
     return output_path
 
 
@@ -578,6 +616,8 @@ class _Context:
     poll_results: dict[str, str]
     poll_errors: dict[str, str]
     cancel_event: threading.Event
+    running: set[str] = field(default_factory=set)
+    running_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 # ── Execution primitives ──────────────────────────────────────────────────────
@@ -616,18 +656,19 @@ def _make_work(
 
 
 def _timed_run(
-    executor: ThreadPoolExecutor,
-    results: dict[str, Result],
+    ctx: _Context,
     name: str,
     work: Callable[[Result], None],
 ) -> Future:
     """Submit work(result) to the executor with shared timing + error handling."""
     result = Result(name=name)
-    results[name] = result
+    ctx.results[name] = result
     print(f"  [START  ] {name}")
 
     def _run() -> None:
         t0 = time.time()
+        with ctx.running_lock:
+            ctx.running.add(name)
         try:
             work(result)
             result.status = "PASS"
@@ -639,8 +680,27 @@ def _timed_run(
             result.error = str(exc)
         finally:
             result.duration = time.time() - t0
+            with ctx.running_lock:
+                ctx.running.discard(name)
 
-    return executor.submit(_run)
+    return ctx.executor.submit(_run)
+
+
+def _heartbeat_loop(
+    ctx: _Context, stop_event: threading.Event, interval: int = 60
+) -> None:
+    """Print which examples are still in-flight every `interval` seconds.
+
+    Runs as a daemon thread for the lifetime of phases 1-3 so a long but
+    healthy run doesn't look identical to a stuck one from the terminal.
+    """
+    start = time.time()
+    while not stop_event.wait(interval):
+        with ctx.running_lock:
+            names = sorted(ctx.running)
+        if names:
+            elapsed = int(time.time() - start)
+            print(f"  ... still running after {elapsed}s: {', '.join(names)}")
 
 
 def _drain(ctx: _Context, futures: dict[str, Future]) -> None:
@@ -937,7 +997,7 @@ def _run_phase(
             ctx.timeout_notebook,
             ctx.cancel_event,
         )
-        futures[ex.name] = _timed_run(ctx.executor, ctx.results, ex.name, work)
+        futures[ex.name] = _timed_run(ctx, ex.name, work)
     return futures
 
 
@@ -1028,6 +1088,7 @@ def run_all(
     include_pytorch: bool = False,
     include_shadow: bool = False,
     dry_run: bool = False,
+    max_workers: int = 8,
 ) -> dict[str, Result]:
     root = _REPO_ROOT
     results: dict[str, Result] = {}
@@ -1052,7 +1113,8 @@ def run_all(
     poll_errors: dict[str, str] = {}
     cancel_event = threading.Event()
 
-    executor = ThreadPoolExecutor(max_workers=8)
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    heartbeat_stop = threading.Event()
     try:
         try:
             ctx = _Context(
@@ -1066,6 +1128,9 @@ def run_all(
                 poll_errors=poll_errors,
                 cancel_event=cancel_event,
             )
+            threading.Thread(
+                target=_heartbeat_loop, args=(ctx, heartbeat_stop), daemon=True
+            ).start()
 
             print(
                 "Phase 1a: running environment-mutating examples "
@@ -1119,6 +1184,7 @@ def run_all(
             cancel_event.set()
             raise
     finally:
+        heartbeat_stop.set()
         executor.shutdown(wait=True, cancel_futures=cancel_event.is_set())
         _phase5_cleanup(cleanup_scripts)
 
@@ -1173,6 +1239,16 @@ if __name__ == "__main__":
         action="store_true",
         help="Print plan without executing anything",
     )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=8,
+        help=(
+            "Max examples run concurrently (default: 8). Lower this if the "
+            "notebook pod is being OOM-killed by running too many examples "
+            "at once."
+        ),
+    )
     args = parser.parse_args()
 
     results = run_all(
@@ -1182,6 +1258,7 @@ if __name__ == "__main__":
         include_shadow=args.include_shadow,
         include_pytorch=args.include_pytorch,
         dry_run=args.dry_run,
+        max_workers=args.max_workers,
     )
 
     failed = sum(1 for r in results.values() if r.status == "FAIL")
