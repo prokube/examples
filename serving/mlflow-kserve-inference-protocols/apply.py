@@ -154,29 +154,41 @@ def _get_api_key() -> str:
 
 def _smoke_test(uri: str, name: str, protocol: str, api_key: str) -> None:
     """POST one inference request; raise on non-2xx or missing predictions."""
+    from pk_helpers import external_predict_url
+
     with open(_BODY_FILES[protocol]) as fh:
         body = json.load(fh)
-    if protocol == "v1":
-        url = f"{uri}/v1/models/{name}:predict"
-        pred_key = "predictions"
-    else:
-        url = f"{uri}/v2/models/{name}/infer"
-        pred_key = "outputs"
-
+    pred_key = "predictions" if protocol == "v1" else "outputs"
     data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json", "X-Api-Key": api_key},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
+
+    # external_predict_url() returns candidate URLs in priority order: the
+    # Agent Gateway /svc-prefixed route, then the plain URI (used if
+    # aiGateway.controller isn't enabled and no /svc route exists).
+    urls = external_predict_url(uri, name, protocol=protocol)
+    result = None
+    last_exc: urllib.error.HTTPError | None = None
+    for url in urls:
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json", "X-Api-Key": api_key},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                last_exc = exc
+                continue  # try the next candidate URL
+            raise RuntimeError(
+                f"Smoke test {protocol} returned HTTP {exc.code}: {exc.read().decode()}"
+            ) from exc
+    if result is None:
         raise RuntimeError(
-            f"Smoke test {protocol} returned HTTP {exc.code}: {exc.read().decode()}"
-        ) from exc
+            f"Smoke test {protocol}: all predict URLs 404'd (route not found): {urls}"
+        ) from last_exc
 
     if pred_key not in result:
         raise RuntimeError(f"Smoke test {protocol}: unexpected response: {result}")

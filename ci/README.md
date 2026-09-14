@@ -251,35 +251,32 @@ examples if it is unset — mark any new example that calls
 
 Serving routes require `aiGateway.controller.enabled=true` on the cluster.
 
-### internal_predict_url
+### internal_predict_url / external_predict_url
 
-Returns the correct **internal, in-cluster** predict URL for a KServe
-InferenceService across prokube generations:
+Agent Gateway is the only supported routing path — there is no live cluster
+without it, so these helpers don't probe for it, they assume it.
 
-- Legacy installations: hits the predictor Service directly —
-  `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/v1/models/<model-name>:predict`.
-- Agent Gateway installations route through the shared `agentgateway-proxy`
-  Service —
+- `internal_predict_url(isvc_name, namespace, model_name)` — the
+  **internal, in-cluster** predict URL, routed through the shared
+  `agentgateway-proxy` Service:
   `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v1/models/<model-name>:predict`.
-
-It picks the URL via a plain DNS lookup for the `agentgateway-proxy` Service
-(cached for the process) — no config flag needed, and no RBAC required
-(unlike `kubectl get service`, which notebook pod service accounts
-typically can't do cross-namespace; DNS resolution needs no permissions,
-and a non-existent Service just fails to resolve). The request/response
-payload format is unchanged either way (plain KServe V1 JSON, e.g.
-`{"instances": [...]}`) — only the URL differs. Any example that predicts
-against an InferenceService via its internal cluster URL (not the external
-gateway URL) should use this instead of hardcoding the `<isvc>-predictor`
-pattern:
-
-If `agentgateway-proxy` is installed, `aiGateway.controller.enabled=true` is
-required so these routes are created; otherwise the helper selects the proxy
-but requests return 404.
+  Use this instead of hardcoding the `<isvc-name>-predictor` Service pattern.
+- `external_predict_url(isvc_url, model_name, protocol="v1")` — candidate
+  **external** predict URLs from an ISVC's `.status.url`, most likely to work
+  first. Agent Gateway routes external traffic through a `/svc` prefix
+  (`https://<domain>/svc/serving/<namespace>/<isvc-name>/...`) when
+  `aiGateway.controller.enabled=true` created that route; `.status.url` alone
+  404s with `route not found` in that case. But if the controller is
+  disabled, no `/svc` route exists and `.status.url` itself is the one that
+  works — there's no way to detect the controller's enabled-state from
+  inside a pod, so this returns **both** URLs in priority order (`/svc`
+  first) instead of one. Try each and fall back to the next on a 404.
 
 ```python
 %run -n ../src/pk_helpers/kserve_url.py
-url = internal_predict_url(isvc_name, namespace, model_name)
+internal_url = internal_predict_url(isvc_name, namespace, model_name)
+for external_url in external_predict_url(isvc_status_url, model_name):
+    ...  # try external_url, move to the next candidate on a 404
 ```
 
 ---
