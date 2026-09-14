@@ -1120,6 +1120,15 @@ def run_all(
     poll_errors: dict[str, str] = {}
     cancel_event = threading.Event()
 
+    # SIGTERM (pkill, a dropped kubectl exec session, pod eviction) otherwise
+    # kills the process immediately with no cleanup: cancel_event never gets
+    # set and every _run_process child (its own session/process group) is
+    # orphaned. Route it through the same cancel + cleanup path as Ctrl-C.
+    def _on_sigterm(signum: int, frame: object) -> None:
+        raise KeyboardInterrupt
+
+    _old_sigterm_handler = signal.signal(signal.SIGTERM, _on_sigterm)
+
     executor = ThreadPoolExecutor(max_workers=max_workers)
     heartbeat_stop = threading.Event()
     try:
@@ -1191,6 +1200,7 @@ def run_all(
             cancel_event.set()
             raise
     finally:
+        signal.signal(signal.SIGTERM, _old_sigterm_handler)
         heartbeat_stop.set()
         executor.shutdown(wait=True, cancel_futures=cancel_event.is_set())
         _phase5_cleanup(cleanup_scripts)
