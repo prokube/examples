@@ -1,7 +1,7 @@
 # CI contributor guide
 
 This guide explains how contributors and automation agents can run the example
-suite and register new examples in `ci/run_all.py`.
+suite and register new examples in the `ci` package (`python -m ci`).
 
 ---
 
@@ -11,19 +11,19 @@ Run the suite from a Kubeflow notebook pod with this repository checked out:
 
 ```bash
 python -m pip install -e ".[ci]"
-python ci/run_all.py
+python -m ci
 ```
 
 To preview the execution plan without running any examples:
 
 ```bash
-python ci/run_all.py --dry-run
+python -m ci --dry-run
 ```
 
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
 `INFERENCE_SERVICE_API_KEY`. Examples with unavailable prerequisites are
-reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
+reported as skipped. Run `python -m ci --help` for timeout and opt-in
 options.
 
 If the notebook was created by hand (not via the JupyterLab UI), it needs the
@@ -35,10 +35,23 @@ fail instantly with missing `AWS_*` / `KF_PIPELINES_SA_TOKEN`.
 
 ## Adding a new example
 
-Register it in the `_EXAMPLES` list in `run_all.py`. Phase scheduling,
+Register it in the `EXAMPLES` list in `ci/registry.py`. Phase scheduling,
 cleanup, dry-run output, credential checks, and environment-mutating ordering
 are derived from this entry. Opt-in examples require the additional changes
 described below.
+
+Package layout:
+
+| Module | Contents |
+|--------|----------|
+| `ci/registry.py` | `Step`, `Example`, and the `EXAMPLES` registration table |
+| `ci/runner.py` | Phase orchestration and `run_all()` |
+| `ci/__main__.py` | CLI flags (`python -m ci`) |
+| `ci/preflight.py` | Dependency, MLflow credential, and API key checks |
+| `ci/notebook.py` | Papermill execution and KFP run-ID extraction |
+| `ci/process.py` | Cancellable subprocess and cleanup.py runners |
+| `ci/kfp_runs.py` | KFP run polling and failed-task log tailing |
+| `ci/results.py` | `Result` record, final report, dry-run listing |
 
 ```python
 Example(
@@ -71,7 +84,7 @@ compiled extension).
 Set `env_mutating=True` when an example runs an active `pip install` or
 `%pip install` command that installs or upgrades packages imported by other
 examples in the same phase. Ignore commented-out installation examples.
-`run_all.py` runs all `env_mutating` examples in a
+`ci/runner.py` runs all `env_mutating` examples in a
 phase to completion **before** starting the rest of that phase, instead of
 placing everything in the same parallel batch. Prefer avoiding
 `pip install --upgrade` in new examples entirely (pin/bake deps into the
@@ -91,8 +104,9 @@ possible.
 Use opt-in when an example requires cluster add-ons (KEDA,
 `postgres-operator`, GPU nodes) that may not be present. Add
 `opt_in="include_foo"` to the `Example`, add an `include_foo` parameter to
-`run_all()`, include it in the `opts` mapping, define the `--include-foo`
-argument, and pass the parsed value to `run_all()`.
+`run_all()` in `ci/runner.py`, include it in the `opts` mapping, define the
+`--include-foo` argument in `ci/__main__.py`, and pass the parsed value to
+`run_all()`.
 
 `--include-shadow` also needs the notebook ServiceAccount to manage
 `postgresclusters.postgres-operator.crunchydata.com`, which it can't out of
@@ -239,7 +253,7 @@ API_KEY = get_or_create_api_key()
 
 CI runs headlessly and cannot answer the interactive prompt, so
 `INFERENCE_SERVICE_API_KEY` **must** be exported before running
-`ci/run_all.py`:
+`python -m ci`:
 
 ```bash
 export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui if available

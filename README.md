@@ -7,7 +7,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ```py
 .
 ├── .github          # workflows to build images
-├── ci               # CI orchestrator (run_all.py) and contributor conventions
+├── ci               # CI orchestrator (`python -m ci`) and contributor conventions
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
 ├── mlflow           # MLflow experiment tracking examples
@@ -56,8 +56,8 @@ Some examples require a minimum prokube platform version. If an example is not l
 
 ## CI
 
-Examples are tested end-to-end by `ci/run_all.py`, which runs inside a Kubeflow
-notebook pod. See [`ci/README.md`](ci/README.md) for how the orchestrator works and
+Examples are tested end-to-end by the `ci` package (`python -m ci`), which runs
+inside a Kubeflow notebook pod. See [`ci/README.md`](ci/README.md) for how the orchestrator works and
 how to add a new example to CI.
 
 ## Contributing
