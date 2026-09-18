@@ -5,7 +5,7 @@ from kfp import dsl
 from kfp.dsl import HTML, Input, Output, Dataset, Artifact, Model, ClassificationMetrics, Markdown
 
 
-COMPONENTS_IMAGE = "europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/mobile-price-classification:v1"
+COMPONENTS_IMAGE = "europe-west3-docker.pkg.dev/prokube/development/mobile-price-classification:latest"
 
 
 @dsl.component(base_image=COMPONENTS_IMAGE)

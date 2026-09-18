@@ -70,7 +70,7 @@ spec:
           spec:
             containers:
               - name: training-container
-                image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-mnist:latest
+                image: europe-west3-docker.pkg.dev/prokube/development/minimal-mnist:latest
                 command:
                   - "python"
                   - "./training_script.py"

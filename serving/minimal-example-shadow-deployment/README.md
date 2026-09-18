@@ -112,8 +112,8 @@ EOF
 ### 2. Build and push images (optional — skip if using pre-built images)
 
 Pre-built images are available at:
-- `europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-predictor:latest`
-- `europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-transformer:latest`
+- `europe-west3-docker.pkg.dev/prokube/development/minimal-predictor:latest`
+- `europe-west3-docker.pkg.dev/prokube/development/minimal-transformer:latest`
 
 These are accessible from any prokube cluster via the `regcred-prokube` secret on the
 `default-editor` service account. If you need to build your own:
