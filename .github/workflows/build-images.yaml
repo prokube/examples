@@ -1,0 +1,100 @@
+name: Build Images
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+    - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IS_RELEASE: ${{ github.event_name == 'push' }}
+      REGISTRY: ${{ github.event_name == 'push' && 'europe-west3-docker.pkg.dev/prokube/releases' || 'europe-west3-docker.pkg.dev/prokube/development' }}
+      TAG: ${{ github.event_name == 'push' && github.ref_name || format('commit-{0}', github.sha) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - image: minimal-mnist
+          context: images/minimal-mnist
+          dockerfile: images/minimal-mnist/Dockerfile
+        - image: streamlit-example
+          context: images/streamlit-example
+          dockerfile: images/streamlit-example/Dockerfile
+        - image: mobile-price-classification
+          context: pipelines/lightweight-python-package
+          dockerfile: pipelines/lightweight-python-package/Dockerfile
+        - image: minimal-custom-kserve-predictor
+          context: serving/minimal-custom-kserve-predictor
+          dockerfile: serving/minimal-custom-kserve-predictor/Dockerfile
+        - image: minimal-predictor
+          context: serving/minimal-example-shadow-deployment/minimal-predictor
+          dockerfile: serving/minimal-example-shadow-deployment/minimal-predictor/Dockerfile
+        - image: minimal-transformer
+          context: serving/minimal-example-shadow-deployment/minimal-transformer
+          dockerfile: serving/minimal-example-shadow-deployment/minimal-transformer/Dockerfile
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Validate release tag
+      if: env.IS_RELEASE == 'true'
+      run: |
+        set -euo pipefail
+        if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc(0|[1-9][0-9]*))?$ ]]; then
+          echo "Release tag must match vX.Y.Z or vX.Y.Z-rcN" >&2
+          exit 1
+        fi
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v3
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Log in to Google Artifact Registry
+      uses: docker/login-action@v4
+      with:
+        registry: europe-west3-docker.pkg.dev
+        username: _json_key
+        password: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Check immutable release artifact
+      id: image
+      if: env.IS_RELEASE == 'true'
+      env:
+        IMAGE: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ env.TAG }}
+      run: |
+        set -euo pipefail
+        if OUTPUT=$(gcloud artifacts docker images describe "$IMAGE" 2>&1); then
+          echo "$IMAGE already exists; preserving the immutable release artifact"
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if [[ "$OUTPUT" != *"NOT_FOUND"* ]]; then
+          echo "$OUTPUT" >&2
+          exit 1
+        fi
+
+    - name: Build image
+      if: steps.image.outputs.exists != 'true'
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ matrix.context }}
+        file: ${{ matrix.dockerfile }}
+        platforms: linux/amd64
+        push: true
+        tags: ${{ env.IS_RELEASE == 'true' && format('{0}/{1}:{2}', env.REGISTRY, matrix.image, env.TAG) || format('{0}/{1}:{2},{0}/{1}:latest', env.REGISTRY, matrix.image, env.TAG) }}
+        cache-from: type=gha,scope=${{ matrix.image }}
+        cache-to: type=gha,mode=max,scope=${{ matrix.image }}
