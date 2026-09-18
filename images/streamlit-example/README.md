@@ -35,7 +35,7 @@ docker build -t <registry>/streamlit-demo:latest .
 docker push <registry>/streamlit-demo:latest
 ```
 
-If you push to a different registry, update the image reference in `k8s/streamlit-manifests.yaml` at line 29 (the `image:` field in the Deployment spec). The default image is `europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/streamlit-example:latest`.
+If you push to a different registry, update the image reference in `k8s/streamlit-manifests.yaml` at line 29 (the `image:` field in the Deployment spec). The default image is `europe-west3-docker.pkg.dev/prokube/development/streamlit-example:latest`.
 
 ## Deployment Options
 
@@ -50,7 +50,7 @@ Deploy as a custom notebook image through the Kubeflow UI:
    - **Name**: Choose a name (e.g., `streamlit-demo`)
    - **Custom Image**: Enable and enter the image URL:
      ```
-     europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/streamlit-example:latest
+     europe-west3-docker.pkg.dev/prokube/development/streamlit-example:latest
      ```
    - Leave other settings as default (or adjust CPU/memory as needed)
 5. Click **Launch**

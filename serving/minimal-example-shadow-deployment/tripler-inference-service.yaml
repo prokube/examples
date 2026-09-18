@@ -6,7 +6,7 @@ spec:
   predictor:
     containers:
     - name: kserver-container
-      image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-predictor:latest'
+      image: 'europe-west3-docker.pkg.dev/prokube/development/minimal-predictor:latest'
       env:
       - name: MODEL_NAME
         value: "model"
@@ -19,7 +19,7 @@ spec:
     serviceAccountName: default-editor
   transformer:
     containers:
-    - image: 'europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/minimal-transformer:latest'
+    - image: 'europe-west3-docker.pkg.dev/prokube/development/minimal-transformer:latest'
       name: kserve-container
       imagePullPolicy: Always
       env:
