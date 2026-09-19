@@ -1,0 +1,18 @@
+# Registry: remote gRPC server managed by the Feast Operator.
+#
+# The notebook reads this from the operator-published ConfigMap
+# (feast-<name>-client) and overrides online_store with a direct Redis
+# connection for materialization. You don't need to edit this file manually.
+project: retail_features
+provider: local
+offline_store:
+    type: file
+online_store:
+    type: redis
+    connection_string: "<redis-host>:6379,password=<password>"
+registry:
+    registry_type: remote
+    path: grpc://feast-my-store-registry.<namespace>.svc.cluster.local:6570
+auth:
+    type: no_auth
+entity_key_serialization_version: 3
