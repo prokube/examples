@@ -1,0 +1,18 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: fetch
+spec:
+  image: ghcr.io/stackloklabs/gofetch/server:1.0.3
+  transport: streamable-http
+  proxyPort: 8080
+  podTemplateSpec:
+    spec:
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: mcp
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
