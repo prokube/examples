@@ -154,16 +154,14 @@ def _get_api_key() -> str:
 
 def _smoke_test(uri: str, name: str, protocol: str, api_key: str) -> None:
     """POST one inference request; raise on non-2xx or missing predictions."""
+    from pk_helpers import external_predict_url
+
     with open(_BODY_FILES[protocol]) as fh:
         body = json.load(fh)
-    if protocol == "v1":
-        url = f"{uri}/v1/models/{name}:predict"
-        pred_key = "predictions"
-    else:
-        url = f"{uri}/v2/models/{name}/infer"
-        pred_key = "outputs"
-
+    pred_key = "predictions" if protocol == "v1" else "outputs"
     data = json.dumps(body).encode()
+
+    url = external_predict_url(uri, name, protocol=protocol)
     req = urllib.request.Request(
         url,
         data=data,

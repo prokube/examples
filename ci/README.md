@@ -249,37 +249,29 @@ CI validates this in the preflight check and skips `api_key_dependent`
 examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
-Serving routes require `aiGateway.controller.enabled=true` on the cluster.
+Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
 
-### internal_predict_url
+### internal_predict_url / external_predict_url
 
-Returns the correct **internal, in-cluster** predict URL for a KServe
-InferenceService across prokube generations:
+The helpers detect the cluster generation by checking whether the
+`agentgateway-proxy` Service resolves through cluster DNS. Legacy clusters use
+the predictor Service internally and the InferenceService's `.status.url`
+externally. Clusters with Agent Gateway use its internal and external routes;
+these clusters are expected to have `aiGateway.controller.enabled=true`.
 
-- Legacy installations: hits the predictor Service directly —
-  `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/v1/models/<model-name>:predict`.
-- Agent Gateway installations route through the shared `agentgateway-proxy`
-  Service —
-  `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/v1/models/<model-name>:predict`.
-
-It picks the URL via a plain DNS lookup for the `agentgateway-proxy` Service
-(cached for the process) — no config flag needed, and no RBAC required
-(unlike `kubectl get service`, which notebook pod service accounts
-typically can't do cross-namespace; DNS resolution needs no permissions,
-and a non-existent Service just fails to resolve). The request/response
-payload format is unchanged either way (plain KServe V1 JSON, e.g.
-`{"instances": [...]}`) — only the URL differs. Any example that predicts
-against an InferenceService via its internal cluster URL (not the external
-gateway URL) should use this instead of hardcoding the `<isvc>-predictor`
-pattern:
-
-If `agentgateway-proxy` is installed, `aiGateway.controller.enabled=true` is
-required so these routes are created; otherwise the helper selects the proxy
-but requests return 404.
+- `internal_predict_url(isvc_name, namespace, model_name)` returns the
+  **internal, in-cluster** predict URL. Agent Gateway clusters use
+  `http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/serving/<namespace>/<isvc-name>/...`;
+  legacy clusters use `http://<isvc-name>-predictor.<namespace>.svc.cluster.local/...`.
+- `external_predict_url(isvc_url, model_name, protocol="v1")` returns one
+  **external** predict URL from an ISVC's `.status.url`. Agent Gateway clusters
+  use `https://<domain>/svc/serving/<namespace>/<isvc-name>/...`; legacy
+  clusters use the unmodified `/serving` path from `.status.url`.
 
 ```python
 %run -n ../src/pk_helpers/kserve_url.py
-url = internal_predict_url(isvc_name, namespace, model_name)
+internal_url = internal_predict_url(isvc_name, namespace, model_name)
+external_url = external_predict_url(isvc_status_url, model_name)
 ```
 
 ---

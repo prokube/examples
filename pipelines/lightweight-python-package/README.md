@@ -66,9 +66,10 @@ docker push <your-registry>/mobile-price-classification:v2
 
 ### 2. Update the Image Reference
 
-`pipeline.py` defaults `COMPONENTS_IMAGE` to prokube's internal image; point it
-at your own registry via the `COMPONENTS_IMAGE` environment variable instead
-of editing the file:
+`pipeline.py` defaults `COMPONENTS_IMAGE` to the image at
+`europe-west3-docker.pkg.dev/prokube/releases/mobile-price-classification:v1.0.0`.
+Point it at your own registry via the `COMPONENTS_IMAGE` environment variable
+instead of editing the file:
 
 ```sh
 export COMPONENTS_IMAGE=<your-registry>/mobile-price-classification:v2
