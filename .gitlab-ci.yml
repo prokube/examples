@@ -25,20 +25,6 @@ before_script:
     echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" 
     | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
 
-chem-util-build:
-  stage: build-image
-  script:
-    - >
-      /kaniko/executor
-      --context "${CI_PROJECT_DIR}/images/molecules/"
-      --dockerfile "${CI_PROJECT_DIR}/images/molecules/Dockerfile"
-      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}/chem-util:latest"
-      --destination "${CI_REGISTRY}/${CI_PROJECT_PATH}/chem-util:${CI_COMMIT_SHORT_SHA}"
-
-  rules:
-    - changes:
-        - images/molecules/**/*
-
 mnsist-katib-build:
   stage: build-image
   script:
