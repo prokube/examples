@@ -16,7 +16,7 @@ Then import what you need::
 from __future__ import annotations
 
 from pk_helpers.api_key import get_or_create_api_key
-from pk_helpers.kserve_url import internal_predict_url
+from pk_helpers.kserve_url import external_predict_url, internal_predict_url
 from pk_helpers.mlflow_credentials import (
     load_mlflow_credentials,
     require_mlflow_secret,
@@ -24,6 +24,7 @@ from pk_helpers.mlflow_credentials import (
 )
 
 __all__ = [
+    "external_predict_url",
     "get_or_create_api_key",
     "internal_predict_url",
     "load_mlflow_credentials",

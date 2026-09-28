@@ -16,7 +16,7 @@ from kfp.dsl import (
 
 COMPONENTS_IMAGE = os.environ.get(
     "COMPONENTS_IMAGE",
-    "europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/mobile-price-classification:v2",
+    "europe-west3-docker.pkg.dev/prokube/releases/mobile-price-classification:v1.0.0",
 )
 
 
