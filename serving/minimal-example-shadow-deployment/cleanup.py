@@ -37,8 +37,15 @@ def cleanup(dry_run: bool = False) -> None:
     _kubectl_delete(
         "postgrescluster", "inferencing-postgres", "-n", ns, dry_run=dry_run
     )
-    # Can be left behind if apply.py was killed mid-run despite --rm.
-    _kubectl_delete("pod", "pg-schema-init", "-n", ns, dry_run=dry_run)
+    # psql pods can be left behind if apply.py was killed mid-run despite --rm.
+    _kubectl_delete(
+        "pod",
+        "-l",
+        "prokube.ai/example=shadow-deployment-psql",
+        "-n",
+        ns,
+        dry_run=dry_run,
+    )
 
 
 if __name__ == "__main__":

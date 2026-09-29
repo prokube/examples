@@ -5,6 +5,7 @@ import json as jsonlib
 import os
 import subprocess
 import sys
+import time
 from getpass import getpass
 
 import requests
@@ -14,9 +15,7 @@ try:
 except ImportError:
     # Lets this script run standalone, not just via apply.py (which already
     # ensures pk_helpers in its own preflight step).
-    repo_root = subprocess.check_output(
-        ["git", "rev-parse", "--show-toplevel"], text=True
-    ).strip()
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     user_flag = [] if sys.prefix != sys.base_prefix else ["--user"]
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "-q", *user_flag, "-e", repo_root],
@@ -58,9 +57,26 @@ with open(JSON_FILE_PATH, "r") as f:
 url = external_predict_url(
     INFERENCE_SERVICE_URI, INFERENCE_SERVICE_NAME, protocol=PROTOCOL_VERSION
 )
-response = requests.post(
-    url, headers={"X-Api-Key": INFERENCE_SERVICE_API_KEY}, json=request_body
-)
+# On Agent Gateway clusters the route is created only after the ISVC reports
+# Ready, so the first requests can 404 or fail to connect.
+RETRY_STATUSES = {404, 502, 503}
+deadline = time.monotonic() + 120
+while True:
+    try:
+        response = requests.post(
+            url,
+            headers={"X-Api-Key": INFERENCE_SERVICE_API_KEY},
+            json=request_body,
+            timeout=30,
+        )
+        if response.status_code not in RETRY_STATUSES:
+            break
+        last_error = f"HTTP {response.status_code}: {response.text}"
+    except (requests.ConnectionError, requests.Timeout) as exc:
+        last_error = str(exc)
+    if time.monotonic() >= deadline:
+        raise RuntimeError(f"inference request failed after retries: {last_error}")
+    time.sleep(5)
 try:
     response.raise_for_status()
 except requests.HTTPError as exc:
