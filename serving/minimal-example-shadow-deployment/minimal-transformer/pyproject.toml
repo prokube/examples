@@ -7,5 +7,5 @@ requires-python = ">=3.11"
 dependencies = [
     "asyncpg>=0.30.0",
     "debugpy>=1.8.15",
-    "kserve>=0.15.2",
+    "kserve>=0.16,<0.22",
 ]

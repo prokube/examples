@@ -11,7 +11,7 @@ from typing import Dict, Union
 
 import kserve
 from kserve import InferRequest, InferResponse, Model, ModelServer, model_server
-from kserve.model import ModelInferRequest, PredictorConfig
+from kserve.model import ModelInferRequest
 
 from PredictionDBHandler import PredictionDBHandler
 
@@ -26,15 +26,18 @@ class PersistTransformer(Model):
     def __init__(
         self,
         name: str,
-        predictor_config: PredictorConfig,
+        predictor_host: str,
         db_url: str,
     ):
-        super().__init__(name, predictor_config=predictor_config)
+        # ModelServer() builds the predictor config from --predictor_host and
+        # forwards predict() calls there; the host is kept for the DB rows.
+        super().__init__(name)
 
+        if not predictor_host:
+            raise ValueError("Predictor host is not defined.")
+        self.predict_url = predictor_host
         self.postges_db_handler = PredictionDBHandler(db_url)
-        if self.predictor_host is None:
-            raise ValueError("Predictor host ist not defined.")
-        logger.debug("Predictor host url: %s", self.predictor_host)
+        logger.debug("Predictor host url: %s", self.predict_url)
         self.ready = True
 
     async def preprocess(self, payload: Dict, headers: Dict[str, str] = None) -> Dict:
@@ -49,7 +52,7 @@ class PersistTransformer(Model):
             self.postges_db_handler.queue_request(
                 headers[REQUEST_ID],
                 datetime.now(timezone.utc),
-                self.predictor_host,
+                self.predict_url,
                 json.dumps(payload),
             )
         return payload
@@ -93,11 +96,8 @@ if __name__ == "__main__":
     if db_uri is None:
         raise ValueError("Postgres DB uri is not defined.")
 
-    predictor_config = PredictorConfig(
-        args.predictor_host,
-    )
     transformer = PersistTransformer(
-        args.model_name, predictor_config=predictor_config, db_url=db_uri
+        args.model_name, predictor_host=args.predictor_host, db_url=db_uri
     )
 
     ModelServer().start(models=[transformer])

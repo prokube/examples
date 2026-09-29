@@ -119,7 +119,7 @@ EOF
 
 Pre-built images are available at:
 - `europe-west3-docker.pkg.dev/prokube/releases/minimal-predictor:v1.0.0`
-- `europe-west3-docker.pkg.dev/prokube/releases/minimal-transformer:v1.0.0`
+- `europe-west3-docker.pkg.dev/prokube/releases/minimal-transformer:v1.0.1`
 
 These are accessible from any prokube cluster via the `regcred-prokube` secret on the
 `default-editor` service account. If you need to build your own:

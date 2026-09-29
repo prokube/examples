@@ -914,7 +914,7 @@ dependencies = [
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "debugpy", specifier = ">=1.8.15" },
-    { name = "kserve", specifier = ">=0.15.2" },
+    { name = "kserve", specifier = ">=0.16,<0.22" },
 ]
 
 [[package]]
