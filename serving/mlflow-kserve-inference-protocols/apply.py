@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -44,9 +45,7 @@ def _ensure_pk_helpers() -> None:
     try:
         import pk_helpers  # noqa: F401
     except ImportError:
-        repo_root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True
-        ).strip()
+        repo_root = os.path.abspath(os.path.join(_HERE, "..", ".."))
         # --user outside a virtualenv (e.g. in a Kubeflow notebook pod) so the
         # install lands under the persistent $HOME/.local instead of the
         # container image's site-packages, which is wiped on the next pod
@@ -168,13 +167,27 @@ def _smoke_test(uri: str, name: str, protocol: str, api_key: str) -> None:
         headers={"Content-Type": "application/json", "X-Api-Key": api_key},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read())
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(
-            f"Smoke test {protocol} returned HTTP {exc.code}: {exc.read().decode()}"
-        ) from exc
+    # On Agent Gateway clusters the route is created only after the ISVC
+    # reports Ready, so the first requests can 404 or fail to connect.
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as exc:
+            last_error = f"HTTP {exc.code}: {exc.read().decode()}"
+            if exc.code not in {404, 502, 503}:
+                raise RuntimeError(
+                    f"Smoke test {protocol} returned {last_error}"
+                ) from exc
+        except OSError as exc:  # connection errors and timeouts
+            last_error = str(exc)
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f"Smoke test {protocol} failed after retries: {last_error}"
+            )
+        time.sleep(5)
 
     if pred_key not in result:
         raise RuntimeError(f"Smoke test {protocol}: unexpected response: {result}")

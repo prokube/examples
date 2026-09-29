@@ -31,6 +31,12 @@ prokube PodDefault labels `access-ml-pipeline=true` and
 `add-minio-service-account-token=true` — without them the s3 and KFP examples
 fail instantly with missing `AWS_*` / `KF_PIPELINES_SA_TOKEN`.
 
+Give the notebook at least 2 CPU / 8Gi memory (4 CPU / 16Gi with
+`--include-pytorch`). The JupyterLab default of 1Gi gets OOM-killed mid-run,
+which also takes down the orchestrator and its report. The full suite with
+all opt-ins is verified on three nodes with 12 vCPU / 32 GiB each; on
+smaller nodes some serving predictors stay `Pending` on insufficient CPU.
+
 ---
 
 ## Adding a new example

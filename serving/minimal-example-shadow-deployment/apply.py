@@ -23,6 +23,9 @@ _PG_DB = "scale-inference"
 _DOUBLER_ISVC = "double-minimal-custom-inference"
 _TRIPLER_ISVC = "triple-minimal-custom-inference"
 
+# Lets cleanup.py delete leftover psql pods despite their per-attempt names.
+_PSQL_POD_LABEL = "prokube.ai/example=shadow-deployment-psql"
+
 _SCHEMA_SQL = """\
 CREATE TABLE IF NOT EXISTS public.inference_requests (
     request_id   uuid                     NOT NULL,
@@ -188,43 +191,54 @@ def _create_schema(namespace: str, password: str, attempts: int = 6) -> None:
     host = _PG_HOST_TEMPLATE.format(ns=namespace)
     result: subprocess.CompletedProcess[str] | None = None
     for attempt in range(1, attempts + 1):
-        result = subprocess.run(
-            [
-                "kubectl",
-                "run",
-                f"pg-schema-init-{attempt}",
-                "--rm",
-                "-i",
-                "--restart=Never",
-                f"-n={namespace}",
-                "--image=postgres:17",
-                f"--env=PGPASSWORD={password}",
-                "--",
-                "psql",
-                "-h",
-                host,
-                "-U",
-                _PG_USER,
-                "-d",
-                _PG_DB,
-            ],
-            input=_SCHEMA_SQL,
-            text=True,
-            capture_output=True,
-            timeout=120,
-        )
-        if result.returncode == 0:
-            print("Schema created (or already existed).")
-            return
-        print(
-            f"  Schema init attempt {attempt}/{attempts} failed "
-            f"(rc={result.returncode}), retrying in 15s..."
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "kubectl",
+                    "run",
+                    f"pg-schema-init-{attempt}",
+                    "--rm",
+                    "-i",
+                    "--restart=Never",
+                    f"-n={namespace}",
+                    f"--labels={_PSQL_POD_LABEL}",
+                    "--image=postgres:17",
+                    f"--env=PGPASSWORD={password}",
+                    "--",
+                    "psql",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-h",
+                    host,
+                    "-U",
+                    _PG_USER,
+                    "-d",
+                    _PG_DB,
+                ],
+                input=_SCHEMA_SQL,
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"  Schema init attempt {attempt}/{attempts} timed out after 120s.")
+        else:
+            if result.returncode == 0:
+                print("Schema created (or already existed).")
+                return
+            print(
+                f"  Schema init attempt {attempt}/{attempts} failed "
+                f"(rc={result.returncode}), retrying in 15s..."
+            )
         if attempt < attempts:
             time.sleep(15)
     # kubectl run -i's own attach warnings always fill stderr, so
     # `stderr or stdout` (the old check) hid psql's real error, which only
     # ever appears in stdout. Show both explicitly.
+    if result is None:
+        raise RuntimeError(
+            f"Schema creation timed out on all {attempts} attempts."
+        )
     raise RuntimeError(
         f"Schema creation failed after {attempts} attempts (rc={result.returncode})\n"
         f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
@@ -367,6 +381,7 @@ def _smoke_test(namespace: str, password: str, timeout: int = 120) -> None:
                     "--quiet",
                     "--restart=Never",
                     f"-n={namespace}",
+                    f"--labels={_PSQL_POD_LABEL}",
                     "--image=postgres:17",
                     f"--env=PGPASSWORD={password}",
                     "--",
