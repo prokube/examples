@@ -135,7 +135,7 @@ def _read_secret() -> dict[str, str] | None:
     return {k: base64.b64decode(data[k]).decode() for k in _CRED_KEYS}
 
 
-def load_mlflow_credentials() -> dict[str, str]:
+def load_mlflow_credentials() -> None:
     """Resolve MLflow tracking credentials and set them on ``os.environ``.
 
     Resolution order:
@@ -149,9 +149,7 @@ def load_mlflow_credentials() -> dict[str, str]:
     Also sets ``MLFLOW_ENABLE_PROXY_MULTIPART_UPLOAD=true``. Raises
     ``RuntimeError`` with actionable guidance if neither source is available.
     """
-    if all(os.environ.get(k) for k in _CRED_KEYS):
-        creds = {k: os.environ[k] for k in _CRED_KEYS}
-    else:
+    if not all(os.environ.get(k) for k in _CRED_KEYS):
         creds = _read_secret()
         if creds is None:
             raise RuntimeError(
@@ -164,7 +162,6 @@ def load_mlflow_credentials() -> dict[str, str]:
             )
         os.environ.update(creds)
     os.environ["MLFLOW_ENABLE_PROXY_MULTIPART_UPLOAD"] = "true"
-    return creds
 
 
 def require_mlflow_secret() -> None:
