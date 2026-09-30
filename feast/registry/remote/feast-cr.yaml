@@ -1,0 +1,56 @@
+# FeatureStore CR — remote registry mode.
+#
+# The operator will create:
+#   - A Feast deployment + service (online feature server)
+#   - PVCs for the SQLite registry and offline data store
+#   - A ConfigMap (feast-<name>-client) with client connection info
+#
+# This CR enables the registry gRPC server (services.registry.local.server)
+# so notebooks and other clients can read and write feature definitions
+# remotely. Definitions persist on the operator-managed PVC across restarts
+# and are shared with every client in the namespace.
+#
+# Prerequisites:
+#   - feast-redis-config secret must exist in your namespace (see top-level README)
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: my-store
+spec:
+  feastProject: retail_features
+  services:
+    runFeastApplyOnInit: false
+    securityContext:
+      runAsUser: 0
+    registry:
+      local:
+        # Expose the registry as a gRPC server so notebooks/clients can read
+        # and write feature definitions remotely (production pattern).
+        server: {}
+        persistence:
+          file:
+            pvc:
+              mountPath: /data/registry
+              create:
+                # storageClassName: default  # omit to use cluster default
+                resources:
+                  requests:
+                    storage: 1Gi
+    offlineStore:
+      persistence:
+        file:
+          type: file
+          pvc:
+            mountPath: /data/offline
+            create:
+              storageClassName: mayastor-no-redundancy  # adjust for your cluster
+              resources:
+                requests:
+                  storage: 10Gi
+    onlineStore:
+      persistence:
+        store:
+          type: redis
+          secretRef:
+            name: feast-redis-config
+          secretKeyName: redis
