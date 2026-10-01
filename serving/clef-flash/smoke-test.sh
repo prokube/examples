@@ -11,15 +11,16 @@ if [[ -z "${API_BASE:-}" ]]; then
       -n "${NAMESPACE}" \
       -o jsonpath='{.status.url}'
   )"
+  if kubectl get service agentgateway-proxy \
+    -n agentgateway-system >/dev/null 2>&1 && \
+    [[ "${API_BASE}" == */serving/* ]]; then
+    API_BASE="${API_BASE%%/serving/*}/svc/serving/${API_BASE#*/serving/}"
+  fi
 fi
 
 if [[ -z "${API_BASE}" ]]; then
   printf 'InferenceService status.url is empty\n' >&2
   exit 1
-fi
-
-if [[ "${API_BASE}" == */serving/* && "${API_BASE}" != */svc/serving/* ]]; then
-  API_BASE="${API_BASE/\/serving\//\/svc\/serving\/}"
 fi
 
 headers=(-H "content-type: application/json")

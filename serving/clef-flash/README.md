@@ -104,10 +104,11 @@ first deployment:
 
 ## Smoke test
 
-The script reads the public URL from `.status.url` and converts Agent Gateway
-`/serving/` routes to their external `/svc/serving/` form unless `API_BASE` is
-explicitly supplied. It submits one request containing choice, score, and noul
-questions and validates all three answer shapes and probability distributions.
+The script reads the public URL from `.status.url` and, when the Agent Gateway
+Service exists, converts its `/serving/` route to the external
+`/svc/serving/` form. An explicitly supplied `API_BASE` is used unchanged. The
+script submits one request containing choice, score, and noul questions and
+validates all three answer shapes and probability distributions.
 `API_KEY` takes precedence over the CI-standard
 `INFERENCE_SERVICE_API_KEY` environment variable.
 
