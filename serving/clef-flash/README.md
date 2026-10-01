@@ -28,11 +28,9 @@ nodes. Change both fields together if the target cluster exposes a full H200
 as `nvidia.com/gpu` or uses another product label. Do not use a smaller MIG
 profile for the 19 GB model without measuring model and activation memory.
 
-The runtime image has not been published yet. Before deployment, build the
-`clef-systemone` image through `.github/workflows/build-images.yaml`, resolve
-the immutable digest from the registry, and replace the all-zero digest in
-`cluster-serving-runtime.yaml`. The all-zero value is a deliberately invalid
-deployment sentinel, not an image revision that exists in the registry.
+The runtime manifest pins the published `clef-systemone` image by immutable
+digest. Rebuilds through `.github/workflows/build-images.yaml` must update that
+digest explicitly; deployments never follow a mutable tag.
 
 ## Prerequisites
 
@@ -69,8 +67,8 @@ PVC at `/mnt/models` and do not download weights again.
 
 ## Install and serve
 
-After replacing the runtime image sentinel with its published digest, create
-the cluster-scoped runtime once and the H200 service in the target namespace:
+Create the cluster-scoped runtime once and the H200 service in the target
+namespace:
 
 ```sh
 kubectl create -f cluster-serving-runtime.yaml

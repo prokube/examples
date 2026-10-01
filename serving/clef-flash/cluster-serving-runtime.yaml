@@ -5,8 +5,7 @@ metadata:
 spec:
   containers:
   - name: kserve-container
-    # BLOCKER: replace the all-zero digest with a published clef-systemone digest.
-    image: europe-west3-docker.pkg.dev/prokube/development/clef-systemone@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    image: europe-west3-docker.pkg.dev/prokube/development/clef-systemone@sha256:e8eccced3e910d592ba9177f2302412bd040064c3ae58aaebca741458ea42ff7
     env:
     - name: HOME
       value: /tmp
