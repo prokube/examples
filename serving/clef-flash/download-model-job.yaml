@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-clef-flash
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-H200-NVL
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: downloader
+        image: docker.io/library/python@sha256:876416ecde9aca2bcc90e1fb0c7a9500bbf749f5788b70f82d4c5a5c2357f8b4
+        command:
+        - /bin/sh
+        - -ec
+        args:
+        - |
+          python -m pip install --no-cache-dir --user huggingface_hub==0.35.3
+          python - <<'PY'
+          import os
+
+          from huggingface_hub import snapshot_download
+
+          snapshot_download(
+              repo_id="Cloudflare/clef-flash",
+              revision=os.environ["MODEL_REVISION"],
+              local_dir="/mnt/models/clef-flash",
+          )
+          PY
+          test -s /mnt/models/clef-flash/joint_head.safetensors
+          test -s /mnt/models/clef-flash/joint_schema_model.py
+          printf '%s\n' "${MODEL_REVISION}" \
+            > /mnt/models/clef-flash/.model-revision
+        env:
+        - name: HOME
+          value: /tmp
+        - name: MODEL_REVISION
+          value: 17f0b0ad64efb65d273590632833508766b2aae6
+        resources:
+          requests:
+            cpu: "2"
+            memory: 2Gi
+          limits:
+            cpu: "4"
+            memory: 4Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: models
+          mountPath: /mnt/models
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: clef-flash-model
+      - name: tmp
+        emptyDir:
+          sizeLimit: 2Gi

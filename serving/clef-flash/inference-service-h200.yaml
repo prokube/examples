@@ -1,0 +1,32 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: clef-flash
+  labels:
+    prokube.ai/model-type: decision
+  annotations:
+    huggingface.co/model-id: Cloudflare/clef-flash
+    huggingface.co/model-revision: 17f0b0ad64efb65d273590632833508766b2aae6
+    prokube.ai/serving-protocol: systemone-v1
+spec:
+  predictor:
+    containerConcurrency: 1
+    minReplicas: 1
+    maxReplicas: 1
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-H200-NVL
+    model:
+      runtime: clef-flash-systemone
+      modelFormat:
+        name: clef
+        version: "1"
+      storageUri: pvc://clef-flash-model/clef-flash
+      resources:
+        requests:
+          cpu: "8"
+          memory: 32Gi
+          nvidia.com/mig-7g.141gb: "1"
+        limits:
+          cpu: "16"
+          memory: 64Gi
+          nvidia.com/mig-7g.141gb: "1"
