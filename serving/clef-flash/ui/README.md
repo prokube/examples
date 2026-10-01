@@ -1,9 +1,9 @@
-# CLEF Tetris core
+# CLEF Tetris decision lab
 
-This package contains the framework-independent Tetris engine and the
-SystemOne request mapping used by the CLEF-Flash demo. It intentionally has no
-React or wall-clock dependencies and is consumed as source by the later Vite
-application rather than published as a standalone Node package.
+This package contains the responsive React application, framework-independent
+Tetris engine, and SystemOne request mapping used by the CLEF-Flash demo. It can
+run a complete deterministic game with the local heuristic policy or call a
+CLEF SystemOne runtime once per piece.
 
 The engine uses a seeded seven-bag generator. At each turn it enumerates every
 direct hard-drop placement for the active piece and, when available, the held
@@ -14,8 +14,17 @@ wall-kick paths. The visible 10x20 board is the complete simulation board, and
 a blocked centered spawn position ends the game. Scoring uses the classic
 single/double/triple/Tetris line-clear table without drop-distance bonuses.
 
+The application resolves the SystemOne endpoint relative to the document base
+URL, so it works under arbitrary HTTP prefixes. At runtime, a host can replace
+the `clef-api-path` meta tag in `index.html` with another relative path or a
+fully qualified URL. The default is `v1/systemone`. The host must also set the
+`clef-model-name` meta tag before enabling CLEF mode. The source leaves it blank
+so deployments cannot silently send requests to a hardcoded model. No API key
+is read or stored by the browser.
+
 ```sh
 npm ci
+npm run dev
 npm test
 npm run typecheck
 npm run lint

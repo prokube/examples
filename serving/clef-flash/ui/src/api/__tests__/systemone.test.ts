@@ -12,9 +12,9 @@ describe('CLEF SystemOne policy contract', () => {
   it('encodes the complete state and every legal option', () => {
     const state = createGame(123);
     const placements = enumeratePlacements(state);
-    const request = createDecisionRequest(state);
+    const request = createDecisionRequest(state, 'configured-model');
 
-    expect(request.model).toBe('clef-flash');
+    expect(request.model).toBe('configured-model');
     expect(request.state.board).toHaveLength(20);
     expect(request.state.activePiece).toBe(state.active);
     expect(request.state.nextPiece).toBe(state.queue[0]);

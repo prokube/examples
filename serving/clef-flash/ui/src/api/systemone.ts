@@ -29,7 +29,7 @@ export interface ClefTetrisState {
 }
 
 export interface SystemOneRequest {
-  readonly model: 'clef-flash';
+  readonly model: string;
   readonly state: ClefTetrisState;
   readonly questions: {
     readonly move: {
@@ -42,7 +42,7 @@ export interface SystemOneRequest {
 
 export class InvalidDecisionError extends Error {}
 
-export function createDecisionRequest(state: GameState): SystemOneRequest {
+export function createDecisionRequest(state: GameState, model: string): SystemOneRequest {
   const placements = enumeratePlacements(state);
   if (placements.length === 0) {
     throw new InvalidDecisionError('Game state has no legal placements');
@@ -65,7 +65,7 @@ export function createDecisionRequest(state: GameState): SystemOneRequest {
   if (nextPiece === undefined) throw new InvalidDecisionError('Piece queue is empty');
 
   return {
-    model: 'clef-flash',
+    model,
     state: {
       board: boardToRows(state.board),
       activePiece: state.active,
