@@ -6,10 +6,14 @@ import {
   requestClefDecision,
   type PolicyDecision,
 } from './api';
-import { Board, Controls, DecisionPanel, PiecePreview, type AnimatedPiece } from './components';
-import { applyPlacement, createGame, enumeratePlacements } from './game/engine';
-import { canPlace, spawnColumn } from './game/board';
-import type { Board as BoardState, Placement } from './game/types';
+import { Board, Controls, DecisionPanel, PiecePreview } from './components';
+import {
+  animationFrames,
+  enumerateReachablePlacements,
+  type AnimationFrame,
+} from './game/animation';
+import { applyPlacement, createGame } from './game/engine';
+import { spawnColumn } from './game/board';
 
 const DEFAULT_SEED = '20261001';
 
@@ -27,81 +31,6 @@ interface AppProps {
   readonly initialMode?: 'heuristic' | 'clef';
 }
 
-function horizontalFrames(
-  placement: Placement,
-  rotation: number,
-  startX: number,
-): readonly AnimatedPiece[] {
-  const direction = Math.sign(placement.x - startX);
-  if (direction === 0) return [];
-  const frames: AnimatedPiece[] = [];
-  for (let x = startX + direction; x !== placement.x + direction; x += direction) {
-    frames.push({ piece: placement.piece, rotation, x, y: 0, phase: 'move' });
-  }
-  return frames;
-}
-
-function rotationFrames(
-  placement: Placement,
-  x: number,
-): readonly AnimatedPiece[] {
-  return Array.from({ length: placement.rotation }, (_, index) => ({
-    piece: placement.piece,
-    rotation: index + 1,
-    x,
-    y: 0,
-    phase: 'rotate' as const,
-  }));
-}
-
-export function animationFrames(
-  board: BoardState,
-  placement: Placement,
-): readonly AnimatedPiece[] {
-  const startX = spawnColumn(placement.piece);
-  const start: AnimatedPiece = {
-    piece: placement.piece,
-    rotation: 0,
-    x: startX,
-    y: 0,
-    phase: 'rotate',
-  };
-  const routes = [
-    [
-      start,
-      ...rotationFrames(placement, startX),
-      ...horizontalFrames(placement, placement.rotation, startX),
-    ],
-    [
-      start,
-      ...horizontalFrames(placement, 0, startX),
-      ...rotationFrames(placement, placement.x),
-    ],
-  ];
-  const route = routes.find((frames) =>
-    frames.every((frame) =>
-      canPlace(board, frame.piece, frame.rotation, frame.x, frame.y),
-    ),
-  ) ?? [
-    start,
-    {
-      piece: placement.piece,
-      rotation: placement.rotation,
-      x: placement.x,
-      y: 0,
-      phase: placement.rotation === 0 ? 'move' as const : 'rotate' as const,
-    },
-  ];
-  const drop = Array.from({ length: placement.y + 1 }, (_, y) => ({
-    piece: placement.piece,
-    rotation: placement.rotation,
-    x: placement.x,
-    y,
-    phase: 'drop' as const,
-  }));
-  return [...route, ...drop];
-}
-
 export function App({ initialMode = 'heuristic' }: AppProps) {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [game, setGame] = useState(() => createGame(Number(DEFAULT_SEED)));
@@ -109,7 +38,7 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
   const [running, setRunning] = useState(true);
   const [speed, setSpeed] = useState(1);
   const [decision, setDecision] = useState<PolicyDecision | null>(null);
-  const [animation, setAnimation] = useState<AnimatedPiece | null>(null);
+  const [animation, setAnimation] = useState<AnimationFrame | null>(null);
   const [status, setStatus] = useState('READY');
   const [error, setError] = useState<string | null>(null);
   const [control, setControl] = useState(0);
@@ -125,7 +54,7 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
 
   useEffect(() => {
     if (game.gameOver || (!runningRef.current && !stepping.current)) return;
-    const placements = enumeratePlacements(game);
+    const placements = enumerateReachablePlacements(game);
     const key = placements[0]?.id;
     if (key === undefined || handled.current.has(key)) return;
     handled.current.add(key);
@@ -142,6 +71,12 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
       }
     };
 
+    const waitForResume = async () => {
+      while (!runningRef.current && !stepping.current) {
+        await sleep(40, controller.signal);
+      }
+    };
+
     const play = async () => {
       setError(null);
       setStatus(mode === 'clef' ? 'QUERYING CLEF' : 'SCORING OPTIONS');
@@ -149,11 +84,14 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
         ? await requestClefDecision(game, controller.signal)
         : heuristicDecision(game);
       if (!isCurrent()) return;
+      await waitForResume();
+      if (!isCurrent()) return;
       const placement = placements.find(({ id }) => id === nextDecision.choice);
       if (placement === undefined) throw new DecisionRequestError('The policy selected an unavailable move.');
       setDecision(nextDecision);
 
       const frames = animationFrames(game.board, placement);
+      if (frames === null) throw new DecisionRequestError('The selected move cannot be animated safely.');
       const first = frames[0];
       if (first === undefined) throw new DecisionRequestError('The selected move cannot be animated safely.');
       const startX = spawnColumn(placement.piece);
@@ -175,6 +113,7 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
         if (frame.phase === 'move') {
           setStatus(placement.x < startX ? 'SHIFTING LEFT' : 'SHIFTING RIGHT');
         }
+        if (frame.phase === 'position') setStatus('POSITIONING');
         if (frame.phase === 'drop') setStatus('HARD DROP');
         setAnimation(frame);
         await pauseAwareSleep(frame.phase === 'drop' ? 38 : 110);
@@ -247,7 +186,7 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
 
   const step = () => {
     stepping.current = true;
-    const key = enumeratePlacements(game)[0]?.id;
+    const key = enumerateReachablePlacements(game)[0]?.id;
     if (key !== undefined) handled.current.delete(key);
     setError(null);
     setControl((value) => value + 1);

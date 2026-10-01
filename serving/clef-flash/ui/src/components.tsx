@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 import type { PolicyDecision } from './api';
+import type { AnimationFrame } from './game/animation';
 import { placementCells } from './game/board';
 import { orientation } from './game/tetrominoes';
 import {
@@ -11,17 +12,9 @@ import {
   type Placement,
 } from './game/types';
 
-export interface AnimatedPiece {
-  readonly piece: PieceType;
-  readonly rotation: number;
-  readonly x: number;
-  readonly y: number;
-  readonly phase: 'rotate' | 'move' | 'drop';
-}
-
 interface BoardProps {
   readonly board: BoardState;
-  readonly active: AnimatedPiece | null;
+  readonly active: AnimationFrame | null;
 }
 
 export function Board({ board, active }: BoardProps) {

@@ -1,10 +1,48 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { App, animationFrames } from '../App';
+import { App } from '../App';
 import { heuristicDecision } from '../api';
 import { Board, Controls, DecisionPanel } from '../components';
-import { applyPlacement, canPlace, createGame, enumeratePlacements } from '../game';
+import {
+  BOARD_HEIGHT,
+  TETROMINOES,
+  animationFrames,
+  boardFromRows,
+  canPlace,
+  createGame,
+  enumeratePlacements,
+  enumerateReachablePlacements,
+} from '../game';
+
+function rows(row: string): readonly string[] {
+  return [row, ...Array<string>(BOARD_HEIGHT - 1).fill('..........')];
+}
+
+function decisionResponse(body: string): Response {
+  const request = JSON.parse(body) as {
+    readonly questions: {
+      readonly move: { readonly criteria: Readonly<Record<string, unknown>> };
+    };
+  };
+  const ids = Object.keys(request.questions.move.criteria);
+  const choice = ids[0];
+  if (choice === undefined) throw new Error('Request has no choices');
+  const probability = 1 / ids.length;
+  return new Response(
+    JSON.stringify({
+      answers: {
+        move: {
+          type: 'choice',
+          choice,
+          confidence: probability,
+          probabilities: Object.fromEntries(ids.map((id) => [id, probability])),
+        },
+      },
+    }),
+    { status: 200 },
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -23,25 +61,74 @@ describe('game interface components', () => {
     expect(screen.getAllByLabelText('T block')).toHaveLength(4);
   });
 
-  it('keeps every animation frame collision-free and drops row by row', () => {
-    let game = createGame(3);
-    for (let turn = 0; turn < 1329; turn += 1) {
-      game = applyPlacement(game, heuristicDecision(game).choice);
-    }
-    const choice = heuristicDecision(game).choice;
-    const placement = enumeratePlacements(game).find(({ id }) => id === choice);
+  it('routes around a blocked top-row path with legal single-step frames', () => {
+    const game = {
+      ...createGame(3),
+      active: 'O' as const,
+      board: boardFromRows(rows('...T......')),
+      canHold: false,
+    };
+    const placement = enumeratePlacements(game).find(
+      ({ piece, rotation, x }) => piece === 'O' && rotation === 0 && x === 0,
+    );
     expect(placement).toBeDefined();
     if (placement === undefined) return;
 
     const frames = animationFrames(game.board, placement);
+    expect(frames).not.toBeNull();
+    if (frames === null) return;
     expect(
       frames.every((frame) =>
         canPlace(game.board, frame.piece, frame.rotation, frame.x, frame.y),
       ),
     ).toBe(true);
-    expect(frames.filter(({ phase }) => phase === 'drop').map(({ y }) => y)).toEqual(
-      Array.from({ length: placement.y + 1 }, (_, y) => y),
+    for (let index = 1; index < frames.length; index += 1) {
+      const previous = frames[index - 1];
+      const frame = frames[index];
+      expect(previous).toBeDefined();
+      expect(frame).toBeDefined();
+      if (previous === undefined || frame === undefined) continue;
+      const horizontal =
+        Math.abs(frame.x - previous.x) === 1 &&
+        frame.y === previous.y &&
+        frame.rotation === previous.rotation;
+      const downward =
+        frame.x === previous.x &&
+        frame.y === previous.y + 1 &&
+        frame.rotation === previous.rotation;
+      const rotated =
+        frame.x === previous.x &&
+        frame.y === previous.y &&
+        frame.rotation ===
+          (previous.rotation + 1) % TETROMINOES[frame.piece].length;
+      const dropStart =
+        frame.phase === 'drop' &&
+        frame.x === previous.x &&
+        frame.y === previous.y &&
+        frame.rotation === previous.rotation;
+      expect(horizontal || downward || rotated || dropStart).toBe(true);
+    }
+    const dropRows = frames.filter(({ phase }) => phase === 'drop').map(({ y }) => y);
+    expect(dropRows.at(-1)).toBe(placement.y);
+  });
+
+  it('excludes placements separated from spawn by a full-height wall', () => {
+    const game = {
+      ...createGame(4),
+      active: 'O' as const,
+      board: boardFromRows(Array<string>(BOARD_HEIGHT).fill('...T......')),
+      canHold: false,
+    };
+    const placement = enumeratePlacements(game).find(
+      ({ piece, rotation, x }) => piece === 'O' && rotation === 0 && x === 0,
     );
+    expect(placement).toBeDefined();
+    if (placement === undefined) return;
+
+    expect(animationFrames(game.board, placement)).toBeNull();
+    expect(
+      enumerateReachablePlacements(game).some(({ id }) => id === placement.id),
+    ).toBe(false);
   });
 
   it('shows the selected move, metrics, and all ranked probabilities', () => {
@@ -126,6 +213,41 @@ describe('game interface components', () => {
     );
   });
 
+  it('does not advance a resolved CLEF decision while paused', async () => {
+    const meta = document.createElement('meta');
+    meta.name = 'clef-model-name';
+    meta.content = 'configured-model';
+    document.head.append(meta);
+    let resolveRequest: ((response: Response) => void) | undefined;
+    let requestBody = '';
+    const fetcher = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((resolve) => {
+          requestBody = String(init?.body ?? '');
+          resolveRequest = resolve;
+        }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+
+    render(<App initialMode="clef" />);
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    await act(async () => {
+      resolveRequest?.(decisionResponse(requestBody));
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
+    });
+
+    expect(screen.getByText('PAUSED')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting first signal')).toBeInTheDocument();
+    expect(screen.queryAllByLabelText(/block$/)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Awaiting first signal')).not.toBeInTheDocument(),
+    );
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it('does not let an aborted restart operation clear the replacement operation', async () => {
     const meta = document.createElement('meta');
     meta.name = 'clef-model-name';
@@ -159,31 +281,8 @@ describe('game interface components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
     const replacement = pending[1];
     expect(replacement).toBeDefined();
-    const request = JSON.parse(replacement?.body ?? '{}') as {
-      readonly questions: {
-        readonly move: { readonly criteria: Readonly<Record<string, unknown>> };
-      };
-    };
-    const ids = Object.keys(request.questions.move.criteria);
-    const choice = ids[0];
-    expect(choice).toBeDefined();
-    const probability = 1 / ids.length;
     await act(async () => {
-      replacement?.resolve(
-        new Response(
-          JSON.stringify({
-            answers: {
-              move: {
-                type: 'choice',
-                choice,
-                confidence: probability,
-                probabilities: Object.fromEntries(ids.map((id) => [id, probability])),
-              },
-            },
-          }),
-          { status: 200 },
-        ),
-      );
+      replacement?.resolve(decisionResponse(replacement.body));
     });
 
     await waitFor(() => expect(screen.getByText('001')).toBeInTheDocument(), {

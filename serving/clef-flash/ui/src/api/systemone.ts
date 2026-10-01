@@ -1,8 +1,8 @@
 import { boardToRows } from '../game/board';
+import { enumerateReachablePlacements } from '../game/animation';
 import {
   InvalidPlacementError,
   applyPlacement,
-  enumeratePlacements,
 } from '../game/engine';
 import type { GameState, PieceType, PlacementMetrics } from '../game/types';
 
@@ -43,7 +43,7 @@ export interface SystemOneRequest {
 export class InvalidDecisionError extends Error {}
 
 export function createDecisionRequest(state: GameState, model: string): SystemOneRequest {
-  const placements = enumeratePlacements(state);
+  const placements = enumerateReachablePlacements(state);
   if (placements.length === 0) {
     throw new InvalidDecisionError('Game state has no legal placements');
   }

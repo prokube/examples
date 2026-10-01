@@ -1,5 +1,5 @@
 import { createDecisionRequest } from './systemone';
-import { enumeratePlacements } from '../game/engine';
+import { enumerateReachablePlacements } from '../game/animation';
 import type { GameState, Placement } from '../game/types';
 
 export interface RankedChoice {
@@ -116,7 +116,7 @@ export async function requestClefDecision(
   fetcher: typeof fetch = fetch,
   model: string = resolveModelName(),
 ): Promise<PolicyDecision> {
-  const placements = enumeratePlacements(state);
+  const placements = enumerateReachablePlacements(state);
   const heuristic = heuristicDecision(state);
   const started = performance.now();
   const response = await fetcher(resolveSystemOneUrl(), {
@@ -165,7 +165,7 @@ function placementValue(placement: Placement): number {
 
 export function heuristicDecision(state: GameState): PolicyDecision {
   const started = performance.now();
-  const scored = enumeratePlacements(state)
+  const scored = enumerateReachablePlacements(state)
     .map((placement) => ({ placement, value: placementValue(placement) }))
     .sort(
       (left, right) =>
