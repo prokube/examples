@@ -1,0 +1,9 @@
+{{ .Files.Get "model-pvc.yaml" }}
+---
+{{ .Files.Get "download-model-job.yaml" }}
+---
+{{ .Files.Get "cluster-serving-runtime.yaml" }}
+{{- if .Values.inferenceService.enabled }}
+---
+{{ .Files.Get "inference-service-h200.yaml" }}
+{{- end }}

@@ -45,19 +45,7 @@ zonal `WaitForFirstConsumer` volume binds in the correct topology. It does not
 request the GPU. Change both manifests together if the cluster's H200 product
 label differs.
 
-## Download the exact model revision
-
-Create the PVC and one-time download Job in the serving namespace:
-
-```sh
-NAMESPACE="your-namespace"
-
-kubectl create -n "${NAMESPACE}" -f model-pvc.yaml
-kubectl create -n "${NAMESPACE}" -f download-model-job.yaml
-kubectl logs -n "${NAMESPACE}" -f job/download-clef-flash
-kubectl wait -n "${NAMESPACE}" --for=condition=complete \
-  job/download-clef-flash --timeout=45m
-```
+## Model download
 
 The public snapshot is pinned to the revision in the table. The Job resumes
 partial downloads, verifies `joint_head.safetensors` and
@@ -67,12 +55,17 @@ PVC at `/mnt/models` and do not download weights again.
 
 ## Install and serve
 
-Create the cluster-scoped runtime once and the H200 service in the target
-namespace:
+Install the runtime, model volume and download Job, and H200 service as one
+Helm release in the target namespace:
 
 ```sh
-kubectl create -f cluster-serving-runtime.yaml
-kubectl create -n "${NAMESPACE}" -f inference-service-h200.yaml
+NAMESPACE="your-namespace"
+
+helm upgrade --install clef-flash . \
+  --namespace "${NAMESPACE}"
+kubectl logs -n "${NAMESPACE}" -f job/download-clef-flash
+kubectl wait -n "${NAMESPACE}" --for=condition=complete \
+  job/download-clef-flash --timeout=45m
 kubectl wait -n "${NAMESPACE}" --for=condition=Ready \
   inferenceservice/clef-flash --timeout=30m
 ```
@@ -122,10 +115,7 @@ and omit `API_KEY`.
 ## Cleanup
 
 ```sh
-kubectl delete -n "${NAMESPACE}" inferenceservice clef-flash --ignore-not-found
-kubectl delete -n "${NAMESPACE}" job download-clef-flash --ignore-not-found
-kubectl delete -n "${NAMESPACE}" pvc clef-flash-model --ignore-not-found
-kubectl delete clusterservingruntime clef-flash-systemone --ignore-not-found
+helm uninstall clef-flash --namespace "${NAMESPACE}"
 ```
 
 Deleting the PVC permanently removes the downloaded snapshot.
