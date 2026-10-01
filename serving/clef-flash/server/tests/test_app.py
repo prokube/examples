@@ -129,7 +129,6 @@ def test_health_reflects_failed_model_loading() -> None:
         raise RuntimeError("sensitive model path")
 
     with client(fail) as test_client:
-        assert test_client.get("/health/live").status_code == 200
         response = test_client.get("/health/ready")
         deadline = monotonic() + 1
         while response.json() == {"status": "loading"} and monotonic() < deadline:
@@ -137,6 +136,9 @@ def test_health_reflects_failed_model_loading() -> None:
             response = test_client.get("/health/ready")
         assert response.status_code == 503
         assert response.json() == {"status": "failed"}
+        live_response = test_client.get("/health/live")
+        assert live_response.status_code == 503
+        assert live_response.json() == {"status": "failed"}
         assert test_client.post("/v1/systemone", json=REQUEST).status_code == 503
 
 

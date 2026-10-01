@@ -113,8 +113,11 @@ def create_app(
         )
 
     @app.get("/health/live")
-    async def live() -> dict[str, str]:
-        return {"status": "live"}
+    async def live(request: Request) -> JSONResponse:
+        status = request.app.state.model_status
+        if status == "failed":
+            return JSONResponse(status_code=503, content={"status": status})
+        return JSONResponse(content={"status": "live"})
 
     @app.get("/health/ready")
     async def ready(request: Request) -> JSONResponse:
