@@ -41,5 +41,6 @@ to `cuda`.
 
 The runtime provides the following probes:
 
-- `GET /health/live` reports whether the HTTP process is live.
+- `GET /health/live` stays healthy while the model loads and returns `503`
+  after an irrecoverable load failure so the container can be restarted.
 - `GET /health/ready` returns `200` only after the model has loaded.
