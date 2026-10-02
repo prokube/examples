@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { placementCells } from '../../game/board';
 import { createGame, enumeratePlacements } from '../../game/engine';
 import {
   InvalidDecisionError,
@@ -15,6 +16,14 @@ describe('CLEF SystemOne policy contract', () => {
     const request = createDecisionRequest(state, 'configured-model');
 
     expect(request.model).toBe('configured-model');
+    expect(request.state.game).toBe('Tetris');
+    expect(request.state.boardEncoding).toContain('top row first');
+    expect(request.state.coordinateSystem).toContain('top-left');
+    expect(request.state.pieceShapeEncoding).toContain('relative [x,y]');
+    expect(request.state.pieceShapes.I).toEqual([
+      [[0, 0], [1, 0], [2, 0], [3, 0]],
+      [[0, 0], [0, 1], [0, 2], [0, 3]],
+    ]);
     expect(request.state.board).toHaveLength(20);
     expect(request.state.activePiece).toBe(state.active);
     expect(request.state.nextPiece).toBe(state.queue[0]);
@@ -32,6 +41,12 @@ describe('CLEF SystemOne policy contract', () => {
         rotation: placement.rotation,
         column: placement.x,
         landingRow: placement.y,
+        cells: placementCells(
+          placement.piece,
+          placement.rotation,
+          placement.x,
+          placement.y,
+        ).map(({ x, y }) => [x, y]),
         outcome: placement.metrics,
       });
     }
