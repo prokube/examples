@@ -6,12 +6,17 @@ import {
   applyDecision,
   createDecisionRequest,
   decisionChoice,
+  decisionPlacements,
 } from '../systemone';
 
 describe('CLEF SystemOne policy contract', () => {
-  it('encodes the complete state and every legal option', () => {
+  it('encodes the complete state and up to 12 selected options', () => {
     const state = createGame(123);
-    const placements = enumeratePlacements(state);
+    const legal = enumeratePlacements(state);
+    const placements = decisionPlacements(state);
+    const selectedIndices = placements.map(({ id }) =>
+      legal.findIndex((placement) => placement.id === id),
+    );
     const request = createDecisionRequest(state, 'configured-model');
 
     expect(request.model).toBe('configured-model');
@@ -24,6 +29,11 @@ describe('CLEF SystemOne policy contract', () => {
     expect(request.state).not.toHaveProperty('heldPiece');
     expect(request.state).not.toHaveProperty('canHold');
     expect(request.questions.move.type).toBe('choice');
+    expect(legal.length).toBeGreaterThan(12);
+    expect(placements).toHaveLength(12);
+    expect(selectedIndices).toEqual(
+      [...selectedIndices].sort((left, right) => left - right),
+    );
     expect(request.state.candidates).toHaveLength(placements.length);
     expect(Object.keys(request.questions.move.criteria)).toHaveLength(
       placements.length,
@@ -52,7 +62,7 @@ describe('CLEF SystemOne policy contract', () => {
     const first = createDecisionRequest(state, 'configured-model');
     const second = createDecisionRequest(state, 'configured-model');
     const keys = Object.keys(first.questions.move.criteria);
-    const placementIds = enumeratePlacements(state).map(({ id }) => id);
+    const placementIds = decisionPlacements(state).map(({ id }) => id);
 
     expect(keys).toEqual(Object.keys(second.questions.move.criteria));
     expect(new Set(keys)).toEqual(new Set(placementIds));

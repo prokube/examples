@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyPlacement, createGame, enumeratePlacements } from '../../game';
+import { applyPlacement, createGame } from '../../game';
 import {
   heuristicDecision,
   requestClefDecision,
   resolveModelName,
   resolveSystemOneUrl,
 } from '../client';
+import { decisionPlacements } from '../systemone';
 
 describe('runtime API client', () => {
   it('resolves the endpoint against a configured runtime base path', () => {
@@ -55,7 +56,7 @@ describe('runtime API client', () => {
 
   it('accepts and ranks a complete CLEF choice response', async () => {
     const state = createGame(4);
-    const placements = enumeratePlacements(state);
+    const placements = decisionPlacements(state);
     const selected = placements[1];
     expect(selected).toBeDefined();
     const probabilities = Object.fromEntries(
@@ -92,7 +93,7 @@ describe('runtime API client', () => {
 
   it('puts the selected move first when CLEF probabilities are tied', async () => {
     const state = createGame(7);
-    const placements = enumeratePlacements(state);
+    const placements = decisionPlacements(state);
     const selected = placements.at(-1);
     expect(selected).toBeDefined();
     const probability = 1 / placements.length;
@@ -127,7 +128,7 @@ describe('runtime API client', () => {
 
   it('rejects incomplete probabilities with a safe message', async () => {
     const state = createGame(5);
-    const choice = enumeratePlacements(state)[0];
+    const choice = decisionPlacements(state)[0];
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -160,7 +161,7 @@ describe('runtime API client', () => {
     ['an unknown probability option', 1, false, true],
   ])('rejects %s', async (_label, scale, mismatch, includeUnknown) => {
     const state = createGame(6);
-    const placements = enumeratePlacements(state);
+    const placements = decisionPlacements(state);
     const choice = placements[0];
     expect(choice).toBeDefined();
     const base = 1 / placements.length;

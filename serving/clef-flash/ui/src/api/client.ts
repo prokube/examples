@@ -1,4 +1,4 @@
-import { createDecisionRequest } from './systemone';
+import { createDecisionRequest, decisionPlacements } from './systemone';
 import { enumerateReachablePlacements } from '../game/animation';
 import type { GameState, Placement } from '../game/types';
 
@@ -117,7 +117,7 @@ export async function requestClefDecision(
   fetcher: typeof fetch = fetch,
   model: string = resolveModelName(),
 ): Promise<PolicyDecision> {
-  const placements = enumerateReachablePlacements(state);
+  const placements = decisionPlacements(state);
   const heuristic = heuristicDecision(state);
   const started = performance.now();
   const response = await fetcher(resolveSystemOneUrl(), {

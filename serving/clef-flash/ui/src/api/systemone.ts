@@ -1,4 +1,5 @@
 import { enumerateReachablePlacements } from '../game/animation';
+import { measureBoard } from '../game/board';
 import {
   InvalidPlacementError,
   applyPlacement,
@@ -7,8 +8,11 @@ import type {
   Board,
   GameState,
   PieceType,
+  Placement,
   PlacementMetrics,
 } from '../game/types';
+
+const MAX_CANDIDATES = 12;
 
 export interface CandidateState {
   readonly id: string;
@@ -61,8 +65,28 @@ function rowsForModel(board: Board): readonly string[] {
   );
 }
 
-export function createDecisionRequest(state: GameState, model: string): SystemOneRequest {
+export function decisionPlacements(state: GameState): readonly Placement[] {
   const placements = enumerateReachablePlacements(state);
+  if (placements.length <= MAX_CANDIDATES) return placements;
+
+  const currentHoles = measureBoard(state.board).holes;
+  const ranked = [...placements].sort((left, right) =>
+    Math.max(0, left.metrics.holes - currentHoles) -
+      Math.max(0, right.metrics.holes - currentHoles) ||
+    right.metrics.clearedLines - left.metrics.clearedLines ||
+    left.metrics.holes - right.metrics.holes ||
+    left.metrics.bumpiness - right.metrics.bumpiness ||
+    left.metrics.maximumHeight - right.metrics.maximumHeight ||
+    left.metrics.aggregateHeight - right.metrics.aggregateHeight,
+  );
+  const selected = new Set(
+    ranked.slice(0, MAX_CANDIDATES).map(({ id }) => id),
+  );
+  return placements.filter(({ id }) => selected.has(id));
+}
+
+export function createDecisionRequest(state: GameState, model: string): SystemOneRequest {
+  const placements = decisionPlacements(state);
   if (placements.length === 0) {
     throw new InvalidDecisionError('Game state has no legal placements');
   }

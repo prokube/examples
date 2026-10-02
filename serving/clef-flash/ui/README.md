@@ -15,11 +15,14 @@ is the complete simulation board, and a blocked centered spawn position ends
 the game. Scoring uses the classic single/double/triple/Tetris line-clear table
 without drop-distance bonuses.
 
-SystemOne receives every legal placement without heuristic filtering or
-quality-based sorting. The shared state contains binary `.`/`#` boards for the
+SystemOne receives at most 12 placements. When more legal moves exist, code
+keeps the candidates that first avoid adding holes, then clear more lines, and
+then leave fewer holes and a lower, smoother surface. The selected moves retain
+their original enumeration order and stable opaque IDs, so option position does
+not reveal the ranking. The shared state contains binary `.`/`#` boards for the
 current position and every post-placement result, the next three pieces, and
-the raw board metrics. Choice criteria remain compact and refer to those full
-candidates by stable opaque IDs. No aggregate quality score is sent.
+the raw board metrics. Choice criteria remain compact, and no aggregate quality
+score or priority list is sent to SystemOne.
 
 The application resolves the SystemOne endpoint relative to the document base
 URL, so it works under arbitrary HTTP prefixes. At runtime, a host can replace
