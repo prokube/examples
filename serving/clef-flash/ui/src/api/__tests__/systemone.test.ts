@@ -15,23 +15,33 @@ describe('CLEF SystemOne policy contract', () => {
     const request = createDecisionRequest(state, 'configured-model');
 
     expect(request.model).toBe('configured-model');
+    expect(request.state.game).toContain('10-column by 20-row Tetris');
     expect(request.state.board).toHaveLength(20);
-    expect(request.state.activePiece).toBe(state.active);
-    expect(request.state.nextPiece).toBe(state.queue[0]);
+    expect(request.state.board.every((row) => /^[.#]{10}$/.test(row))).toBe(true);
+    expect(request.state.currentPiece).toBe(state.active);
+    expect(request.state.nextPieces).toEqual(state.queue.slice(0, 3));
     expect(request.state.score).toBe(0);
     expect(request.state).not.toHaveProperty('heldPiece');
     expect(request.state).not.toHaveProperty('canHold');
-    expect(request.state).not.toHaveProperty('candidates');
     expect(request.questions.move.type).toBe('choice');
+    expect(request.state.candidates).toHaveLength(placements.length);
     expect(Object.keys(request.questions.move.criteria)).toHaveLength(
       placements.length,
     );
     for (const placement of placements) {
-      expect(request.questions.move.criteria[placement.id]).toEqual({
+      expect(request.state.candidates.find(({ id }) => id === placement.id)).toEqual({
+        id: placement.id,
         piece: placement.piece,
         rotation: placement.rotation,
         column: placement.x,
         landingRow: placement.y,
+        board: placement.resultingBoard.map((row) =>
+          row.map((cell) => cell === null ? '.' : '#').join(''),
+        ),
+        metrics: placement.metrics,
+      });
+      expect(request.questions.move.criteria[placement.id]).toEqual({
+        action: 'Use this legal placement, fully described under the same ID in state.candidates.',
         outcome: placement.metrics,
       });
     }
@@ -46,6 +56,7 @@ describe('CLEF SystemOne policy contract', () => {
 
     expect(keys).toEqual(Object.keys(second.questions.move.criteria));
     expect(new Set(keys)).toEqual(new Set(placementIds));
+    expect(first.state.candidates.map(({ id }) => id)).toEqual(placementIds);
     expect(keys.every((id) => /^v1-[a-z0-9]+-[a-z0-9]+$/.test(id))).toBe(true);
   });
 

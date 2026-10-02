@@ -15,6 +15,12 @@ is the complete simulation board, and a blocked centered spawn position ends
 the game. Scoring uses the classic single/double/triple/Tetris line-clear table
 without drop-distance bonuses.
 
+SystemOne receives every legal placement without heuristic filtering or
+quality-based sorting. The shared state contains binary `.`/`#` boards for the
+current position and every post-placement result, the next three pieces, and
+the raw board metrics. Choice criteria remain compact and refer to those full
+candidates by stable opaque IDs. No aggregate quality score is sent.
+
 The application resolves the SystemOne endpoint relative to the document base
 URL, so it works under arbitrary HTTP prefixes. At runtime, a host can replace
 the `clef-api-path` meta tag in `index.html` with another relative path or a

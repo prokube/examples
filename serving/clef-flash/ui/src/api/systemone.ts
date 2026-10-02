@@ -1,23 +1,38 @@
-import { boardToRows } from '../game/board';
 import { enumerateReachablePlacements } from '../game/animation';
 import {
   InvalidPlacementError,
   applyPlacement,
 } from '../game/engine';
-import type { GameState, PieceType, PlacementMetrics } from '../game/types';
+import type {
+  Board,
+  GameState,
+  PieceType,
+  PlacementMetrics,
+} from '../game/types';
 
-export interface CandidateDescription {
+export interface CandidateState {
+  readonly id: string;
   readonly piece: PieceType;
   readonly rotation: number;
   readonly column: number;
   readonly landingRow: number;
+  readonly board: readonly string[];
+  readonly metrics: PlacementMetrics;
+}
+
+export interface CandidateCriterion {
+  readonly action: string;
   readonly outcome: PlacementMetrics;
 }
 
 export interface ClefTetrisState {
+  readonly game: string;
+  readonly target: string;
+  readonly coordinates: string;
   readonly board: readonly string[];
-  readonly activePiece: PieceType;
-  readonly nextPiece: PieceType;
+  readonly currentPiece: PieceType;
+  readonly nextPieces: readonly PieceType[];
+  readonly candidates: readonly CandidateState[];
   readonly score: number;
   readonly lines: number;
   readonly level: number;
@@ -30,13 +45,21 @@ export interface SystemOneRequest {
   readonly questions: {
     readonly move: {
       readonly type: 'choice';
-      readonly instructions: string;
-      readonly criteria: Readonly<Record<string, CandidateDescription>>;
+      readonly instructions: {
+        readonly question: string;
+      };
+      readonly criteria: Readonly<Record<string, CandidateCriterion>>;
     };
   };
 }
 
 export class InvalidDecisionError extends Error {}
+
+function rowsForModel(board: Board): readonly string[] {
+  return board.map((row) =>
+    row.map((cell) => cell === null ? '.' : '#').join(''),
+  );
+}
 
 export function createDecisionRequest(state: GameState, model: string): SystemOneRequest {
   const placements = enumerateReachablePlacements(state);
@@ -44,27 +67,37 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
     throw new InvalidDecisionError('Game state has no legal placements');
   }
 
-  const candidates = Object.fromEntries(
+  const candidates = placements.map((placement) => ({
+    id: placement.id,
+    piece: placement.piece,
+    rotation: placement.rotation,
+    column: placement.x,
+    landingRow: placement.y,
+    board: rowsForModel(placement.resultingBoard),
+    metrics: placement.metrics,
+  } satisfies CandidateState));
+  const criteria = Object.fromEntries(
     placements.map((placement) => [
       placement.id,
       {
-        piece: placement.piece,
-        rotation: placement.rotation,
-        column: placement.x,
-        landingRow: placement.y,
+        action: 'Use this legal placement, fully described under the same ID in state.candidates.',
         outcome: placement.metrics,
-      } satisfies CandidateDescription,
+      } satisfies CandidateCriterion,
     ]),
   );
-  const nextPiece = state.queue[0];
-  if (nextPiece === undefined) throw new InvalidDecisionError('Piece queue is empty');
+  const nextPieces = state.queue.slice(0, 3);
+  if (nextPieces.length < 3) throw new InvalidDecisionError('Piece queue is too short');
 
   return {
     model,
     state: {
-      board: boardToRows(state.board),
-      activePiece: state.active,
-      nextPiece,
+      game: '10-column by 20-row Tetris. Filling all 10 cells of a row clears it. If the next piece cannot enter at the top, the game is over.',
+      target: 'Survive and maximize total cleared lines.',
+      coordinates: 'board[0] is the top row and board[19] is the bottom row. A dot is empty and # is occupied.',
+      board: rowsForModel(state.board),
+      currentPiece: state.active,
+      nextPieces,
+      candidates,
       score: state.stats.score,
       lines: state.stats.lines,
       level: state.stats.level,
@@ -73,9 +106,10 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
     questions: {
       move: {
         type: 'choice',
-        instructions:
-          'Choose the legal placement that best keeps the board low, avoids holes, and clears lines.',
-        criteria: candidates,
+        instructions: {
+          question: 'Which legal placement best keeps the board low, avoids holes, and clears lines?',
+        },
+        criteria,
       },
     },
   };
