@@ -103,7 +103,7 @@ data:
         "list": [
           {"current": {}, "label": "Datasource", "name": "datasource", "query": "prometheus", "refresh": 1, "type": "datasource"},
           {"current": {}, "datasource": {"type": "prometheus", "uid": "$datasource"}, "label": "Namespace", "name": "namespace", "query": {"query": "label_values(clef_model_ready, namespace)", "refId": "namespace"}, "refresh": 1, "type": "query"},
-          {"allValue": ".*", "current": {}, "datasource": {"type": "prometheus", "uid": "$datasource"}, "includeAll": true, "label": "Pod", "multi": true, "name": "pod", "query": {"query": "label_values(clef_model_ready{namespace=~\"$namespace\"}, pod)", "refId": "pod"}, "refresh": 1, "type": "query"}
+          {"current": {}, "datasource": {"type": "prometheus", "uid": "$datasource"}, "includeAll": true, "label": "Pod", "multi": true, "name": "pod", "query": {"query": "label_values(clef_model_ready{namespace=~\"$namespace\"}, pod)", "refId": "pod"}, "refresh": 1, "type": "query"}
         ]
       },
       "time": {"from": "now-6h", "to": "now"},
