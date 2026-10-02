@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { boardToRows, placementCells } from '../../game/board';
+import { placementCells } from '../../game/board';
 import { createGame, enumeratePlacements } from '../../game/engine';
 import {
   InvalidDecisionError,
@@ -47,7 +47,6 @@ describe('CLEF SystemOne policy contract', () => {
           placement.x,
           placement.y,
         ).map(({ x, y }) => [x, y]),
-        resultingBoard: boardToRows(placement.resultingBoard),
         outcome: placement.metrics,
       });
     }

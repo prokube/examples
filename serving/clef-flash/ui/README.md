@@ -17,11 +17,9 @@ without drop-distance bonuses.
 
 Each SystemOne request identifies the game as Tetris, explains the board and
 coordinate encoding, defines every tetromino orientation, and includes the four
-absolute board cells occupied by each candidate. Every candidate also includes
-the resulting board after placement and line clears, alongside its raw board
-metrics. No candidates are filtered or assigned an aggregate quality score.
-This keeps the request self-contained instead of relying on the model to infer
-piece shapes or mentally simulate each board transition.
+absolute board cells occupied by each candidate. This keeps the request
+self-contained instead of relying on the model to infer piece shapes from their
+letters.
 
 The application resolves the SystemOne endpoint relative to the document base
 URL, so it works under arbitrary HTTP prefixes. At runtime, a host can replace
