@@ -38,6 +38,7 @@ export interface CandidateDescription {
   readonly column: number;
   readonly landingRow: number;
   readonly cells: readonly CellCoordinate[];
+  readonly resultingBoard: readonly string[];
   readonly outcome: PlacementMetrics;
 }
 
@@ -91,6 +92,7 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
           placement.x,
           placement.y,
         ).map(({ x, y }) => [x, y] as const),
+        resultingBoard: boardToRows(placement.resultingBoard),
         outcome: placement.metrics,
       } satisfies CandidateDescription,
     ]),
@@ -119,7 +121,7 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
       move: {
         type: 'choice',
         instructions:
-          'You are playing Tetris. Choose the legal final placement that best supports the stated objective. Compare the exact candidate cells and resulting board metrics.',
+          'You are playing Tetris. Choose the legal final placement that best supports the stated objective. Each candidate includes its exact cells, resulting board after line clears, and resulting board metrics.',
         criteria: candidates,
       },
     },
