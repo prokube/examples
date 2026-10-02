@@ -85,6 +85,10 @@ helm upgrade clef-flash . --namespace "${NAMESPACE}" \
   --set ui.enabled=true
 ```
 
+By default, users can switch between the decision model and the local
+heuristic. Set `ui.policy` to `clef` or `heuristic` to lock the deployment to
+one policy and hide the policy control.
+
 Inspect placement, startup duration, and GPU memory before smoke testing:
 
 ```sh
@@ -121,6 +125,10 @@ latency, in-flight requests, and the platform DCGM framebuffer metrics. Its
 ConfigMap uses `grafana_dashboard=1` and is created in the release namespace by
 default. Set `monitoring.dashboardNamespace` only when the Grafana sidecar is
 restricted to another namespace and Helm is authorized to write there.
+
+To release the GPU without uninstalling the UI and monitoring resources, set
+`inferenceService.minReplicas=0` and `inferenceService.stopped=true`. Restore
+the defaults to serve the model again.
 
 ## Smoke test
 

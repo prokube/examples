@@ -5,5 +5,5 @@
 {{ .Files.Get "cluster-serving-runtime.yaml" }}
 {{- if .Values.inferenceService.enabled }}
 ---
-{{ .Files.Get "inference-service-h200.yaml" }}
+{{ tpl (.Files.Get "inference-service-h200.yaml") . }}
 {{- end }}

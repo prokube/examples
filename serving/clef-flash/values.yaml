@@ -1,10 +1,12 @@
 inferenceService:
   enabled: true
+  minReplicas: 1
+  stopped: false
 
 ui:
   enabled: false
-  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:431a840f17958255774097bf20870fdac8c4a419248012421e79411694164b77
-  policy: clef
+  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:2e8e7e8787b230910bc98a40cac8eb749e430cab33e7d836d1868a6f5cdb5f32
+  policy: ""
   gateway: kubeflow/kubeflow-gateway
   host: "*"
   path: /clef-flash-demo
