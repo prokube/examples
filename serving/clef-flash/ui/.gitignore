@@ -1,2 +1,4 @@
 dist/
 node_modules/
+evidence/chrome-profile*/
+evidence/*.log

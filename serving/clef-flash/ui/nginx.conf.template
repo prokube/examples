@@ -1,0 +1,33 @@
+server {
+    listen 8080;
+    server_name _;
+    resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location = /healthz {
+        access_log off;
+        return 200;
+    }
+
+    location = /config.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store";
+        return 200 'window.__CLEF_POLICY__ = "${CLEF_POLICY}";';
+    }
+
+    location = /v1/systemone {
+        set $clef_upstream ${CLEF_UPSTREAM};
+        proxy_pass http://$clef_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

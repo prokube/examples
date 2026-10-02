@@ -58,22 +58,7 @@ function drawPiece(supply: Supply): DrawResult {
   return { piece, ...replenished };
 }
 
-function stateFingerprint(state: GameState): string {
-  const value = [
-    ...boardToRows(state.board),
-    state.active,
-    state.queue.join(''),
-    state.hold ?? '-',
-    state.canHold ? '1' : '0',
-    String(state.stats.score),
-    String(state.stats.lines),
-    String(state.stats.level),
-    String(state.stats.pieces),
-    String(state.seed),
-    String(state.randomState),
-    state.bag.join(''),
-    state.gameOver ? '1' : '0',
-  ].join('|');
+function fingerprint(value: string): string {
   let hash = 0xcbf29ce484222325n;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= BigInt(value.charCodeAt(index));
@@ -82,11 +67,26 @@ function stateFingerprint(state: GameState): string {
   return hash.toString(36);
 }
 
+function stateFingerprint(state: GameState): string {
+  return fingerprint([
+    ...boardToRows(state.board),
+    state.active,
+    state.queue.join(''),
+    String(state.stats.score),
+    String(state.stats.lines),
+    String(state.stats.level),
+    String(state.stats.pieces),
+    String(state.seed),
+    String(state.randomState),
+    state.bag.join(''),
+    state.gameOver ? '1' : '0',
+  ].join('|'));
+}
+
 function piecePlacements(
   board: Board,
   piece: PieceType,
-  usedHold: boolean,
-  fingerprint: string,
+  stateHash: string,
 ): readonly Placement[] {
   if (!canSpawn(board, piece)) return [];
   const placements: Placement[] = [];
@@ -102,14 +102,13 @@ function piecePlacements(
         clearedLines: result.clearedLines,
         ...measureBoard(result.board),
       };
-      const source = usedHold ? 'h' : 'a';
+      const option = fingerprint(`${piece}|${rotation}|${x}|${y}`);
       placements.push({
-        id: `v1-${fingerprint}-${source}-${piece}-r${rotation}-x${x}-y${y}`,
+        id: `v1-${stateHash}-${option}`,
         piece,
         rotation,
         x,
         y,
-        usedHold,
         resultingBoard: result.board,
         metrics,
       });
@@ -121,21 +120,7 @@ function piecePlacements(
 
 export function enumeratePlacements(state: GameState): readonly Placement[] {
   if (state.gameOver || !canSpawn(state.board, state.active)) return [];
-  const fingerprint = stateFingerprint(state);
-  const placements = [
-    ...piecePlacements(state.board, state.active, false, fingerprint),
-  ];
-
-  if (!state.canHold) return placements;
-  const heldPiece = state.hold ?? state.queue[0];
-  if (
-    heldPiece === undefined ||
-    (state.hold !== null && heldPiece === state.active)
-  ) {
-    return placements;
-  }
-  placements.push(...piecePlacements(state.board, heldPiece, true, fingerprint));
-  return placements;
+  return piecePlacements(state.board, state.active, stateFingerprint(state));
 }
 
 export function createGame(seed: number): GameState {
@@ -145,8 +130,6 @@ export function createGame(seed: number): GameState {
     board: createBoard(),
     active: first.piece,
     queue: first.queue,
-    hold: null,
-    canHold: true,
     stats: { score: 0, lines: 0, level: 1, pieces: 0 },
     seed,
     randomState: first.randomState,
@@ -162,25 +145,11 @@ export function applyPlacement(state: GameState, optionId: string): GameState {
     throw new InvalidPlacementError('Unknown or stale placement choice');
   }
 
-  let supply: Supply = {
+  const supply: Supply = {
     queue: state.queue,
     bag: state.bag,
     randomState: state.randomState,
   };
-  let hold = state.hold;
-
-  if (placement.usedHold) {
-    hold = state.active;
-    if (state.hold === null) {
-      const heldDraw = drawPiece(supply);
-      if (heldDraw.piece !== placement.piece) {
-        throw new InvalidPlacementError('Hold choice does not match the next piece');
-      }
-      supply = heldDraw;
-    } else if (state.hold !== placement.piece) {
-      throw new InvalidPlacementError('Hold choice does not match the held piece');
-    }
-  }
 
   const next = drawPiece(supply);
   const totalLines = state.stats.lines + placement.metrics.clearedLines;
@@ -190,8 +159,6 @@ export function applyPlacement(state: GameState, optionId: string): GameState {
     board: placement.resultingBoard,
     active: next.piece,
     queue: next.queue,
-    hold,
-    canHold: true,
     stats: {
       score: state.stats.score + lineScore * state.stats.level,
       lines: totalLines,
