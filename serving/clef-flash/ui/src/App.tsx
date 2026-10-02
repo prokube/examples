@@ -15,7 +15,21 @@ import {
 import { applyPlacement, createGame } from './game/engine';
 import { spawnColumn } from './game/board';
 
-const DEFAULT_SEED = '20261001';
+export function dateTimeSeed(date = new Date()) {
+  const parts = [
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  ];
+  return parts
+    .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0'))
+    .join('');
+}
+
+const DEFAULT_SEED = dateTimeSeed();
 
 function sleep(milliseconds: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {

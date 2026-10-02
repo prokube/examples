@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { App } from '../App';
+import { App, dateTimeSeed } from '../App';
 import { heuristicDecision } from '../api';
 import { Board, Controls, DecisionPanel } from '../components';
 import {
@@ -53,6 +53,10 @@ afterEach(() => {
 });
 
 describe('game interface components', () => {
+  it('formats the default seed from local date and time', () => {
+    expect(dateTimeSeed(new Date(2026, 9, 2, 8, 5, 7))).toBe('20261002080507');
+  });
+
   it('renders the complete board and active piece accessibly', () => {
     const game = createGame(1);
     render(<Board active={{ piece: 'T', rotation: 0, x: 3, y: 0, phase: 'rotate' }} board={game.board} />);

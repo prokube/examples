@@ -180,7 +180,7 @@ export function Controls(props: ControlsProps) {
         <input max="4" min="0.5" onChange={(event) => props.onSpeedChange(Number(event.target.value))} step="0.5" type="range" value={props.speed} />
       </label>
       <label className="control-group seed">
-        <span className="eyebrow">Deterministic seed</span>
+        <span className="eyebrow">Date/time seed</span>
         <input inputMode="numeric" onChange={(event) => props.onSeedChange(event.target.value)} type="number" value={props.seed} />
       </label>
     </section>
