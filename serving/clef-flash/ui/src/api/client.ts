@@ -40,9 +40,10 @@ export function resolveSystemOneUrl(
 export function resolveModelName(
   page: Pick<Document, 'querySelector'> = document,
 ): string {
-  const model = page
+  const configured = page
     .querySelector<HTMLMetaElement>('meta[name="clef-model-name"]')
     ?.content.trim();
+  const model = configured || import.meta.env.VITE_CLEF_MODEL_NAME?.trim();
   if (!model) {
     throw new DecisionRequestError('The CLEF model name is not configured.');
   }

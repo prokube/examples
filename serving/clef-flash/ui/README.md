@@ -52,3 +52,14 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+For local CLEF development, forward the predictor and start Vite in separate
+terminals:
+
+```sh
+kubectl -n llm-serving port-forward service/clef-flash-predictor 18080:80
+VITE_CLEF_MODEL_NAME=clef-flash npm run dev
+```
+
+Vite proxies the relative `/v1/systemone` endpoint to
+`CLEF_DEV_UPSTREAM`, which defaults to `http://127.0.0.1:18080`.
