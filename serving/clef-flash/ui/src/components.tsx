@@ -110,7 +110,7 @@ export function DecisionPanel({ decision }: { readonly decision: PolicyDecision 
         <span><b>{metrics.bumpiness}</b> bump</span>
       </div>
       <div className="decision__meta">
-        <span>{decision.source === 'clef' ? 'CLEF RUNTIME' : 'LOCAL HEURISTIC'}</span>
+        <span>{decision.source === 'clef' ? 'DECISION MODEL' : 'LOCAL HEURISTIC'}</span>
         <span>{decision.latency.toFixed(decision.latency < 10 ? 2 : 0)} ms</span>
         {decision.source === 'clef' && <span>{decision.choice === decision.heuristicChoice ? 'agrees with heuristic' : 'diverges from heuristic'}</span>}
       </div>
@@ -157,13 +157,15 @@ export function Controls(props: ControlsProps) {
           <button className="button" onClick={props.onRestart}>Restart</button>
         </div>
       </div>
-      <fieldset className="control-group" disabled={props.policyLocked}>
-        <legend className="eyebrow">Policy</legend>
-        <div className="segmented">
-          <label><input checked={props.mode === 'heuristic'} name="policy" onChange={() => props.onModeChange('heuristic')} type="radio" />Heuristic</label>
-          <label><input checked={props.mode === 'clef'} name="policy" onChange={() => props.onModeChange('clef')} type="radio" />CLEF</label>
-        </div>
-      </fieldset>
+      {!props.policyLocked && (
+        <fieldset className="control-group">
+          <legend className="eyebrow">Policy</legend>
+          <div className="segmented">
+            <label><input checked={props.mode === 'heuristic'} name="policy" onChange={() => props.onModeChange('heuristic')} type="radio" />Heuristic</label>
+            <label><input checked={props.mode === 'clef'} name="policy" onChange={() => props.onModeChange('clef')} type="radio" />Decision Model</label>
+          </div>
+        </fieldset>
+      )}
       <label className="control-group range">
         <span className="eyebrow">Animation speed <b>{props.speed}×</b></span>
         <input max="4" min="0.5" onChange={(event) => props.onSpeedChange(Number(event.target.value))} step="0.5" type="range" value={props.speed} />

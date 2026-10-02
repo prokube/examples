@@ -26,7 +26,9 @@ The container image serves the built application on port 8080 and proxies
 `/v1/systemone` to `CLEF_UPSTREAM`, which defaults to
 `clef-flash-predictor:80`. The image build sets the model name to `clef-flash`;
 override the `CLEF_MODEL_NAME` build argument for another deployment. Set
-`CLEF_POLICY` to `heuristic` or `clef` to choose and lock the deployed policy.
+Leave `CLEF_POLICY` empty to let users switch between the heuristic and the
+decision model. Set it to `heuristic` or `clef` to choose and lock the deployed
+policy; locked deployments hide the policy control.
 
 Build for the local Docker daemon or publish an amd64 image with Buildx:
 

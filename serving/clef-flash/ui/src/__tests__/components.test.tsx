@@ -168,7 +168,7 @@ describe('game interface components', () => {
     const changeMode = vi.fn();
     render(<Controls busy gameOver={false} mode="heuristic" onModeChange={changeMode} onRestart={vi.fn()} onRunningChange={vi.fn()} onSeedChange={vi.fn()} onSpeedChange={vi.fn()} onStep={vi.fn()} running seed="42" speed={1} />);
 
-    const clef = screen.getByRole('radio', { name: 'CLEF' });
+    const clef = screen.getByRole('radio', { name: 'Decision Model' });
     expect(clef).toBeEnabled();
     fireEvent.click(clef);
     expect(changeMode).toHaveBeenCalledWith('clef');
@@ -177,8 +177,9 @@ describe('game interface components', () => {
   it('locks policy when configured by the deployment', () => {
     render(<Controls busy={false} gameOver={false} mode="clef" onModeChange={vi.fn()} onRestart={vi.fn()} onRunningChange={vi.fn()} onSeedChange={vi.fn()} onSpeedChange={vi.fn()} onStep={vi.fn()} policyLocked running seed="42" speed={1} />);
 
-    expect(screen.getByRole('radio', { name: 'CLEF' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Heuristic' })).toBeDisabled();
+    expect(screen.queryByRole('group', { name: 'Policy' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Decision Model' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Heuristic' })).not.toBeInTheDocument();
   });
 
   it('pauses safely and displays CLEF network failures', async () => {

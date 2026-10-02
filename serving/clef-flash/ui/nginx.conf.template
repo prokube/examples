@@ -1,6 +1,7 @@
 server {
     listen 8080;
     server_name _;
+    resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
 
     root /usr/share/nginx/html;
     index index.html;
@@ -17,7 +18,8 @@ server {
     }
 
     location = /v1/systemone {
-        proxy_pass http://${CLEF_UPSTREAM};
+        set $clef_upstream ${CLEF_UPSTREAM};
+        proxy_pass http://$clef_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

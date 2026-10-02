@@ -18,7 +18,7 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
-ENV CLEF_POLICY=heuristic \
+ENV CLEF_POLICY="" \
     CLEF_UPSTREAM=clef-flash-predictor:80
 
 EXPOSE 8080
