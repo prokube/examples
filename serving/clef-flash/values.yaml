@@ -5,7 +5,7 @@ inferenceService:
 
 ui:
   enabled: false
-  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:27e18f84b510e946fbfccf2516f5e4caf4e61b754f5d3711930ce01baf7ca0a2
+  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:009a1dea1fd1f7a061c681d1a66838d4feeed863391d544282ca9952a3cd2617
   policy: ""
   gateway: kubeflow/kubeflow-gateway
   host: "*"
