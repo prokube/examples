@@ -1,0 +1,73 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: clef-flash-systemone
+spec:
+  containers:
+  - name: kserve-container
+    image: europe-west3-docker.pkg.dev/prokube/development/clef-systemone@sha256:2ec6a2a40f5f38a54fbdb59d658051d76eee0371cb22fff63eeaf764e64a40ff
+    env:
+    - name: HOME
+      value: /tmp
+    - name: MODEL_DEVICE
+      value: cuda
+    - name: MODEL_PATH
+      value: /mnt/models
+    ports:
+    - containerPort: 8080
+      name: http1
+      protocol: TCP
+    startupProbe:
+      httpGet:
+        path: /health/live
+        port: http1
+      failureThreshold: 3
+      periodSeconds: 10
+      timeoutSeconds: 5
+    readinessProbe:
+      httpGet:
+        path: /health/ready
+        port: http1
+      failureThreshold: 3
+      periodSeconds: 10
+      timeoutSeconds: 5
+    livenessProbe:
+      httpGet:
+        path: /health/live
+        port: http1
+      failureThreshold: 3
+      periodSeconds: 10
+      timeoutSeconds: 5
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsGroup: 10001
+      runAsNonRoot: true
+      runAsUser: 10001
+      seccompProfile:
+        type: RuntimeDefault
+    volumeMounts:
+    - name: devshm
+      mountPath: /dev/shm
+    - name: tmp
+      mountPath: /tmp
+  multiModel: false
+  protocolVersions:
+  - v1
+  supportedModelFormats:
+  - autoSelect: false
+    name: clef
+    priority: 1
+    version: "1"
+  volumes:
+  - name: devshm
+    emptyDir:
+      medium: Memory
+      sizeLimit: 16Gi
+  - name: tmp
+    emptyDir:
+      sizeLimit: 1Gi

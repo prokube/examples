@@ -1,0 +1,18 @@
+inferenceService:
+  enabled: true
+  minReplicas: 1
+  stopped: false
+
+ui:
+  enabled: false
+  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:d40810a234b162c462be518341e87377d94be8e9e871d28db67fc3308964f3cb
+  policy: ""
+  gateway: kubeflow/kubeflow-gateway
+  host: "*"
+  path: /clef-flash-demo
+
+monitoring:
+  enabled: false
+  prometheusRelease: kube-prometheus-stack
+  interval: 15s
+  dashboardNamespace: ""
