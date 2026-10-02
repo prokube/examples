@@ -224,7 +224,7 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
     <main className="app-shell">
       <header className="masthead">
         <img className="brand-mark" src="./prokube-icon-negative.svg" alt="" aria-hidden="true" />
-        <div><span className="eyebrow"><span className="brand-name">prokube.ai</span> // decision lab 01</span><h1>STACK<br /> SIGNAL</h1></div>
+        <span className="eyebrow"><span className="brand-name">prokube.ai</span> // decision lab 42</span>
         <div className="live-status"><span className={error === null ? 'pulse' : 'pulse pulse--error'} />{currentStatus}</div>
       </header>
 
