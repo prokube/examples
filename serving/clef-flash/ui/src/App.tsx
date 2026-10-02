@@ -223,8 +223,8 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
   return (
     <main className="app-shell">
       <header className="masthead">
-        <div className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></div>
-        <div><span className="eyebrow">prokube.ai // decision lab 01</span><h1>STACK<br /> SIGNAL</h1></div>
+        <img className="brand-mark" src="./prokube-icon-negative.svg" alt="" aria-hidden="true" />
+        <div><span className="eyebrow"><span className="brand-name">prokube.ai</span> // decision lab 01</span><h1>STACK<br /> SIGNAL</h1></div>
         <div className="live-status"><span className={error === null ? 'pulse' : 'pulse pulse--error'} />{currentStatus}</div>
       </header>
 
