@@ -1,0 +1,115 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clef-flash-grafana-dashboard
+  namespace: {{ default .Release.Namespace .Values.monitoring.dashboardNamespace }}
+  labels:
+    app.kubernetes.io/name: clef-flash
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: monitoring
+    grafana_dashboard: "1"
+data:
+  clef-flash.json: |-
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "NOT READY"}, "1": {"color": "green", "text": "READY"}}, "type": "value"}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+          "targets": [{"expr": "min(clef_model_ready{namespace=~\"$namespace\",pod=~\"$pod\"})", "refId": "A"}],
+          "title": "Model Ready",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "s"}},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+          "targets": [{"expr": "max(clef_model_load_duration_seconds{namespace=~\"$namespace\",pod=~\"$pod\"})", "refId": "A"}],
+          "title": "Model Load Duration",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+          "targets": [{"expr": "sum(clef_requests_in_flight{namespace=~\"$namespace\",pod=~\"$pod\"})", "refId": "A"}],
+          "title": "Requests In Flight",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "decmbytes"}},
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "id": 4,
+          "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+          "targets": [{"expr": "sum(DCGM_FI_DEV_FB_USED{exported_namespace=~\"$namespace\",exported_pod=~\"$pod\"})", "refId": "A"}],
+          "title": "GPU Framebuffer Used",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "reqps"}},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+          "id": 5,
+          "targets": [{"expr": "sum by (outcome) (rate(clef_requests_total{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval]))", "legendFormat": "\u007b\u007boutcome\u007d\u007d", "refId": "A"}],
+          "title": "Request Throughput",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "s"}},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+          "id": 6,
+          "targets": [
+            {"expr": "histogram_quantile(0.50, sum by (le) (rate(clef_request_duration_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))", "legendFormat": "request p50", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum by (le) (rate(clef_request_duration_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))", "legendFormat": "request p95", "refId": "B"},
+            {"expr": "histogram_quantile(0.95, sum by (le) (rate(clef_inference_duration_seconds_bucket{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])))", "legendFormat": "inference p95", "refId": "C"}
+          ],
+          "title": "Request and Inference Latency",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "percent"}},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+          "id": 7,
+          "targets": [{"expr": "100 * sum(rate(clef_requests_total{namespace=~\"$namespace\",pod=~\"$pod\",outcome=\"error\"}[$__rate_interval])) / clamp_min(sum(rate(clef_requests_total{namespace=~\"$namespace\",pod=~\"$pod\"}[$__rate_interval])), 1e-9)", "refId": "A"}],
+          "title": "Request Error Percentage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "$datasource"},
+          "fieldConfig": {"defaults": {"unit": "decmbytes"}},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+          "id": 8,
+          "targets": [{"expr": "sum by (exported_pod, GPU_I_ID) (DCGM_FI_DEV_FB_USED{exported_namespace=~\"$namespace\",exported_pod=~\"$pod\"})", "legendFormat": "\u007b\u007bexported_pod\u007d\u007d MIG \u007b\u007bGPU_I_ID\u007d\u007d", "refId": "A"}],
+          "title": "GPU Framebuffer",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "15s",
+      "schemaVersion": 41,
+      "tags": ["clef-flash", "systemone"],
+      "templating": {
+        "list": [
+          {"current": {}, "label": "Datasource", "name": "datasource", "query": "prometheus", "refresh": 1, "type": "datasource"},
+          {"current": {}, "datasource": {"type": "prometheus", "uid": "$datasource"}, "label": "Namespace", "name": "namespace", "query": {"query": "label_values(clef_model_ready, namespace)", "refId": "namespace"}, "refresh": 1, "type": "query"},
+          {"allValue": ".*", "current": {}, "datasource": {"type": "prometheus", "uid": "$datasource"}, "includeAll": true, "label": "Pod", "multi": true, "name": "pod", "query": {"query": "label_values(clef_model_ready{namespace=~\"$namespace\"}, pod)", "refId": "pod"}, "refresh": 1, "type": "query"}
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "timezone": "browser",
+      "title": "CLEF-Flash SystemOne",
+      "uid": "clef-flash-systemone",
+      "version": 1
+    }
+{{- end }}

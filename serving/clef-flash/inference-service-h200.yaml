@@ -12,6 +12,8 @@ metadata:
 spec:
   predictor:
     containerConcurrency: 1
+    deploymentStrategy:
+      type: Recreate
     minReplicas: 1
     maxReplicas: 1
     nodeSelector:

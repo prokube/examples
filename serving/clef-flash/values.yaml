@@ -1,2 +1,16 @@
 inferenceService:
   enabled: true
+
+ui:
+  enabled: false
+  image: europe-west3-docker.pkg.dev/prokube/development/clef-tetris-ui@sha256:431a840f17958255774097bf20870fdac8c4a419248012421e79411694164b77
+  policy: clef
+  gateway: kubeflow/kubeflow-gateway
+  host: "*"
+  path: /clef-flash-demo
+
+monitoring:
+  enabled: false
+  prometheusRelease: kube-prometheus-stack
+  interval: 15s
+  dashboardNamespace: ""

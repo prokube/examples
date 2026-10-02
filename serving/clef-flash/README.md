@@ -75,6 +75,16 @@ from selecting a generic Hugging Face runtime. Liveness remains healthy while
 the model loads and fails if initialization terminates with an error; readiness
 remains unavailable until loading succeeds.
 
+The release also runs the Tetris UI as a small unprivileged nginx deployment.
+Its same-origin `/v1/systemone` proxy calls the predictor through cluster DNS,
+so browsers need neither CORS exceptions nor model credentials. Configure the
+public Kubeflow route through `ui.host`, `ui.gateway`, and `ui.path`:
+
+```sh
+helm upgrade clef-flash . --namespace "${NAMESPACE}" \
+  --set ui.enabled=true
+```
+
 Inspect placement, startup duration, and GPU memory before smoke testing:
 
 ```sh
@@ -91,9 +101,26 @@ first deployment:
 
 | Measurement | H200 result |
 |---|---:|
-| Cold startup to Ready | Not measured; deployment cluster unavailable |
-| Idle GPU memory | Not measured; deployment cluster unavailable |
-| Peak GPU memory during smoke test | Not measured; deployment cluster unavailable |
+| Cold startup to Ready | 91 seconds, including image pull |
+| Idle GPU memory | 19,010 MiB |
+| Peak GPU memory during smoke test | Not measured |
+
+## Monitoring
+
+When Prometheus Operator CRDs are installed, enable the bundled `PodMonitor`
+and Grafana dashboard:
+
+```sh
+helm upgrade clef-flash . --namespace "${NAMESPACE}" \
+  --set monitoring.enabled=true
+```
+
+The monitor scrapes only the runtime's bounded-cardinality `clef_*` metrics.
+The dashboard combines model readiness and loading, request outcomes and
+latency, in-flight requests, and the platform DCGM framebuffer metrics. Its
+ConfigMap uses `grafana_dashboard=1` and is created in the release namespace by
+default. Set `monitoring.dashboardNamespace` only when the Grafana sidecar is
+restricted to another namespace and Helm is authorized to write there.
 
 ## Smoke test
 

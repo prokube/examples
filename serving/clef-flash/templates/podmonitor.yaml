@@ -1,0 +1,25 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: clef-flash
+  labels:
+    app.kubernetes.io/name: clef-flash
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: monitoring
+    release: {{ .Values.monitoring.prometheusRelease | quote }}
+spec:
+  selector:
+    matchLabels:
+      serving.kserve.io/inferenceservice: clef-flash
+  podMetricsEndpoints:
+    - port: http1
+      path: /metrics
+      interval: {{ .Values.monitoring.interval | quote }}
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - action: keep
+          sourceLabels:
+            - __name__
+          regex: clef_.*
+{{- end }}

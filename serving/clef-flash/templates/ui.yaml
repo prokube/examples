@@ -1,0 +1,99 @@
+{{- if .Values.ui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clef-flash-ui
+  labels:
+    app.kubernetes.io/name: clef-flash-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clef-flash-ui
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: clef-flash-ui
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ui
+          image: {{ .Values.ui.image | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLEF_POLICY
+              value: {{ .Values.ui.policy | quote }}
+            - name: CLEF_UPSTREAM
+              value: "clef-flash-predictor.{{ .Release.Namespace }}.svc.cluster.local:80"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clef-flash-ui
+  labels:
+    app.kubernetes.io/name: clef-flash-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: clef-flash-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: clef-flash-ui
+spec:
+  gateways:
+    - {{ .Values.ui.gateway | quote }}
+  hosts:
+    - {{ required "ui.host is required when ui.enabled is true" .Values.ui.host | quote }}
+  http:
+    - match:
+        - uri:
+            exact: {{ .Values.ui.path | quote }}
+      redirect:
+        uri: {{ printf "%s/" (trimSuffix "/" .Values.ui.path) | quote }}
+    - match:
+        - uri:
+            prefix: {{ printf "%s/" (trimSuffix "/" .Values.ui.path) | quote }}
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: "clef-flash-ui.{{ .Release.Namespace }}.svc.cluster.local"
+            port:
+              number: 80
+{{- end }}

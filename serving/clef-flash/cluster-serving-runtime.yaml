@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
   - name: kserve-container
-    image: europe-west3-docker.pkg.dev/prokube/development/clef-systemone@sha256:e8eccced3e910d592ba9177f2302412bd040064c3ae58aaebca741458ea42ff7
+    image: europe-west3-docker.pkg.dev/prokube/development/clef-systemone@sha256:2ec6a2a40f5f38a54fbdb59d658051d76eee0371cb22fff63eeaf764e64a40ff
     env:
     - name: HOME
       value: /tmp
