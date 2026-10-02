@@ -29,9 +29,10 @@ function sleep(milliseconds: number, signal: AbortSignal) {
 
 interface AppProps {
   readonly initialMode?: 'heuristic' | 'clef';
+  readonly policyLocked?: boolean;
 }
 
-export function App({ initialMode = 'heuristic' }: AppProps) {
+export function App({ initialMode = 'heuristic', policyLocked = false }: AppProps) {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [game, setGame] = useState(() => createGame(Number(DEFAULT_SEED)));
   const [mode, setMode] = useState<'heuristic' | 'clef'>(initialMode);
@@ -78,6 +79,7 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
     };
 
     const play = async () => {
+      setDecision(null);
       setError(null);
       setStatus(mode === 'clef' ? 'QUERYING CLEF' : 'SCORING OPTIONS');
       const nextDecision = mode === 'clef'
@@ -192,6 +194,19 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
     setControl((value) => value + 1);
   };
 
+  const changeMode = (next: 'heuristic' | 'clef') => {
+    if (policyLocked || next === mode) return;
+    operation.current += 1;
+    activeOperation.current = null;
+    const key = enumerateReachablePlacements(game)[0]?.id;
+    if (key !== undefined) handled.current.delete(key);
+    setDecision(null);
+    setAnimation(null);
+    setError(null);
+    setStatus(runningRef.current ? 'READY' : 'PAUSED');
+    setMode(next);
+  };
+
   const currentStatus = game.gameOver ? 'GAME OVER' : status;
 
   return (
@@ -235,12 +250,13 @@ export function App({ initialMode = 'heuristic' }: AppProps) {
             busy={animation !== null || status === 'QUERYING CLEF'}
             gameOver={game.gameOver}
             mode={mode}
-            onModeChange={setMode}
+            onModeChange={changeMode}
             onRestart={restart}
             onRunningChange={changeRunning}
             onSeedChange={setSeed}
             onSpeedChange={setSpeed}
             onStep={step}
+            policyLocked={policyLocked}
             running={running}
             seed={seed}
             speed={speed}

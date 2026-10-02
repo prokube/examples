@@ -78,6 +78,10 @@ function moveName(placement: Placement) {
   return `${hold}${placement.piece} / R${placement.rotation} / C${placement.x + 1}`;
 }
 
+function formatProbability(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export function DecisionPanel({ decision }: { readonly decision: PolicyDecision | null }) {
   const selected = decision?.ranked.find(({ placement }) => placement.id === decision.choice);
   if (decision === null || selected === undefined) {
@@ -96,7 +100,7 @@ export function DecisionPanel({ decision }: { readonly decision: PolicyDecision 
           <span className="eyebrow">Selected move</span>
           <h2 id="decision-heading">{moveName(selected.placement)}</h2>
         </div>
-        <div className="confidence"><strong>{Math.round(decision.confidence * 100)}%</strong><span>confidence</span></div>
+        <div className="confidence"><strong>{formatProbability(selected.probability)}</strong><span>selected probability</span></div>
       </header>
       <div className="metrics" aria-label="Selected move metrics">
         <span><b>{metrics.clearedLines}</b> clears</span>
@@ -110,13 +114,13 @@ export function DecisionPanel({ decision }: { readonly decision: PolicyDecision 
         <span>{decision.latency.toFixed(decision.latency < 10 ? 2 : 0)} ms</span>
         {decision.source === 'clef' && <span>{decision.choice === decision.heuristicChoice ? 'agrees with heuristic' : 'diverges from heuristic'}</span>}
       </div>
-      <ol className="ranking" aria-label="Ranked move probabilities">
+      <ol className="ranking" aria-label="Ranked move probabilities" key={decision.choice}>
         {decision.ranked.map(({ placement, probability }, index) => (
-          <li className={placement.id === decision.choice ? 'ranking__selected' : ''} key={placement.id}>
+          <li aria-current={placement.id === decision.choice ? 'true' : undefined} className={placement.id === decision.choice ? 'ranking__selected' : ''} key={placement.id}>
             <span className="ranking__index">{String(index + 1).padStart(2, '0')}</span>
             <span className="ranking__move">{moveName(placement)}</span>
             <span className="ranking__bar"><i style={{ width: `${probability * 100}%` }} /></span>
-            <strong>{(probability * 100).toFixed(1)}%</strong>
+            <strong>{formatProbability(probability)}</strong>
           </li>
         ))}
       </ol>
@@ -128,6 +132,7 @@ interface ControlsProps {
   readonly running: boolean;
   readonly busy: boolean;
   readonly gameOver: boolean;
+  readonly policyLocked?: boolean;
   readonly mode: 'heuristic' | 'clef';
   readonly speed: number;
   readonly seed: string;
@@ -152,7 +157,7 @@ export function Controls(props: ControlsProps) {
           <button className="button" onClick={props.onRestart}>Restart</button>
         </div>
       </div>
-      <fieldset className="control-group" disabled={props.busy}>
+      <fieldset className="control-group" disabled={props.policyLocked}>
         <legend className="eyebrow">Policy</legend>
         <div className="segmented">
           <label><input checked={props.mode === 'heuristic'} name="policy" onChange={() => props.onModeChange('heuristic')} type="radio" />Heuristic</label>

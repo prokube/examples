@@ -133,10 +133,18 @@ describe('game interface components', () => {
 
   it('shows the selected move, metrics, and all ranked probabilities', () => {
     const decision = heuristicDecision(createGame(2));
-    render(<DecisionPanel decision={decision} />);
+    const selected = decision.ranked.find(
+      ({ placement }) => placement.id === decision.choice,
+    );
+    const { container } = render(<DecisionPanel decision={decision} />);
+    const displayed = `${((selected?.probability ?? 0) * 100).toFixed(1)}%`;
     expect(screen.getByRole('list', { name: 'Ranked move probabilities' }).children).toHaveLength(decision.ranked.length);
     expect(screen.getByText('LOCAL HEURISTIC')).toBeInTheDocument();
-    expect(screen.getByText('confidence')).toBeInTheDocument();
+    expect(screen.getByText('selected probability')).toBeInTheDocument();
+    expect(container.querySelector('.confidence strong')).toHaveTextContent(displayed);
+    expect(screen.getByRole('listitem', { current: true })).toHaveTextContent(
+      displayed,
+    );
   });
 
   it('provides pause, step, restart, speed, seed, and policy controls', () => {
@@ -154,6 +162,23 @@ describe('game interface components', () => {
     expect(screen.getByRole('button', { name: 'Game over' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Single step' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Restart' })).toBeEnabled();
+  });
+
+  it('allows changing policy while a decision is busy', () => {
+    const changeMode = vi.fn();
+    render(<Controls busy gameOver={false} mode="heuristic" onModeChange={changeMode} onRestart={vi.fn()} onRunningChange={vi.fn()} onSeedChange={vi.fn()} onSpeedChange={vi.fn()} onStep={vi.fn()} running seed="42" speed={1} />);
+
+    const clef = screen.getByRole('radio', { name: 'CLEF' });
+    expect(clef).toBeEnabled();
+    fireEvent.click(clef);
+    expect(changeMode).toHaveBeenCalledWith('clef');
+  });
+
+  it('locks policy when configured by the deployment', () => {
+    render(<Controls busy={false} gameOver={false} mode="clef" onModeChange={vi.fn()} onRestart={vi.fn()} onRunningChange={vi.fn()} onSeedChange={vi.fn()} onSpeedChange={vi.fn()} onStep={vi.fn()} policyLocked running seed="42" speed={1} />);
+
+    expect(screen.getByRole('radio', { name: 'CLEF' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Heuristic' })).toBeDisabled();
   });
 
   it('pauses safely and displays CLEF network failures', async () => {
@@ -288,5 +313,32 @@ describe('game interface components', () => {
     await waitFor(() => expect(screen.getByText('001')).toBeInTheDocument(), {
       timeout: 3000,
     });
+  });
+
+  it('removes the previous ranking immediately when restarting', async () => {
+    const meta = document.createElement('meta');
+    meta.name = 'clef-model-name';
+    meta.content = 'configured-model';
+    document.head.append(meta);
+    const fetcher = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) => {
+        const body = String(init?.body ?? '');
+        if (fetcher.mock.calls.length === 1) {
+          return Promise.resolve(decisionResponse(body));
+        }
+        return new Promise<Response>(() => undefined);
+      },
+    );
+    vi.stubGlobal('fetch', fetcher);
+
+    render(<App initialMode="clef" />);
+    await screen.findByText('selected probability');
+    expect(screen.getByRole('list', { name: 'Ranked move probabilities' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Awaiting first signal')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Ranked move probabilities' })).not.toBeInTheDocument();
   });
 });

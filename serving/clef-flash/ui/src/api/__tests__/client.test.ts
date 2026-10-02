@@ -90,6 +90,41 @@ describe('runtime API client', () => {
     expect(result.ranked[0]?.placement.id).toBe(selected?.id);
   });
 
+  it('puts the selected move first when CLEF probabilities are tied', async () => {
+    const state = createGame(7);
+    const placements = enumeratePlacements(state);
+    const selected = placements.at(-1);
+    expect(selected).toBeDefined();
+    const probability = 1 / placements.length;
+    const probabilities = Object.fromEntries(
+      placements.map(({ id }) => [id, probability]),
+    );
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answers: {
+            move: {
+              type: 'choice',
+              choice: selected?.id,
+              confidence: probability,
+              probabilities,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await requestClefDecision(
+      state,
+      new AbortController().signal,
+      fetcher,
+      'configured-model',
+    );
+
+    expect(result.ranked[0]?.placement.id).toBe(selected?.id);
+  });
+
   it('rejects incomplete probabilities with a safe message', async () => {
     const state = createGame(5);
     const choice = enumeratePlacements(state)[0];

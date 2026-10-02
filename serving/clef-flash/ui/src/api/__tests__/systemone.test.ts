@@ -37,6 +37,24 @@ describe('CLEF SystemOne policy contract', () => {
     }
   });
 
+  it('uses stable opaque option IDs that do not sort active moves before hold moves', () => {
+    const state = createGame(123);
+    const first = createDecisionRequest(state, 'configured-model');
+    const second = createDecisionRequest(state, 'configured-model');
+    const keys = Object.keys(first.questions.move.criteria);
+    const placements = new Map(
+      enumeratePlacements(state).map((placement) => [placement.id, placement]),
+    );
+    const sorted = [...keys].sort().map((id) => placements.get(id));
+    const firstHold = sorted.findIndex((placement) => placement?.usedHold);
+
+    expect(keys).toEqual(Object.keys(second.questions.move.criteria));
+    expect(new Set(keys)).toEqual(new Set(placements.keys()));
+    expect(keys.every((id) => !/-[ah]-[IOTSZJL]-r\d-x\d-y\d+$/.test(id))).toBe(true);
+    expect(firstHold).toBeGreaterThanOrEqual(0);
+    expect(sorted.slice(firstHold + 1).some((placement) => !placement?.usedHold)).toBe(true);
+  });
+
   it('applies only the choice ID and ignores untrusted extra coordinates', () => {
     const state = createGame(456);
     const choice = enumeratePlacements(state)[0];

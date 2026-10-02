@@ -139,7 +139,13 @@ export async function requestClefDecision(
   const answer = parseAnswer(body, placements);
   const ranked = placements
     .map((placement) => ({ placement, probability: answer.probabilities[placement.id] ?? 0 }))
-    .sort((left, right) => right.probability - left.probability);
+    .sort(
+      (left, right) =>
+        right.probability - left.probability ||
+        Number(right.placement.id === answer.choice) -
+          Number(left.placement.id === answer.choice) ||
+        left.placement.id.localeCompare(right.placement.id),
+    );
 
   return {
     choice: answer.choice,

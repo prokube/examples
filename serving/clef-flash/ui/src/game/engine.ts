@@ -58,8 +58,17 @@ function drawPiece(supply: Supply): DrawResult {
   return { piece, ...replenished };
 }
 
+function fingerprint(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= BigInt(value.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return hash.toString(36);
+}
+
 function stateFingerprint(state: GameState): string {
-  const value = [
+  return fingerprint([
     ...boardToRows(state.board),
     state.active,
     state.queue.join(''),
@@ -73,20 +82,14 @@ function stateFingerprint(state: GameState): string {
     String(state.randomState),
     state.bag.join(''),
     state.gameOver ? '1' : '0',
-  ].join('|');
-  let hash = 0xcbf29ce484222325n;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= BigInt(value.charCodeAt(index));
-    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
-  }
-  return hash.toString(36);
+  ].join('|'));
 }
 
 function piecePlacements(
   board: Board,
   piece: PieceType,
   usedHold: boolean,
-  fingerprint: string,
+  stateHash: string,
 ): readonly Placement[] {
   if (!canSpawn(board, piece)) return [];
   const placements: Placement[] = [];
@@ -103,8 +106,9 @@ function piecePlacements(
         ...measureBoard(result.board),
       };
       const source = usedHold ? 'h' : 'a';
+      const option = fingerprint(`${source}|${piece}|${rotation}|${x}|${y}`);
       placements.push({
-        id: `v1-${fingerprint}-${source}-${piece}-r${rotation}-x${x}-y${y}`,
+        id: `v1-${stateHash}-${option}`,
         piece,
         rotation,
         x,

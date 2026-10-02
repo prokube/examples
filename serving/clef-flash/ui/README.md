@@ -22,6 +22,19 @@ fully qualified URL. The default is `v1/systemone`. The host must also set the
 so deployments cannot silently send requests to a hardcoded model. No API key
 is read or stored by the browser.
 
+The container image serves the built application on port 8080 and proxies
+`/v1/systemone` to `CLEF_UPSTREAM`, which defaults to
+`clef-flash-predictor:80`. The image build sets the model name to `clef-flash`;
+override the `CLEF_MODEL_NAME` build argument for another deployment. Set
+`CLEF_POLICY` to `heuristic` or `clef` to choose and lock the deployed policy.
+
+Build for the local Docker daemon or publish an amd64 image with Buildx:
+
+```sh
+make image TAG=dev
+make image-push TAG=dev
+```
+
 ```sh
 npm ci
 npm run dev
