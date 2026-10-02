@@ -7,7 +7,6 @@ import {
 import type { GameState, PieceType, PlacementMetrics } from '../game/types';
 
 export interface CandidateDescription {
-  readonly action: 'place' | 'hold_then_place';
   readonly piece: PieceType;
   readonly rotation: number;
   readonly column: number;
@@ -19,8 +18,6 @@ export interface ClefTetrisState {
   readonly board: readonly string[];
   readonly activePiece: PieceType;
   readonly nextPiece: PieceType;
-  readonly heldPiece: PieceType | null;
-  readonly canHold: boolean;
   readonly score: number;
   readonly lines: number;
   readonly level: number;
@@ -51,7 +48,6 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
     placements.map((placement) => [
       placement.id,
       {
-        action: placement.usedHold ? 'hold_then_place' : 'place',
         piece: placement.piece,
         rotation: placement.rotation,
         column: placement.x,
@@ -69,8 +65,6 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
       board: boardToRows(state.board),
       activePiece: state.active,
       nextPiece,
-      heldPiece: state.hold,
-      canHold: state.canHold,
       score: state.stats.score,
       lines: state.stats.lines,
       level: state.stats.level,

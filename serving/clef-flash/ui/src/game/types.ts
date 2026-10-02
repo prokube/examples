@@ -23,8 +23,6 @@ export interface GameState {
   readonly board: Board;
   readonly active: PieceType;
   readonly queue: readonly PieceType[];
-  readonly hold: PieceType | null;
-  readonly canHold: boolean;
   readonly stats: GameStats;
   readonly seed: number;
   readonly randomState: number;
@@ -49,7 +47,6 @@ export interface Placement {
   readonly rotation: number;
   readonly x: number;
   readonly y: number;
-  readonly usedHold: boolean;
   readonly resultingBoard: Board;
   readonly metrics: PlacementMetrics;
 }

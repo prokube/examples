@@ -164,8 +164,7 @@ function placementValue(placement: Placement): number {
     metrics.holes * 7 -
     metrics.aggregateHeight * 0.3 -
     metrics.maximumHeight * 0.5 -
-    metrics.bumpiness * 0.2 -
-    (placement.usedHold ? 0.05 : 0)
+    metrics.bumpiness * 0.2
   );
 }
 

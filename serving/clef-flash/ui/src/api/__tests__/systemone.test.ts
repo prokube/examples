@@ -18,8 +18,9 @@ describe('CLEF SystemOne policy contract', () => {
     expect(request.state.board).toHaveLength(20);
     expect(request.state.activePiece).toBe(state.active);
     expect(request.state.nextPiece).toBe(state.queue[0]);
-    expect(request.state.heldPiece).toBeNull();
     expect(request.state.score).toBe(0);
+    expect(request.state).not.toHaveProperty('heldPiece');
+    expect(request.state).not.toHaveProperty('canHold');
     expect(request.state).not.toHaveProperty('candidates');
     expect(request.questions.move.type).toBe('choice');
     expect(Object.keys(request.questions.move.criteria)).toHaveLength(
@@ -27,7 +28,6 @@ describe('CLEF SystemOne policy contract', () => {
     );
     for (const placement of placements) {
       expect(request.questions.move.criteria[placement.id]).toEqual({
-        action: placement.usedHold ? 'hold_then_place' : 'place',
         piece: placement.piece,
         rotation: placement.rotation,
         column: placement.x,
@@ -37,22 +37,16 @@ describe('CLEF SystemOne policy contract', () => {
     }
   });
 
-  it('uses stable opaque option IDs that do not sort active moves before hold moves', () => {
+  it('uses stable opaque option IDs', () => {
     const state = createGame(123);
     const first = createDecisionRequest(state, 'configured-model');
     const second = createDecisionRequest(state, 'configured-model');
     const keys = Object.keys(first.questions.move.criteria);
-    const placements = new Map(
-      enumeratePlacements(state).map((placement) => [placement.id, placement]),
-    );
-    const sorted = [...keys].sort().map((id) => placements.get(id));
-    const firstHold = sorted.findIndex((placement) => placement?.usedHold);
+    const placementIds = enumeratePlacements(state).map(({ id }) => id);
 
     expect(keys).toEqual(Object.keys(second.questions.move.criteria));
-    expect(new Set(keys)).toEqual(new Set(placements.keys()));
-    expect(keys.every((id) => !/-[ah]-[IOTSZJL]-r\d-x\d-y\d+$/.test(id))).toBe(true);
-    expect(firstHold).toBeGreaterThanOrEqual(0);
-    expect(sorted.slice(firstHold + 1).some((placement) => !placement?.usedHold)).toBe(true);
+    expect(new Set(keys)).toEqual(new Set(placementIds));
+    expect(keys.every((id) => /^v1-[a-z0-9]+-[a-z0-9]+$/.test(id))).toBe(true);
   });
 
   it('applies only the choice ID and ignores untrusted extra coordinates', () => {

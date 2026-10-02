@@ -56,7 +56,7 @@ describe('tetromino orientations', () => {
 
 describe('placement enumeration', () => {
   it('enumerates all direct hard-drop placements on an empty board', () => {
-    const state = { ...createGame(7), active: 'I' as const, canHold: false };
+    const state = { ...createGame(7), active: 'I' as const };
     const placements = enumeratePlacements(state);
 
     expect(placements).toHaveLength(17);
@@ -99,60 +99,12 @@ describe('placement enumeration', () => {
     }
   });
 
-  it('adds held-piece candidates only while hold is available', () => {
-    const base = createGame(11);
-    const withHold = { ...base, active: 'I' as const, hold: 'T' as const };
-
-    expect(enumeratePlacements(withHold).some(({ usedHold }) => usedHold)).toBe(true);
-    expect(
-      enumeratePlacements({ ...withHold, canHold: false }).some(
-        ({ usedHold }) => usedHold,
-      ),
-    ).toBe(false);
-  });
-
-  it('keeps an empty-hold action when the next piece matches the active piece', () => {
-    const base = createGame(12);
-    const state = {
-      ...base,
-      active: 'T' as const,
-      hold: null,
-      queue: ['T' as const, ...base.queue.slice(1)],
-    };
-
-    expect(enumeratePlacements(state).some(({ usedHold }) => usedHold)).toBe(true);
-  });
-
-  it('applies empty and occupied hold transitions without corrupting the queue', () => {
-    const emptyHold = { ...createGame(13), active: 'I' as const, hold: null };
-    const emptyChoice = enumeratePlacements(emptyHold).find(({ usedHold }) => usedHold);
-    expect(emptyChoice).toBeDefined();
-    const afterEmptyHold = applyPlacement(emptyHold, emptyChoice?.id ?? 'missing');
-    expect(afterEmptyHold.hold).toBe('I');
-    expect(afterEmptyHold.active).toBe(emptyHold.queue[1]);
-    expect(afterEmptyHold.board).toEqual(emptyChoice?.resultingBoard);
-
-    const occupiedHold = { ...createGame(14), active: 'I' as const, hold: 'T' as const };
-    const occupiedChoice = enumeratePlacements(occupiedHold).find(
-      ({ usedHold }) => usedHold,
-    );
-    expect(occupiedChoice).toBeDefined();
-    const afterOccupiedHold = applyPlacement(
-      occupiedHold,
-      occupiedChoice?.id ?? 'missing',
-    );
-    expect(afterOccupiedHold.hold).toBe('I');
-    expect(afterOccupiedHold.active).toBe(occupiedHold.queue[0]);
-    expect(afterOccupiedHold.board).toEqual(occupiedChoice?.resultingBoard);
-  });
-
   it('scores line clears and advances levels without mutating the source state', () => {
     const base = createGame(15);
     const state = {
       ...base,
       board: boardFromRows(rows('IIIIIIII..', 'IIIIIIII..')),
       active: 'O' as const,
-      canHold: false,
       stats: { score: 50, lines: 9, level: 1, pieces: 4 },
     };
     const before = JSON.stringify(state);

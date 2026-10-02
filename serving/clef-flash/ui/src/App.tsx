@@ -110,15 +110,13 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
       const first = frames[0];
       if (first === undefined) throw new DecisionRequestError('The selected move cannot be animated safely.');
       const startX = spawnColumn(placement.piece);
-      const initialStatus = placement.usedHold
-        ? 'HOLD SWAP'
-        : placement.rotation > 0
-          ? 'ROTATING'
-          : placement.x === startX
-            ? 'HARD DROP'
-            : placement.x < startX
-              ? 'SHIFTING LEFT'
-              : 'SHIFTING RIGHT';
+      const initialStatus = placement.rotation > 0
+        ? 'ROTATING'
+        : placement.x === startX
+          ? 'HARD DROP'
+          : placement.x < startX
+            ? 'SHIFTING LEFT'
+            : 'SHIFTING RIGHT';
       setStatus(initialStatus);
       setAnimation(first);
       await pauseAwareSleep(180);
@@ -243,7 +241,6 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
           <div><span className="eyebrow">Lines</span><strong>{String(game.stats.lines).padStart(2, '0')}</strong></div>
           <div><span className="eyebrow">Level</span><strong>{String(game.stats.level).padStart(2, '0')}</strong></div>
           <div><span className="eyebrow">Pieces</span><strong>{String(game.stats.pieces).padStart(3, '0')}</strong></div>
-          <PiecePreview label="Hold" piece={game.hold} />
         </aside>
 
         <section className="board-stage">

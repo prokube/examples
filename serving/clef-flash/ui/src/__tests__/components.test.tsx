@@ -70,7 +70,6 @@ describe('game interface components', () => {
       ...createGame(3),
       active: 'O' as const,
       board: boardFromRows(rows('...T......')),
-      canHold: false,
     };
     const placement = enumeratePlacements(game).find(
       ({ piece, rotation, x }) => piece === 'O' && rotation === 0 && x === 0,
@@ -121,7 +120,6 @@ describe('game interface components', () => {
       ...createGame(4),
       active: 'O' as const,
       board: boardFromRows(Array<string>(BOARD_HEIGHT).fill('...T......')),
-      canHold: false,
     };
     const placement = enumeratePlacements(game).find(
       ({ piece, rotation, x }) => piece === 'O' && rotation === 0 && x === 0,

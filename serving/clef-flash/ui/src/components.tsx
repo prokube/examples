@@ -74,8 +74,7 @@ export function PiecePreview({ piece, label }: { readonly piece: PieceType | nul
 }
 
 function moveName(placement: Placement) {
-  const hold = placement.usedHold ? 'hold · ' : '';
-  return `${hold}${placement.piece} / R${placement.rotation} / C${placement.x + 1}`;
+  return `${placement.piece} / R${placement.rotation} / C${placement.x + 1}`;
 }
 
 function formatProbability(value: number) {
