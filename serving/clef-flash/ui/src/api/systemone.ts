@@ -25,7 +25,6 @@ export interface ClefTetrisState {
   readonly lines: number;
   readonly level: number;
   readonly piecesPlaced: number;
-  readonly candidates: Readonly<Record<string, CandidateDescription>>;
 }
 
 export interface SystemOneRequest {
@@ -76,7 +75,6 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
       lines: state.stats.lines,
       level: state.stats.level,
       piecesPlaced: state.stats.pieces,
-      candidates,
     },
     questions: {
       move: {

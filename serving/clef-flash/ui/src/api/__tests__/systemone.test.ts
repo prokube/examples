@@ -20,11 +20,11 @@ describe('CLEF SystemOne policy contract', () => {
     expect(request.state.nextPiece).toBe(state.queue[0]);
     expect(request.state.heldPiece).toBeNull();
     expect(request.state.score).toBe(0);
+    expect(request.state).not.toHaveProperty('candidates');
     expect(request.questions.move.type).toBe('choice');
     expect(Object.keys(request.questions.move.criteria)).toHaveLength(
       placements.length,
     );
-    expect(request.questions.move.criteria).toBe(request.state.candidates);
     for (const placement of placements) {
       expect(request.questions.move.criteria[placement.id]).toEqual({
         action: placement.usedHold ? 'hold_then_place' : 'place',

@@ -79,7 +79,6 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
     };
 
     const play = async () => {
-      setDecision(null);
       setError(null);
       setStatus(mode === 'clef' ? 'QUERYING CLEF' : 'SCORING OPTIONS');
       const nextDecision = mode === 'clef'
@@ -213,7 +212,7 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
     <main className="app-shell">
       <header className="masthead">
         <div className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></div>
-        <div><span className="eyebrow">prokube.ai // decision lab 01</span><h1>STACK<br />SIGNAL</h1></div>
+        <div><span className="eyebrow">prokube.ai // decision lab 01</span><h1>STACK<br /> SIGNAL</h1></div>
         <div className="live-status"><span className={error === null ? 'pulse' : 'pulse pulse--error'} />{currentStatus}</div>
       </header>
 
@@ -245,7 +244,10 @@ export function App({ initialMode = 'heuristic', policyLocked = false }: AppProp
         </section>
 
         <div className="right-rail">
-          <DecisionPanel decision={decision} />
+          <DecisionPanel
+            decision={decision}
+            waiting={status === 'QUERYING CLEF' || status === 'SCORING OPTIONS'}
+          />
           <Controls
             busy={animation !== null || status === 'QUERYING CLEF'}
             gameOver={game.gameOver}

@@ -82,12 +82,18 @@ function formatProbability(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-export function DecisionPanel({ decision }: { readonly decision: PolicyDecision | null }) {
+export function DecisionPanel({
+  decision,
+  waiting = false,
+}: {
+  readonly decision: PolicyDecision | null;
+  readonly waiting?: boolean;
+}) {
   const selected = decision?.ranked.find(({ placement }) => placement.id === decision.choice);
   if (decision === null || selected === undefined) {
     return (
       <section className="decision panel" aria-labelledby="decision-heading">
-        <header><span className="eyebrow">Decision stream</span><h2 id="decision-heading">Awaiting first signal</h2></header>
+        <header><span className="eyebrow">Decision stream</span><h2 id="decision-heading">Awaiting first decision</h2></header>
         <p className="muted">Candidate probabilities and board outcomes appear here after policy evaluation.</p>
       </section>
     );
@@ -95,6 +101,9 @@ export function DecisionPanel({ decision }: { readonly decision: PolicyDecision 
   const metrics = selected.placement.metrics;
   return (
     <section className="decision panel" aria-labelledby="decision-heading">
+      <div className={`decision__state ${waiting ? 'decision__state--waiting' : ''}`} role="status">
+        <span className="pulse" />{waiting ? 'Awaiting next decision' : 'Latest decision'}
+      </div>
       <header className="decision__header">
         <div>
           <span className="eyebrow">Selected move</span>

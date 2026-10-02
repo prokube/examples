@@ -147,6 +147,14 @@ describe('game interface components', () => {
     );
   });
 
+  it('keeps the latest decision visible while awaiting the next one', () => {
+    const decision = heuristicDecision(createGame(2));
+    render(<DecisionPanel decision={decision} waiting />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Awaiting next decision');
+    expect(screen.getByRole('list', { name: 'Ranked move probabilities' })).toBeInTheDocument();
+  });
+
   it('provides pause, step, restart, speed, seed, and policy controls', () => {
     const pause = vi.fn();
     render(<Controls busy={false} gameOver={false} mode="heuristic" onModeChange={vi.fn()} onRestart={vi.fn()} onRunningChange={pause} onSeedChange={vi.fn()} onSpeedChange={vi.fn()} onStep={vi.fn()} running seed="42" speed={1} />);
@@ -264,12 +272,12 @@ describe('game interface components', () => {
     });
 
     expect(screen.getByText('PAUSED')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting first signal')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting first decision')).toBeInTheDocument();
     expect(screen.queryAllByLabelText(/block$/)).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
 
     await waitFor(() =>
-      expect(screen.queryByText('Awaiting first signal')).not.toBeInTheDocument(),
+      expect(screen.queryByText('Awaiting first decision')).not.toBeInTheDocument(),
     );
     expect(fetcher).toHaveBeenCalledOnce();
   });
@@ -339,7 +347,7 @@ describe('game interface components', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('Awaiting first signal')).toBeInTheDocument();
+    expect(screen.getByText('Awaiting first decision')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Ranked move probabilities' })).not.toBeInTheDocument();
   });
 });
