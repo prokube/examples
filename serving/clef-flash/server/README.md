@@ -7,9 +7,11 @@ Jev/SystemOne-compatible `POST /v1/systemone` endpoint. It does not use the
 Qwen text-generation interface.
 
 The model card currently specifies Python 3.12, PyTorch 2.11, and Transformers
-5.10.2. The full BF16 snapshot occupies about 19 GB and requires a CUDA GPU for
-the intended deployment. This first runtime accepts text or JSON state; HTTP
-image decoding is outside the Tetris example scope.
+5.10.2. This runtime uses the official PyTorch 2.11 CUDA 12.6 build to remain in
+the CUDA 12 driver compatibility family. The full BF16 snapshot occupies about
+19 GB and requires a CUDA GPU for the intended deployment. This first runtime
+accepts text or JSON state; HTTP image decoding is outside the Tetris example
+scope.
 
 ## Test without a model
 
@@ -44,3 +46,6 @@ The runtime provides the following probes:
 - `GET /health/live` stays healthy while the model loads and returns `503`
   after an irrecoverable load failure so the container can be restarted.
 - `GET /health/ready` returns `200` only after the model has loaded.
+- `GET /metrics` exposes bounded-cardinality Prometheus metrics for model
+  readiness and load time, request outcomes and latency, inference latency, and
+  requests in flight.

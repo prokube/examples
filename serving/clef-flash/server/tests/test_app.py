@@ -80,6 +80,12 @@ def wait_until_ready(test_client: TestClient) -> None:
     raise AssertionError("model did not become ready")
 
 
+def metric_value(metrics: str, name: str, labels: str = "") -> float:
+    prefix = f"{name}{labels} "
+    line = next(line for line in metrics.splitlines() if line.startswith(prefix))
+    return float(line.removeprefix(prefix))
+
+
 def test_systemone_returns_all_answer_types_and_usage() -> None:
     adapter = FakeAdapter()
 
@@ -122,6 +128,12 @@ def test_health_reflects_successful_model_loading() -> None:
         wait_until_ready(test_client)
         assert test_client.get("/health/live").json() == {"status": "live"}
         assert test_client.get("/health/ready").json() == {"status": "ready"}
+        metrics = test_client.get("/metrics")
+
+    assert metrics.status_code == 200
+    assert metrics.headers["content-type"].startswith("text/plain")
+    assert metric_value(metrics.text, "clef_model_ready") == 1
+    assert metric_value(metrics.text, "clef_model_load_duration_seconds") >= 0
 
 
 def test_health_reflects_failed_model_loading() -> None:
@@ -140,6 +152,10 @@ def test_health_reflects_failed_model_loading() -> None:
         assert live_response.status_code == 503
         assert live_response.json() == {"status": "failed"}
         assert test_client.post("/v1/systemone", json=REQUEST).status_code == 503
+        metrics = test_client.get("/metrics").text
+
+    assert metric_value(metrics, "clef_model_ready") == 0
+    assert metric_value(metrics, "clef_requests_total", '{outcome="not_ready"}') == 1
 
 
 def test_readiness_transitions_while_model_loads() -> None:
@@ -225,10 +241,24 @@ def test_inference_errors_are_safe() -> None:
     with client(lambda: adapter) as test_client:
         wait_until_ready(test_client)
         response = test_client.post("/v1/systemone", json=REQUEST)
+        metrics = test_client.get("/metrics").text
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Decision inference failed"}
     assert "CUDA" not in response.text
+    assert metric_value(metrics, "clef_requests_total", '{outcome="error"}') == 1
+
+
+def test_successful_inference_records_bounded_metrics() -> None:
+    with client(FakeAdapter) as test_client:
+        wait_until_ready(test_client)
+        assert test_client.post("/v1/systemone", json=REQUEST).status_code == 200
+        metrics = test_client.get("/metrics").text
+
+    assert metric_value(metrics, "clef_requests_total", '{outcome="success"}') == 1
+    assert metric_value(metrics, "clef_requests_in_flight") == 0
+    assert metric_value(metrics, "clef_request_duration_seconds_count") == 1
+    assert metric_value(metrics, "clef_inference_duration_seconds_count") == 1
 
 
 def test_inference_is_serialized() -> None:

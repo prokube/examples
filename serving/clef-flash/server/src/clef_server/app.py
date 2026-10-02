@@ -6,7 +6,15 @@ from contextlib import asynccontextmanager, suppress
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+)
+from prometheus_client.exposition import generate_latest
 from starlette.concurrency import run_in_threadpool
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -72,6 +80,41 @@ def create_app(
     adapter_factory: AdapterFactory = ClefAdapter.from_environment,
     max_content_length: int = MAX_CONTENT_LENGTH,
 ) -> FastAPI:
+    registry = CollectorRegistry()
+    requests_total = Counter(
+        "clef_requests_total",
+        "SystemOne requests by outcome.",
+        ["outcome"],
+        registry=registry,
+    )
+    request_duration = Histogram(
+        "clef_request_duration_seconds",
+        "SystemOne request duration including queue wait.",
+        buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120),
+        registry=registry,
+    )
+    inference_duration = Histogram(
+        "clef_inference_duration_seconds",
+        "Model inference duration excluding queue wait.",
+        buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120),
+        registry=registry,
+    )
+    requests_in_flight = Gauge(
+        "clef_requests_in_flight",
+        "SystemOne requests currently in progress.",
+        registry=registry,
+    )
+    model_ready = Gauge(
+        "clef_model_ready",
+        "Whether the CLEF model is ready for inference.",
+        registry=registry,
+    )
+    model_load_duration = Gauge(
+        "clef_model_load_duration_seconds",
+        "Duration of the most recent model load attempt.",
+        registry=registry,
+    )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.adapter = None
@@ -80,17 +123,22 @@ def create_app(
 
         async def load_adapter() -> None:
             log.info("model_loading_started", model="clef-flash")
+            started = time.perf_counter()
             try:
                 app.state.adapter = await run_in_threadpool(adapter_factory)
                 app.state.model_status = "ready"
+                model_ready.set(1)
                 log.info("model_loading_completed", model="clef-flash")
             except Exception as error:  # noqa: BLE001 - readiness reports load failures
                 app.state.model_status = "failed"
+                model_ready.set(0)
                 log.error(
                     "model_loading_failed",
                     model="clef-flash",
                     error_type=type(error).__name__,
                 )
+            finally:
+                model_load_duration.set(time.perf_counter() - started)
 
         load_task = asyncio.create_task(load_adapter())
         yield
@@ -102,6 +150,10 @@ def create_app(
     app = FastAPI(title="CLEF-Flash SystemOne Server", lifespan=lifespan)
 
     app.add_middleware(RequestSizeLimitMiddleware, max_bytes=max_content_length)
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics() -> Response:
+        return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(
@@ -130,21 +182,28 @@ def create_app(
 
     @app.post("/v1/systemone")
     async def decide(payload: SystemOneRequest, request: Request) -> JSONResponse:
-        adapter = request.app.state.adapter
-        if adapter is None:
-            return JSONResponse(
-                status_code=503,
-                content={"detail": "Model is not ready"},
-            )
-
         started = time.perf_counter()
+        requests_in_flight.inc()
         try:
-            async with request.app.state.inference_lock:
-                result = await run_in_threadpool(
-                    adapter.decide,
-                    payload.model_dump(mode="json"),
+            adapter = request.app.state.adapter
+            if adapter is None:
+                requests_total.labels(outcome="not_ready").inc()
+                return JSONResponse(
+                    status_code=503,
+                    content={"detail": "Model is not ready"},
                 )
+
+            async with request.app.state.inference_lock:
+                inference_started = time.perf_counter()
+                try:
+                    result = await run_in_threadpool(
+                        adapter.decide,
+                        payload.model_dump(mode="json"),
+                    )
+                finally:
+                    inference_duration.observe(time.perf_counter() - inference_started)
         except Exception as error:  # noqa: BLE001 - third-party inference boundary
+            requests_total.labels(outcome="error").inc()
             log.error(
                 "inference_failed",
                 model=adapter.model_name,
@@ -155,7 +214,11 @@ def create_app(
                 status_code=500,
                 content={"detail": "Decision inference failed"},
             )
+        finally:
+            requests_in_flight.dec()
+            request_duration.observe(time.perf_counter() - started)
 
+        requests_total.labels(outcome="success").inc()
         log.info(
             "inference_completed",
             model=adapter.model_name,
