@@ -1,53 +1,20 @@
-import { boardToRows, placementCells } from '../game/board';
+import { boardToRows } from '../game/board';
 import { enumerateReachablePlacements } from '../game/animation';
 import {
   InvalidPlacementError,
   applyPlacement,
 } from '../game/engine';
-import { TETROMINOES } from '../game/tetrominoes';
-import {
-  BOARD_HEIGHT,
-  BOARD_WIDTH,
-  type GameState,
-  type PieceType,
-  type PlacementMetrics,
-} from '../game/types';
-
-type CellCoordinate = readonly [x: number, y: number];
-type PieceShapes = Readonly<Record<PieceType, readonly (readonly CellCoordinate[])[]>>;
-
-function pieceShapes(piece: PieceType) {
-  return TETROMINOES[piece].map((cells) =>
-    cells.map(({ x, y }) => [x, y] as const),
-  );
-}
-
-const PIECE_SHAPES: PieceShapes = {
-  I: pieceShapes('I'),
-  J: pieceShapes('J'),
-  L: pieceShapes('L'),
-  O: pieceShapes('O'),
-  S: pieceShapes('S'),
-  T: pieceShapes('T'),
-  Z: pieceShapes('Z'),
-};
+import type { GameState, PieceType, PlacementMetrics } from '../game/types';
 
 export interface CandidateDescription {
   readonly piece: PieceType;
   readonly rotation: number;
   readonly column: number;
   readonly landingRow: number;
-  readonly cells: readonly CellCoordinate[];
   readonly outcome: PlacementMetrics;
 }
 
 export interface ClefTetrisState {
-  readonly game: 'Tetris';
-  readonly objective: string;
-  readonly boardEncoding: string;
-  readonly coordinateSystem: string;
-  readonly pieceShapeEncoding: string;
-  readonly pieceShapes: PieceShapes;
   readonly board: readonly string[];
   readonly activePiece: PieceType;
   readonly nextPiece: PieceType;
@@ -85,12 +52,6 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
         rotation: placement.rotation,
         column: placement.x,
         landingRow: placement.y,
-        cells: placementCells(
-          placement.piece,
-          placement.rotation,
-          placement.x,
-          placement.y,
-        ).map(({ x, y }) => [x, y] as const),
         outcome: placement.metrics,
       } satisfies CandidateDescription,
     ]),
@@ -101,12 +62,6 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
   return {
     model,
     state: {
-      game: 'Tetris',
-      objective: 'Survive and maximize cleared lines by keeping the board low and avoiding holes.',
-      boardEncoding: `${BOARD_WIDTH} columns by ${BOARD_HEIGHT} rows, top row first; "." is empty and tetromino letters are occupied cells.`,
-      coordinateSystem: 'Zero-based [x,y] coordinates with origin at the top-left; x increases right and y increases down.',
-      pieceShapeEncoding: 'pieceShapes[piece][rotation] lists the four relative [x,y] cells; candidate cells are absolute board coordinates.',
-      pieceShapes: PIECE_SHAPES,
       board: boardToRows(state.board),
       activePiece: state.active,
       nextPiece,
@@ -119,7 +74,7 @@ export function createDecisionRequest(state: GameState, model: string): SystemOn
       move: {
         type: 'choice',
         instructions:
-          'You are playing Tetris. Choose the legal final placement that best supports the stated objective. Compare the exact candidate cells and resulting board metrics.',
+          'Choose the legal placement that best keeps the board low, avoids holes, and clears lines.',
         criteria: candidates,
       },
     },

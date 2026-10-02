@@ -15,12 +15,6 @@ is the complete simulation board, and a blocked centered spawn position ends
 the game. Scoring uses the classic single/double/triple/Tetris line-clear table
 without drop-distance bonuses.
 
-Each SystemOne request identifies the game as Tetris, explains the board and
-coordinate encoding, defines every tetromino orientation, and includes the four
-absolute board cells occupied by each candidate. This keeps the request
-self-contained instead of relying on the model to infer piece shapes from their
-letters.
-
 The application resolves the SystemOne endpoint relative to the document base
 URL, so it works under arbitrary HTTP prefixes. At runtime, a host can replace
 the `clef-api-path` meta tag in `index.html` with another relative path or a
