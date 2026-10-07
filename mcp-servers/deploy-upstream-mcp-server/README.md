@@ -16,6 +16,15 @@ no matches for kind "MCPServer" in version "toolhive.stacklok.dev/v1beta1"
 ensure CRDs are installed first
 ```
 
+## Run the notebook
+
+The easiest way to try the example is
+[`fetch-server.ipynb`](./fetch-server.ipynb). Open it in a prokube Lab and run
+its cells. It deploys the server, fetches a web page, connects with an API key,
+and cleans up.
+
+If you prefer a terminal, follow the steps below instead.
+
 ## Deploy
 
 From a prokube Lab terminal, use its current namespace:
@@ -24,7 +33,7 @@ From a prokube Lab terminal, use its current namespace:
 kubectl apply -f fetch-server.yaml
 
 kubectl wait --for=condition=Ready \
-  mcpservers.toolhive.stacklok.dev/fetch --timeout=3m
+  mcpservers.toolhive.stacklok.dev/fetch-example --timeout=3m
 ```
 
 From a terminal outside a Lab, set the workspace namespace explicitly:
@@ -34,7 +43,7 @@ export NAMESPACE=<workspace>
 kubectl apply -n "$NAMESPACE" -f fetch-server.yaml
 
 kubectl wait -n "$NAMESPACE" --for=condition=Ready \
-  mcpservers.toolhive.stacklok.dev/fetch --timeout=3m
+  mcpservers.toolhive.stacklok.dev/fetch-example --timeout=3m
 ```
 
 ## Connect
@@ -44,7 +53,7 @@ kubectl wait -n "$NAMESPACE" --for=condition=Ready \
 Labs reach the workspace's MCP endpoint through the internal Agent Gateway URL
 without an API key. This is the same endpoint the prokube UI shows: it
 aggregates all MCP servers in the workspace and prefixes each tool with its
-server name, so the `fetch` tool becomes `fetch_fetch`.
+server name, so the `fetch` tool becomes `fetch-example_fetch`.
 
 Open an MCP session and keep its ID:
 
@@ -80,13 +89,13 @@ mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq -r '.result.tools[].na
 ```
 
 ```text
-fetch_fetch
+fetch-example_fetch
 ```
 
 Fetch a page:
 
 ```bash
-mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fetch_fetch","arguments":{"url":"https://example.com"}}}' \
+mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fetch-example_fetch","arguments":{"url":"https://example.com"}}}' \
   | jq -r '.result.content[0].text'
 ```
 
@@ -96,7 +105,7 @@ This domain is for use in documentation examples without needing permission. ...
 
 ### From outside the cluster
 
-Create a Bearer API key for the `fetch` server on the **API Keys** page in the
+Create a Bearer API key for the `fetch-example` server on the **API Keys** page in the
 prokube UI at `https://<your-prokube-domain>/pkui/ai-gateway/keys`. Copy the
 external URL from the server's page under **MCP**.
 
@@ -105,9 +114,9 @@ For clients using the `mcpServers` configuration format:
 ```json
 {
   "mcpServers": {
-    "fetch": {
+    "fetch-example": {
       "type": "http",
-      "url": "https://<your-prokube-domain>/svc/mcp/<workspace>/fetch",
+      "url": "https://<your-prokube-domain>/svc/mcp/<workspace>/fetch-example",
       "headers": {
         "Authorization": "Bearer <API_KEY>"
       }

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+import urllib.error
 import urllib.request
 from typing import Any
 
@@ -95,3 +97,28 @@ class McpSession:
         if result.get("isError"):
             raise RuntimeError(f"Tool {name} failed: {result.get('content')}")
         return result
+
+
+def connect_when_ready(
+    url: str, api_key: str | None = None, tool_prefix: str = "", timeout: int = 180
+) -> McpSession:
+    """Open a session once the endpoint lists a tool starting with ``tool_prefix``.
+
+    Agent Gateway picks up a new MCP server a few seconds after it is ready.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            session = McpSession(url, api_key=api_key)
+            if any(name.startswith(tool_prefix) for name in session.list_tools()):
+                return session
+            error = f"no tools starting with {tool_prefix!r}"
+        except urllib.error.HTTPError as exc:
+            error = str(exc)
+            if exc.code in (401, 403):
+                error += " (check that the API key has access to this MCP server)"
+        except urllib.error.URLError as exc:
+            error = str(exc)
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"{url} not ready after {timeout}s: {error}")
+        time.sleep(5)

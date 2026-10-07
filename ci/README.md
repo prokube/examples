@@ -125,7 +125,7 @@ in the workspace holds instead.
 ## apply.py and cleanup.py
 
 Put CI-only scripts in a `ci/` folder inside the example, for example
-`mcp-servers/build-custom-mcp-server/ci/apply.py`, so the example itself stays
+`mcp-servers/build-custom-mcp-server/ci/cleanup.py`, so the example itself stays
 minimal. `run_all.py` runs scripts from a `ci/` folder with the example
 directory as the working directory, the same as scripts next to the example.
 Resolve manifests relative to `__file__` so scripts also work standalone.
@@ -283,19 +283,22 @@ Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
 `get_or_create_mcp_api_key()` works like `get_or_create_api_key()`, but reads
 `MCP_API_KEY`. Mark examples that call it with `mcp_api_key_dependent=True`.
 
-`McpSession` is a minimal MCP client over Streamable HTTP. Use it with
-`workspace_mcp_url(namespace)` for the federated workspace endpoint, which needs
-no API key from inside the cluster, or with `server_mcp_url(namespace, server)`
-for a server's API key route:
+`McpSession` is a minimal, dependency-free MCP client over Streamable HTTP.
+Use it with `workspace_mcp_url(namespace)` for the federated workspace
+endpoint, which needs no API key from inside the cluster, or with
+`server_mcp_url(namespace, server)` for a server's API key route.
+`connect_when_ready()` retries until Agent Gateway lists the new server's
+tools:
 
 ```python
-from pk_helpers import McpSession, server_mcp_url, workspace_mcp_url
+%run -n ../../src/pk_helpers/mcp.py
 
-session = McpSession(workspace_mcp_url(namespace))
-session.list_tools()  # ["markdown-notes_list_notes", ...]
-session.call_tool("markdown-notes_search_notes", {"query": "quota"})
+session = connect_when_ready(workspace_mcp_url(namespace), tool_prefix="markdown-notes-example_")
+session.call_tool("markdown-notes-example_search_notes", {"query": "quota"})
 
-McpSession(server_mcp_url(namespace, "markdown-notes"), api_key=api_key)
+server_session = connect_when_ready(
+    server_mcp_url(namespace, "markdown-notes-example"), api_key=api_key
+)
 ```
 
 ### internal_predict_url / external_predict_url

@@ -44,7 +44,7 @@ ensure CRDs are installed first
   exposes it over Streamable HTTP on port 8080, which the Agent Gateway routes
   to.
 - The container runs as a non-root user with a read-only root filesystem, so
-  notes can only be written to the `markdown-notes-data` PVC mounted at
+  notes can only be written to the `markdown-notes-example-data` PVC mounted at
   `/data`. Notes therefore persist across Pod restarts and redeployments.
 
 ## Image
@@ -58,6 +58,15 @@ europe-west3-docker.pkg.dev/prokube/releases/markdown-notes-mcp:v1.0.0
 If you change the server, follow [Build your own image](#build-your-own-image)
 below and update the manifest with your image.
 
+## Run the notebook
+
+The easiest way to try the example is
+[`markdown-notes.ipynb`](./markdown-notes.ipynb). Open it in a prokube Lab and
+run its cells. It deploys the server, searches, saves, and reads notes, connects
+with an API key, and cleans up.
+
+If you prefer a terminal, follow the steps below instead.
+
 ## Deploy
 
 From a prokube Lab terminal, use its current namespace:
@@ -66,7 +75,7 @@ From a prokube Lab terminal, use its current namespace:
 kubectl apply -f markdown-notes.yaml
 
 kubectl wait --for=condition=Ready \
-  mcpservers.toolhive.stacklok.dev/markdown-notes --timeout=3m
+  mcpservers.toolhive.stacklok.dev/markdown-notes-example --timeout=3m
 ```
 
 From a terminal outside a Lab, set the workspace namespace explicitly:
@@ -76,7 +85,7 @@ export NAMESPACE=<workspace>
 kubectl apply -n "$NAMESPACE" -f markdown-notes.yaml
 
 kubectl wait -n "$NAMESPACE" --for=condition=Ready \
-  mcpservers.toolhive.stacklok.dev/markdown-notes --timeout=3m
+  mcpservers.toolhive.stacklok.dev/markdown-notes-example --timeout=3m
 ```
 
 ## Connect
@@ -86,7 +95,7 @@ kubectl wait -n "$NAMESPACE" --for=condition=Ready \
 Labs reach the workspace's MCP endpoint through the internal Agent Gateway URL
 without an API key. This is the same endpoint the prokube UI shows: it
 aggregates all MCP servers in the workspace and prefixes each tool with its
-server name, for example `markdown-notes_search_notes`.
+server name, for example `markdown-notes-example_search_notes`.
 
 Open an MCP session and keep its ID:
 
@@ -122,17 +131,17 @@ mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | jq -r '.result.tools[].na
 ```
 
 ```text
-markdown-notes_list_notes
-markdown-notes_get_note
-markdown-notes_save_note
-markdown-notes_search_notes
-markdown-notes_delete_note
+markdown-notes-example_list_notes
+markdown-notes-example_get_note
+markdown-notes-example_save_note
+markdown-notes-example_search_notes
+markdown-notes-example_delete_note
 ```
 
 Search the notes:
 
 ```bash
-mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"markdown-notes_search_notes","arguments":{"query":"quota"}}}' \
+mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"markdown-notes-example_search_notes","arguments":{"query":"quota"}}}' \
   | jq '.result.structuredContent.result'
 ```
 
@@ -151,7 +160,7 @@ mcp '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"markdown-no
 
 ### From outside the cluster
 
-Create a Bearer API key for `markdown-notes` on the **API Keys** page in the
+Create a Bearer API key for `markdown-notes-example` on the **API Keys** page in the
 prokube UI at `https://<your-prokube-domain>/pkui/ai-gateway/keys`. Copy the
 external URL from the server's page under **MCP**.
 
@@ -160,9 +169,9 @@ For clients using the `mcpServers` configuration format:
 ```json
 {
   "mcpServers": {
-    "markdown-notes": {
+    "markdown-notes-example": {
       "type": "http",
-      "url": "https://<your-prokube-domain>/svc/mcp/<workspace>/markdown-notes",
+      "url": "https://<your-prokube-domain>/svc/mcp/<workspace>/markdown-notes-example",
       "headers": {
         "Authorization": "Bearer <API_KEY>"
       }

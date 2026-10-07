@@ -1,7 +1,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: fetch
+  name: fetch-example
 spec:
   image: ghcr.io/stackloklabs/gofetch/server:1.0.3
   transport: streamable-http

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: markdown-notes-data
+  name: markdown-notes-example-data
 spec:
   accessModes:
   - ReadWriteOnce
@@ -12,7 +12,7 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: markdown-notes
+  name: markdown-notes-example
 spec:
   image: europe-west3-docker.pkg.dev/prokube/releases/markdown-notes-mcp:v1.0.0
   transport: stdio
@@ -34,7 +34,7 @@ spec:
       volumes:
       - name: notes
         persistentVolumeClaim:
-          claimName: markdown-notes-data
+          claimName: markdown-notes-example-data
       - name: tmp
         emptyDir: {}
       containers:

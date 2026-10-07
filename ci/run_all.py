@@ -218,8 +218,8 @@ _EXAMPLES: list[Example] = [
         name="mcp-servers/deploy-upstream-mcp-server",
         steps=[
             Step(
-                "script",
-                "mcp-servers/deploy-upstream-mcp-server/ci/apply.py",
+                "notebook",
+                "mcp-servers/deploy-upstream-mcp-server/fetch-server.ipynb",
                 extract_run_ids=False,
             )
         ],
@@ -232,8 +232,8 @@ _EXAMPLES: list[Example] = [
         name="mcp-servers/build-custom-mcp-server",
         steps=[
             Step(
-                "script",
-                "mcp-servers/build-custom-mcp-server/ci/apply.py",
+                "notebook",
+                "mcp-servers/build-custom-mcp-server/markdown-notes.ipynb",
                 extract_run_ids=False,
             )
         ],
