@@ -14,7 +14,7 @@ kind: MCPServer
 metadata:
   name: markdown-notes
 spec:
-  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/markdown-notes-mcp:latest
+  image: europe-west3-docker.pkg.dev/prokube/releases/markdown-notes-mcp:v1.0.0
   transport: stdio
   proxyPort: 8080
   resources:
