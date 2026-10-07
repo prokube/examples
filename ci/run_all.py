@@ -108,6 +108,10 @@ class Example:
     api_key_dependent: bool = (
         False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
     )
+    mcp_api_key_dependent: bool = False  # skip automatically when MCP_API_KEY is unset
+    required_resource: str | None = (
+        None  # e.g. "mcpservers.toolhive.stacklok.dev"; skip when the cluster lacks it
+    )
     env_mutating: bool = False  # run first; modifies the shared Python environment
 
 
@@ -210,6 +214,34 @@ _EXAMPLES: list[Example] = [
         phase=1,
         opt_in="include_pytorch",
     ),
+    Example(
+        name="mcp-servers/deploy-upstream-mcp-server",
+        steps=[
+            Step(
+                "script",
+                "mcp-servers/deploy-upstream-mcp-server/ci/apply.py",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/deploy-upstream-mcp-server/ci/cleanup.py",
+        mcp_api_key_dependent=True,
+        required_resource="mcpservers.toolhive.stacklok.dev",
+    ),
+    Example(
+        name="mcp-servers/build-custom-mcp-server",
+        steps=[
+            Step(
+                "script",
+                "mcp-servers/build-custom-mcp-server/ci/apply.py",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/build-custom-mcp-server/ci/cleanup.py",
+        mcp_api_key_dependent=True,
+        required_resource="mcpservers.toolhive.stacklok.dev",
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
     Example(
         name="mlflow/mobile-price-classification",
@@ -292,6 +324,13 @@ _EXTRA_CLEANUP_PATHS: list[str] = []
 def _namespace() -> str:
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as fh:
         return fh.read().strip()
+
+
+def _script_cwd(script_path: Path) -> Path:
+    """Return the example directory, also for scripts kept in its ``ci/`` folder."""
+    if script_path.parent.name == "ci":
+        return script_path.parent.parent
+    return script_path.parent
 
 
 class _CancellationRequested(Exception):
@@ -464,7 +503,7 @@ def _run_script(
     cmd = [sys.executable, str(script_path)] + (extra_args or [])
     result = _run_process(
         cmd,
-        cwd=script_path.parent,
+        cwd=_script_cwd(script_path),
         cancel_event=cancel_event,
         timeout=timeout,
     )
@@ -593,7 +632,7 @@ def _run_cleanup(cleanup_path: Path) -> None:
             [sys.executable, str(cleanup_path)],
             capture_output=True,
             text=True,
-            cwd=str(cleanup_path.parent),
+            cwd=str(_script_cwd(cleanup_path)),
             timeout=120,
         )
         if result.returncode != 0:
@@ -827,6 +866,10 @@ def _print_dry_run() -> None:
             label += "  (mlflow)"
         if ex.api_key_dependent:
             label += "  (api-key)"
+        if ex.mcp_api_key_dependent:
+            label += "  (mcp-api-key)"
+        if ex.required_resource:
+            label += f"  (requires {ex.required_resource})"
         if ex.env_mutating:
             label += "  (env-mutating, runs first in its phase)"
         by_phase.setdefault(ex.phase, []).append(label)
@@ -917,10 +960,47 @@ def _check_kserve_api_key() -> tuple[bool, str]:
     )
 
 
-def _check_credentials() -> tuple[bool, str, bool, str]:
-    """Run the MLflow and kserve API key checks, printing their outcome.
+def _check_mcp_api_key() -> tuple[bool, str]:
+    """Check that headless CI has an MCP API key."""
+    if os.environ.get("MCP_API_KEY", "").strip():
+        return True, "OK"
+    return False, (
+        "MCP_API_KEY is unset — export an API key with access to all MCP "
+        "servers in the workspace (pkui API Keys page) before running CI"
+    )
 
-    Returns (mlflow_ok, mlflow_reason, api_key_ok, api_key_reason). Shared by
+
+def _missing_resources() -> dict[str, str]:
+    """Return {resource: reason} for required resources the cluster does not serve.
+
+    Uses API discovery because notebook service accounts cannot read CRDs.
+    """
+    required = sorted(
+        {ex.required_resource for ex in _EXAMPLES if ex.required_resource}
+    )
+    if not required:
+        return {}
+    # Discovery exits non-zero when any aggregated API is unavailable, but
+    # still lists everything else, so stdout is used regardless.
+    r = subprocess.run(
+        ["kubectl", "api-resources", "-o", "name"], capture_output=True, text=True
+    )
+    served = set(r.stdout.split())
+    missing: dict[str, str] = {}
+    for resource in required:
+        if resource in served:
+            continue
+        reason = f"{resource} is not available in this cluster (CRD not installed)"
+        if r.returncode != 0:
+            reason += f"; API discovery reported: {r.stderr.strip()}"
+        missing[resource] = reason
+    return missing
+
+
+def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
+    """Run credential and cluster checks, printing their outcome.
+
+    Returns ({check: (ok, reason)}, {missing resource: reason}). Shared by
     `_preflight` (real runs) and `--dry-run` so contributors can see what
     would be skipped before committing to a full run.
     """
@@ -938,35 +1018,61 @@ def _check_credentials() -> tuple[bool, str, bool, str]:
     else:
         print(f"  [SKIP] {api_key_reason}")
 
-    return mlflow_ok, mlflow_reason, api_key_ok, api_key_reason
+    print("Pre-flight: checking MCP API key...")
+    mcp_key_ok, mcp_key_reason = _check_mcp_api_key()
+    if mcp_key_ok:
+        print("  [OK] MCP_API_KEY is set")
+    else:
+        print(f"  [SKIP] {mcp_key_reason}")
+
+    print("Pre-flight: checking required cluster resources...")
+    missing = _missing_resources()
+    for resource in sorted(
+        {ex.required_resource for ex in _EXAMPLES if ex.required_resource}
+    ):
+        if resource in missing:
+            print(f"  [SKIP] {missing[resource]}")
+        else:
+            print(f"  [OK] {resource} is available")
+
+    checks = {
+        "mlflow": (mlflow_ok, mlflow_reason),
+        "api_key": (api_key_ok, api_key_reason),
+        "mcp_api_key": (mcp_key_ok, mcp_key_reason),
+    }
+    return checks, missing
 
 
-def _preflight(results: dict[str, Result]) -> bool:
-    """Validate CI dependencies, MLflow credentials, and the kserve API key.
+def _skip_reason(
+    ex: Example, checks: dict[str, tuple[bool, str]], missing: dict[str, str]
+) -> str | None:
+    if ex.required_resource in missing:
+        return missing[ex.required_resource]
+    for check, dependent in (
+        ("mlflow", ex.mlflow_dependent),
+        ("api_key", ex.api_key_dependent),
+        ("mcp_api_key", ex.mcp_api_key_dependent),
+    ):
+        ok, reason = checks[check]
+        if dependent and not ok:
+            return reason
+    return None
 
-    MLflow-dependent and API-key-dependent examples are recorded as SKIP in
-    `results` on failure. Returns True if MLflow credentials are valid.
+
+def _preflight(results: dict[str, Result]) -> None:
+    """Validate CI dependencies, credentials, and required cluster resources.
+
+    Examples whose prerequisites are unavailable are recorded as SKIP in
+    `results`.
     """
     _require_ci_dependencies()
     _ensure_pk_helpers()
 
-    mlflow_ok, mlflow_reason, api_key_ok, api_key_reason = _check_credentials()
-
-    if not mlflow_ok:
-        for ex in _EXAMPLES:
-            if ex.mlflow_dependent:
-                results[ex.name] = Result(
-                    name=ex.name, status="SKIP", error=mlflow_reason
-                )
-
-    if not api_key_ok:
-        for ex in _EXAMPLES:
-            if ex.api_key_dependent and ex.name not in results:
-                results[ex.name] = Result(
-                    name=ex.name, status="SKIP", error=api_key_reason
-                )
-
-    return mlflow_ok
+    checks, missing = _check_prerequisites()
+    for ex in _EXAMPLES:
+        reason = _skip_reason(ex, checks, missing)
+        if reason:
+            results[ex.name] = Result(name=ex.name, status="SKIP", error=reason)
 
 
 # ── Phases ────────────────────────────────────────────────────────────────────
@@ -1101,7 +1207,7 @@ def run_all(
     results: dict[str, Result] = {}
 
     if dry_run:
-        _check_credentials()
+        _check_prerequisites()
         print()
         _print_dry_run()
         return results

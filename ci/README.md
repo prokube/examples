@@ -22,8 +22,10 @@ python ci/run_all.py --dry-run
 
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
-`INFERENCE_SERVICE_API_KEY`. Examples with unavailable prerequisites are
-reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
+`INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
+cluster and `MCP_API_KEY`, an API key with access to all MCP servers in the
+workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`).
+Examples with unavailable prerequisites are reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
 options.
 
 If the notebook was created by hand (not via the JupyterLab UI), it needs the
@@ -59,10 +61,22 @@ Example(
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
     api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
+    mcp_api_key_dependent=False,         # True = skip when MCP_API_KEY is unset
+    required_resource=None,              # e.g. "mcpservers.toolhive.stacklok.dev";
+                                          # skip when the cluster does not serve it
     env_mutating=False,                  # True = pip installs/upgrades packages;
                                           # runs before the rest of its phase (see below)
 )
 ```
+
+### Required cluster resources
+
+Set `required_resource` to a `<plural>.<group>` resource name when an example
+needs a cluster add-on and should be skipped automatically, without an opt-in
+flag, when the add-on is missing. Preflight checks it with
+`kubectl api-resources`, since notebook service accounts cannot read CRDs.
+Use an opt-in flag instead when the add-on may be present but the example is
+too expensive to run by default.
 
 ### env_mutating flag
 
@@ -110,10 +124,17 @@ in the workspace holds instead.
 
 ## apply.py and cleanup.py
 
+Put CI-only scripts in a `ci/` folder inside the example, for example
+`mcp-servers/build-custom-mcp-server/ci/apply.py`, so the example itself stays
+minimal. `run_all.py` runs scripts from a `ci/` folder with the example
+directory as the working directory, the same as scripts next to the example.
+Resolve manifests relative to `__file__` so scripts also work standalone.
+
 ### cleanup.py — always add when Kubernetes resources are created
 
 Any example that creates Kubernetes resources (InferenceService, Deployment,
-Service, CRD instance, …) must have a `cleanup.py` in its directory.
+Service, CRD instance, …) must have a `cleanup.py` in its directory or its
+`ci/` folder.
 CI runs all cleanup scripts in parallel in a `finally` block so they execute
 even on failure. This is best-effort: `_run_cleanup` gives each script a
 120s budget and does not fail CI on a non-zero exit or timeout (only a
@@ -256,6 +277,26 @@ examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
 Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
+
+### get_or_create_mcp_api_key / McpSession
+
+`get_or_create_mcp_api_key()` works like `get_or_create_api_key()`, but reads
+`MCP_API_KEY`. Mark examples that call it with `mcp_api_key_dependent=True`.
+
+`McpSession` is a minimal MCP client over Streamable HTTP. Use it with
+`workspace_mcp_url(namespace)` for the federated workspace endpoint, which needs
+no API key from inside the cluster, or with `server_mcp_url(namespace, server)`
+for a server's API key route:
+
+```python
+from pk_helpers import McpSession, server_mcp_url, workspace_mcp_url
+
+session = McpSession(workspace_mcp_url(namespace))
+session.list_tools()  # ["markdown-notes_list_notes", ...]
+session.call_tool("markdown-notes_search_notes", {"query": "quota"})
+
+McpSession(server_mcp_url(namespace, "markdown-notes"), api_key=api_key)
+```
 
 ### internal_predict_url / external_predict_url
 
