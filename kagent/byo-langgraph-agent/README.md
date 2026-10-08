@@ -19,14 +19,30 @@ The URL allowlist and redirect checks make the deliberately small fetcher safe
 to expose as an example. Extend the allowlist only together with equivalent
 network controls.
 
-The commands below run from a prokube Lab terminal and use its current workspace
-namespace. From another terminal, add `-n <workspace>` to each `kubectl` command.
-
 ## Prerequisites
 
-- kagent and its BYO agent support are installed on the cluster.
-- `regcred-prokube` can pull from the configured Artifact Registry repository.
-- `anthropic-api-key` contains the key `ANTHROPIC_API_KEY` in the workspace.
+kagent must be enabled on your prokube cluster, and you need an Anthropic API
+key. If `kubectl apply` fails with the following error, kagent is not installed
+and you need to ask your platform admin to enable it:
+
+```text
+no matches for kind "Agent" in version "kagent.dev/v1alpha2"
+ensure CRDs are installed first
+```
+
+## Run the notebook
+
+The easiest way to try the example is
+[`langgraph-researcher.ipynb`](./langgraph-researcher.ipynb). Open it in a
+prokube Lab and run its cells. It creates the credentials, deploys the agent
+from the prebuilt image, sends it a request from the Lab and with an API key,
+and cleans up.
+
+If you prefer a terminal, follow the steps below instead. They run from a
+prokube Lab terminal and use its current workspace namespace. From another
+terminal, add `-n <workspace>` to each `kubectl` command.
+
+## Create the credentials
 
 Create the Anthropic secret if it does not exist:
 
@@ -35,21 +51,16 @@ kubectl create secret generic anthropic-api-key \
   --from-literal=ANTHROPIC_API_KEY='<your-anthropic-api-key>'
 ```
 
-## Build
+## Image
 
-The repository workflow `.github/workflows/langgraph-researcher.yaml` publishes
-both `latest` and immutable `commit-<sha>` tags. Run it with GitHub Actions, or
-build the image locally for development:
+`agent.yaml` uses a prebuilt image, so you can deploy the example as is:
 
-```bash
-docker build --platform linux/amd64 \
-  -t europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/langgraph-researcher:latest \
-  ./langgraph-researcher
-docker push europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/langgraph-researcher:latest
+```text
+europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.0
 ```
 
-For reproducible deployments, replace the `latest` tag in `agent.yaml` with the
-workflow's `commit-<sha>` tag.
+If you change the workflow, follow [Build your own image](#build-your-own-image)
+below and update `agent.yaml` with your image.
 
 ## Deploy
 
@@ -79,3 +90,23 @@ kubectl delete secret anthropic-api-key
 ```
 
 Keep the secret if another agent in the workspace uses it.
+
+## Build your own image
+
+After changing the workflow, run these commands from this example's directory
+in a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service and
+do not require a local Docker daemon:
+
+```bash
+export IMAGE=<registry>/<project>/langgraph-researcher:0.1.0
+docker login <registry>
+docker buildx build \
+  --builder pk-builder \
+  --platform linux/amd64 \
+  --push \
+  -t "$IMAGE" \
+  langgraph-researcher
+```
+
+Replace `byo.deployment.image` in `agent.yaml` with the pushed image. Add
+registry credentials to the workspace first when the image is private.
