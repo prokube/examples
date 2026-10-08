@@ -244,7 +244,38 @@ _EXAMPLES: list[Example] = [
         required_env=["MCP_API_KEY"],
         required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
+    Example(
+        name="kagent/byo-langgraph-agent",
+        steps=[
+            Step(
+                "notebook",
+                "kagent/byo-langgraph-agent/langgraph-researcher.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="kagent/byo-langgraph-agent/ci/cleanup.py",
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY"],
+        required_resources=["agents.kagent.dev"],
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
+    # Phase 2 because it deploys fetch-example, which the Phase 1 MCP notebook
+    # deletes when it finishes.
+    Example(
+        name="kagent",
+        steps=[
+            Step("notebook", f"kagent/{path}", extract_run_ids=False)
+            for path in (
+                "basic-agent/basic-agent.ipynb",
+                "agent-with-mcp/web-researcher.ipynb",
+                "multi-agent/research-coordinator.ipynb",
+            )
+        ],
+        phase=2,
+        cleanup="kagent/ci/cleanup.py",
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY"],
+        required_resources=["agents.kagent.dev", "mcpservers.toolhive.stacklok.dev"],
+    ),
     Example(
         name="mlflow/mobile-price-classification",
         steps=[

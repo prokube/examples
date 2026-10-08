@@ -14,8 +14,28 @@ an MCP endpoint as a dedicated `RemoteMCPServer` under a different name. See
 the upstream [MCP tools guide](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool/)
 for that workflow.
 
-The commands below run from a prokube Lab terminal and use its current workspace
-namespace. From another terminal, add `-n <workspace>` to each `kubectl` command.
+## Prerequisites
+
+kagent must be enabled on your prokube cluster together with MCP servers. If
+`kubectl apply` fails with the following error, kagent is not installed and you
+need to ask your platform admin to enable it:
+
+```text
+no matches for kind "Agent" in version "kagent.dev/v1alpha2"
+ensure CRDs are installed first
+```
+
+## Run the notebook
+
+The easiest way to try the example is
+[`web-researcher.ipynb`](./web-researcher.ipynb). Open it in a prokube Lab and
+run its cells. It creates the prerequisites that are missing, deploys the agent
+with the right tool name, sends it a request from the Lab and with an API key,
+and cleans up.
+
+If you prefer a terminal, follow the steps below instead. They run from a
+prokube Lab terminal and use its current workspace namespace. From another
+terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Deploy
 
@@ -30,9 +50,10 @@ kubectl get remotemcpservers.kagent.dev gateway-mcp \
 ```
 
 With only the Fetch server deployed, the output includes `fetch`. The agent
-manifest uses `toolNames` to grant access to that tool only. If the workspace
-contains multiple MCP servers, Agent Gateway may prefix the name; use the exact
-name shown by the command above.
+manifest uses `toolNames` to grant access to that tool only. When the workspace
+contains more than one MCP server, Agent Gateway prefixes each tool with its
+server name, so the tool is `fetch-example_fetch`. In that case, replace `fetch`
+in `web-researcher.yaml` with the name shown by the command above.
 
 Create the agent:
 
@@ -54,17 +75,18 @@ Include the source URL.
 From a Lab in the workspace, send the same request without an API key:
 
 ```bash
-curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/<workspace>/web-researcher \
+curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/web-researcher \
   -H 'Content-Type: application/json' \
   --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Fetch https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
   jq -r '.result.artifacts[0].parts[0].text'
 ```
 
 From outside the cluster, create a Bearer API key for `web-researcher` on the
-**API Keys** page and use the external route:
+**API Keys** page at `https://<your-prokube-domain>/pkui/ai-gateway/keys` and
+use the external route:
 
 ```bash
-curl -sS https://<your-prokube-domain>/a2a/<workspace>/web-researcher \
+curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/web-researcher \
   -H 'Authorization: Bearer <API_KEY>' \
   -H 'Content-Type: application/json' \
   --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Fetch https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
