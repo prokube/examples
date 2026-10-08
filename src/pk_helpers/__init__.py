@@ -15,7 +15,18 @@ Then import what you need::
 
 from __future__ import annotations
 
-from pk_helpers.api_key import get_or_create_api_key, get_or_create_mcp_api_key
+from pk_helpers.api_key import (
+    get_or_create_a2a_api_key,
+    get_or_create_anthropic_api_key,
+    get_or_create_api_key,
+    get_or_create_mcp_api_key,
+)
+from pk_helpers.kagent import (
+    agent_a2a_url,
+    gateway_mcp_tool_name,
+    send_message,
+    workspace_a2a_url,
+)
 from pk_helpers.kserve_url import external_predict_url, internal_predict_url
 from pk_helpers.mcp import (
     McpSession,
@@ -31,14 +42,20 @@ from pk_helpers.mlflow_credentials import (
 
 __all__ = [
     "McpSession",
+    "agent_a2a_url",
     "connect_when_ready",
     "external_predict_url",
+    "gateway_mcp_tool_name",
+    "get_or_create_a2a_api_key",
+    "get_or_create_anthropic_api_key",
     "get_or_create_api_key",
     "get_or_create_mcp_api_key",
     "internal_predict_url",
     "load_mlflow_credentials",
     "require_mlflow_secret",
+    "send_message",
     "server_mcp_url",
     "setup_mlflow_credentials",
+    "workspace_a2a_url",
     "workspace_mcp_url",
 ]

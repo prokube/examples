@@ -1,4 +1,4 @@
-"""Read inference and MCP API keys from the environment or prompt for one."""
+"""Read API keys from the environment or prompt for one."""
 
 from __future__ import annotations
 
@@ -9,6 +9,9 @@ from getpass import getpass
 
 _API_KEY_ENV_VAR = "INFERENCE_SERVICE_API_KEY"
 _MCP_API_KEY_ENV_VAR = "MCP_API_KEY"
+_A2A_API_KEY_ENV_VAR = "A2A_API_KEY"
+_ANTHROPIC_API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
+_PKUI_HINT = "ask your cluster admin, or use pkui if available on your platform"
 
 
 def _key_from_env(env_var: str) -> str | None:
@@ -17,15 +20,14 @@ def _key_from_env(env_var: str) -> str | None:
     return value or None
 
 
-def _get_or_prompt(env_var: str, description: str) -> str:
+def _get_or_prompt(env_var: str, description: str, hint: str = _PKUI_HINT) -> str:
     env_key = _key_from_env(env_var)
     if env_key:
         return env_key
 
     try:
         key = getpass(
-            f"${env_var} is unset. Please enter your {description} (ask your "
-            "cluster admin, or use pkui if available on your platform): "
+            f"${env_var} is unset. Please enter your {description} ({hint}): "
         ).strip()
     except EOFError:
         key = ""
@@ -44,6 +46,20 @@ def get_or_create_api_key() -> str:
 def get_or_create_mcp_api_key() -> str:
     """Return the configured MCP API key, prompting if necessary."""
     return _get_or_prompt(_MCP_API_KEY_ENV_VAR, "MCP API key")
+
+
+def get_or_create_a2a_api_key() -> str:
+    """Return the configured agent (A2A) API key, prompting if necessary."""
+    return _get_or_prompt(_A2A_API_KEY_ENV_VAR, "agent API key")
+
+
+def get_or_create_anthropic_api_key() -> str:
+    """Return the configured Anthropic API key, prompting if necessary."""
+    return _get_or_prompt(
+        _ANTHROPIC_API_KEY_ENV_VAR,
+        "Anthropic API key",
+        "create one in the Anthropic Console",
+    )
 
 
 def main() -> None:
