@@ -111,9 +111,9 @@ class Example:
     required_env: list[str] = field(
         default_factory=list
     )  # skip automatically when any of these environment variables is unset
-    required_resource: str | None = (
-        None  # e.g. "mcpservers.toolhive.stacklok.dev"; skip when the cluster lacks it
-    )
+    required_resources: list[str] = field(
+        default_factory=list
+    )  # e.g. ["mcpservers.toolhive.stacklok.dev"]; skip when the cluster lacks one
     env_mutating: bool = False  # run first; modifies the shared Python environment
 
 
@@ -228,7 +228,7 @@ _EXAMPLES: list[Example] = [
         phase=1,
         cleanup="mcp-servers/deploy-upstream-mcp-server/ci/cleanup.py",
         required_env=["MCP_API_KEY"],
-        required_resource="mcpservers.toolhive.stacklok.dev",
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
     Example(
         name="mcp-servers/build-custom-mcp-server",
@@ -242,7 +242,7 @@ _EXAMPLES: list[Example] = [
         phase=1,
         cleanup="mcp-servers/build-custom-mcp-server/ci/cleanup.py",
         required_env=["MCP_API_KEY"],
-        required_resource="mcpservers.toolhive.stacklok.dev",
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
     Example(
@@ -870,8 +870,8 @@ def _print_dry_run() -> None:
             label += "  (api-key)"
         for var in ex.required_env:
             label += f"  (${var})"
-        if ex.required_resource:
-            label += f"  (requires {ex.required_resource})"
+        for resource in ex.required_resources:
+            label += f"  (requires {resource})"
         if ex.env_mutating:
             label += "  (env-mutating, runs first in its phase)"
         by_phase.setdefault(ex.phase, []).append(label)
@@ -978,7 +978,7 @@ def _missing_resources() -> dict[str, str]:
     Uses API discovery because notebook service accounts cannot read CRDs.
     """
     required = sorted(
-        {ex.required_resource for ex in _EXAMPLES if ex.required_resource}
+        {resource for ex in _EXAMPLES for resource in ex.required_resources}
     )
     if not required:
         return {}
@@ -1031,7 +1031,7 @@ def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]
     print("Pre-flight: checking required cluster resources...")
     missing = _missing_resources()
     for resource in sorted(
-        {ex.required_resource for ex in _EXAMPLES if ex.required_resource}
+        {resource for ex in _EXAMPLES for resource in ex.required_resources}
     ):
         if resource in missing:
             print(f"  [SKIP] {missing[resource]}")
@@ -1048,7 +1048,7 @@ def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]
 def _skip_reason(
     ex: Example, checks: dict[str, tuple[bool, str]], missing: dict[str, str]
 ) -> str | None:
-    for name in [ex.required_resource, *ex.required_env]:
+    for name in [*ex.required_resources, *ex.required_env]:
         if name in missing:
             return missing[name]
     for check, dependent in (
