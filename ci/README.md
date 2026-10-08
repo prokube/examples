@@ -25,8 +25,8 @@ examples that use external authentication require
 `INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
 cluster and `MCP_API_KEY`, an API key with access to all MCP servers in the
 workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`).
-Examples with unavailable prerequisites are reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
-options.
+Examples with unavailable prerequisites are reported as skipped. Run
+`python ci/run_all.py --help` for timeout and opt-in options.
 
 If the notebook was created by hand (not via the JupyterLab UI), it needs the
 prokube PodDefault labels `access-ml-pipeline=true` and
@@ -61,7 +61,7 @@ Example(
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
     api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
-    mcp_api_key_dependent=False,         # True = skip when MCP_API_KEY is unset
+    required_env=[],                     # e.g. ["MCP_API_KEY"]; skip when any is unset
     required_resource=None,              # e.g. "mcpservers.toolhive.stacklok.dev";
                                           # skip when the cluster does not serve it
     env_mutating=False,                  # True = pip installs/upgrades packages;
@@ -77,6 +77,12 @@ flag, when the add-on is missing. Preflight checks it with
 `kubectl api-resources`, since notebook service accounts cannot read CRDs.
 Use an opt-in flag instead when the add-on may be present but the example is
 too expensive to run by default.
+
+### Required environment variables
+
+List credentials an example reads from the environment in `required_env`.
+Preflight skips the example when any of them is unset, and `--dry-run` shows
+them next to the example. Document new variables in [Running CI](#running-ci).
 
 ### env_mutating flag
 
@@ -281,7 +287,7 @@ Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
 ### get_or_create_mcp_api_key / McpSession
 
 `get_or_create_mcp_api_key()` works like `get_or_create_api_key()`, but reads
-`MCP_API_KEY`. Mark examples that call it with `mcp_api_key_dependent=True`.
+`MCP_API_KEY`. Add `MCP_API_KEY` to `required_env` of examples that call it.
 
 `McpSession` is a minimal, dependency-free MCP client over Streamable HTTP.
 Use it with `workspace_mcp_url(namespace)` for the federated workspace

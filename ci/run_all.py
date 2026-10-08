@@ -108,7 +108,9 @@ class Example:
     api_key_dependent: bool = (
         False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
     )
-    mcp_api_key_dependent: bool = False  # skip automatically when MCP_API_KEY is unset
+    required_env: list[str] = field(
+        default_factory=list
+    )  # skip automatically when any of these environment variables is unset
     required_resource: str | None = (
         None  # e.g. "mcpservers.toolhive.stacklok.dev"; skip when the cluster lacks it
     )
@@ -225,7 +227,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=1,
         cleanup="mcp-servers/deploy-upstream-mcp-server/ci/cleanup.py",
-        mcp_api_key_dependent=True,
+        required_env=["MCP_API_KEY"],
         required_resource="mcpservers.toolhive.stacklok.dev",
     ),
     Example(
@@ -239,7 +241,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=1,
         cleanup="mcp-servers/build-custom-mcp-server/ci/cleanup.py",
-        mcp_api_key_dependent=True,
+        required_env=["MCP_API_KEY"],
         required_resource="mcpservers.toolhive.stacklok.dev",
     ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
@@ -866,8 +868,8 @@ def _print_dry_run() -> None:
             label += "  (mlflow)"
         if ex.api_key_dependent:
             label += "  (api-key)"
-        if ex.mcp_api_key_dependent:
-            label += "  (mcp-api-key)"
+        for var in ex.required_env:
+            label += f"  (${var})"
         if ex.required_resource:
             label += f"  (requires {ex.required_resource})"
         if ex.env_mutating:
@@ -960,14 +962,14 @@ def _check_kserve_api_key() -> tuple[bool, str]:
     )
 
 
-def _check_mcp_api_key() -> tuple[bool, str]:
-    """Check that headless CI has an MCP API key."""
-    if os.environ.get("MCP_API_KEY", "").strip():
-        return True, "OK"
-    return False, (
-        "MCP_API_KEY is unset — export an API key with access to all MCP "
-        "servers in the workspace (pkui API Keys page) before running CI"
-    )
+def _unset_env() -> dict[str, str]:
+    """Return {variable: reason} for required environment variables that are unset."""
+    required = sorted({var for ex in _EXAMPLES for var in ex.required_env})
+    return {
+        var: f"{var} is unset — export it before running CI (see ci/README.md)"
+        for var in required
+        if not os.environ.get(var, "").strip()
+    }
 
 
 def _missing_resources() -> dict[str, str]:
@@ -1000,7 +1002,7 @@ def _missing_resources() -> dict[str, str]:
 def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
     """Run credential and cluster checks, printing their outcome.
 
-    Returns ({check: (ok, reason)}, {missing resource: reason}). Shared by
+    Returns ({check: (ok, reason)}, {missing resource or variable: reason}). Shared by
     `_preflight` (real runs) and `--dry-run` so contributors can see what
     would be skipped before committing to a full run.
     """
@@ -1018,12 +1020,13 @@ def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]
     else:
         print(f"  [SKIP] {api_key_reason}")
 
-    print("Pre-flight: checking MCP API key...")
-    mcp_key_ok, mcp_key_reason = _check_mcp_api_key()
-    if mcp_key_ok:
-        print("  [OK] MCP_API_KEY is set")
-    else:
-        print(f"  [SKIP] {mcp_key_reason}")
+    print("Pre-flight: checking required environment variables...")
+    unset = _unset_env()
+    for var in sorted({var for ex in _EXAMPLES for var in ex.required_env}):
+        if var in unset:
+            print(f"  [SKIP] {unset[var]}")
+        else:
+            print(f"  [OK] {var} is set")
 
     print("Pre-flight: checking required cluster resources...")
     missing = _missing_resources()
@@ -1038,20 +1041,19 @@ def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]
     checks = {
         "mlflow": (mlflow_ok, mlflow_reason),
         "api_key": (api_key_ok, api_key_reason),
-        "mcp_api_key": (mcp_key_ok, mcp_key_reason),
     }
-    return checks, missing
+    return checks, {**missing, **unset}
 
 
 def _skip_reason(
     ex: Example, checks: dict[str, tuple[bool, str]], missing: dict[str, str]
 ) -> str | None:
-    if ex.required_resource in missing:
-        return missing[ex.required_resource]
+    for name in [ex.required_resource, *ex.required_env]:
+        if name in missing:
+            return missing[name]
     for check, dependent in (
         ("mlflow", ex.mlflow_dependent),
         ("api_key", ex.api_key_dependent),
-        ("mcp_api_key", ex.mcp_api_key_dependent),
     ):
         ok, reason = checks[check]
         if dependent and not ok:
