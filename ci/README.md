@@ -130,17 +130,19 @@ in the workspace holds instead.
 
 ## apply.py and cleanup.py
 
-Put CI-only scripts in a `ci/` folder inside the example, for example
-`mcp-servers/build-custom-mcp-server/ci/cleanup.py`, so the example itself stays
-minimal. `run_all.py` runs scripts from a `ci/` folder with the example
-directory as the working directory, the same as scripts next to the example.
+Put CI-only scripts in a hidden `.ci/` folder inside the example, for example
+`mcp-servers/build-custom-mcp-server/.ci/cleanup.py`. These automation-only
+directories are not needed for interactive notebook usage. `run_all.py` runs
+scripts from a `.ci/` folder with the example directory as the working
+directory, the same as scripts next to the example. The repository-level
+runner stays in `ci/run_all.py`.
 Resolve manifests relative to `__file__` so scripts also work standalone.
 
 ### cleanup.py — always add when Kubernetes resources are created
 
 Any example that creates Kubernetes resources (InferenceService, Deployment,
 Service, CRD instance, …) must have a `cleanup.py` in its directory or its
-`ci/` folder.
+`.ci/` folder.
 CI runs all cleanup scripts in parallel in a `finally` block so they execute
 even on failure. This is best-effort: `_run_cleanup` gives each script a
 120s budget and does not fail CI on a non-zero exit or timeout (only a

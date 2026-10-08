@@ -226,7 +226,7 @@ _EXAMPLES: list[Example] = [
             )
         ],
         phase=1,
-        cleanup="mcp-servers/deploy-upstream-mcp-server/ci/cleanup.py",
+        cleanup="mcp-servers/deploy-upstream-mcp-server/.ci/cleanup.py",
         required_env=["MCP_API_KEY"],
         required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
@@ -240,7 +240,7 @@ _EXAMPLES: list[Example] = [
             )
         ],
         phase=1,
-        cleanup="mcp-servers/build-custom-mcp-server/ci/cleanup.py",
+        cleanup="mcp-servers/build-custom-mcp-server/.ci/cleanup.py",
         required_env=["MCP_API_KEY"],
         required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
@@ -329,8 +329,8 @@ def _namespace() -> str:
 
 
 def _script_cwd(script_path: Path) -> Path:
-    """Return the example directory, also for scripts kept in its ``ci/`` folder."""
-    if script_path.parent.name == "ci":
+    """Return the example directory for adjacent scripts or ``.ci/`` automation."""
+    if script_path.parent.name in {"ci", ".ci"}:
         return script_path.parent.parent
     return script_path.parent
 
