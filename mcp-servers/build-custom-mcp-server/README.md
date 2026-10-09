@@ -52,7 +52,7 @@ ensure CRDs are installed first
 A prebuilt image is available, so you can deploy the example as is:
 
 ```text
-europe-west3-docker.pkg.dev/prokube/releases/markdown-notes-mcp:v1.0.0
+europe-west3-docker.pkg.dev/prokube/releases/markdown-notes-mcp:v1.0.1
 ```
 
 If you change the server, follow [Build your own image](#build-your-own-image)
