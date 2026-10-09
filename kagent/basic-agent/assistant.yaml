@@ -1,0 +1,14 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: simple-assistant
+spec:
+  type: Declarative
+  description: A simple general-purpose assistant
+  declarative:
+    runtime: go
+    modelConfig: anthropic-haiku
+    stream: true
+    systemMessage: |
+      You are a helpful assistant. Answer clearly and concisely, and say when
+      you are uncertain.

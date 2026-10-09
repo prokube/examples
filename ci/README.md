@@ -23,8 +23,10 @@ python ci/run_all.py --dry-run
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
 `INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
-cluster and `MCP_API_KEY`, an API key with access to all MCP servers in the
-workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`).
+cluster and `MCP_API_KEY`. kagent examples require kagent in the cluster,
+`ANTHROPIC_API_KEY`, and `A2A_API_KEY`. Create `MCP_API_KEY` and `A2A_API_KEY`
+with access to all MCP servers and all agents in the workspace at
+`https://<your-prokube-domain>/pkui/ai-gateway/keys`.
 Examples with unavailable prerequisites are reported as skipped. Run
 `python ci/run_all.py --help` for timeout and opt-in options.
 
@@ -109,7 +111,7 @@ possible.
 | Phase | When to use |
 |-------|-------------|
 | 1 | Self-contained: does not depend on anything else in CI |
-| 2 | Submits a KFP pipeline and returns fast; actual run is polled in Phase 4 |
+| 2 | Submits a KFP pipeline and returns fast; actual run is polled in Phase 4. Also used for examples that must not overlap a Phase 1 example sharing their resources |
 | 3 | Requires a model already registered by the Phase 2 mlflow-mobile-price pipeline |
 
 ### Opt-in flag
