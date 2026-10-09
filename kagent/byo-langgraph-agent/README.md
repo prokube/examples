@@ -56,7 +56,7 @@ kubectl create secret generic anthropic-api-key \
 `agent.yaml` uses a prebuilt image, so you can deploy the example as is:
 
 ```text
-europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.0
+europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.1
 ```
 
 If you change the workflow, follow [Build your own image](#build-your-own-image)
