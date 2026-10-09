@@ -22,10 +22,10 @@ def _seed_notes() -> None:
 
 
 def _safe_name(name: str) -> str:
-    slug = name.removesuffix(".md").strip().lower()
+    slug = name.strip().lower().removesuffix(".md")
     slug = re.sub(r"[^a-z0-9._-]+", "-", slug).strip("-._")
     if not slug:
-        raise ValueError("Runbook name must contain at least one letter or number")
+        raise ValueError("Note name must contain at least one letter or number")
     return f"{slug}.md"
 
 
