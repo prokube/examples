@@ -108,6 +108,12 @@ class Example:
     api_key_dependent: bool = (
         False  # skip automatically when INFERENCE_SERVICE_API_KEY is unset
     )
+    required_env: list[str] = field(
+        default_factory=list
+    )  # skip automatically when any of these environment variables is unset
+    required_resources: list[str] = field(
+        default_factory=list
+    )  # e.g. ["mcpservers.toolhive.stacklok.dev"]; skip when the cluster lacks one
     env_mutating: bool = False  # run first; modifies the shared Python environment
 
 
@@ -210,6 +216,34 @@ _EXAMPLES: list[Example] = [
         phase=1,
         opt_in="include_pytorch",
     ),
+    Example(
+        name="mcp-servers/deploy-upstream-mcp-server",
+        steps=[
+            Step(
+                "notebook",
+                "mcp-servers/deploy-upstream-mcp-server/fetch-server.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/deploy-upstream-mcp-server/.ci/cleanup.py",
+        required_env=["MCP_API_KEY"],
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
+    ),
+    Example(
+        name="mcp-servers/build-custom-mcp-server",
+        steps=[
+            Step(
+                "notebook",
+                "mcp-servers/build-custom-mcp-server/markdown-notes.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/build-custom-mcp-server/.ci/cleanup.py",
+        required_env=["MCP_API_KEY"],
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
     Example(
         name="mlflow/mobile-price-classification",
@@ -292,6 +326,13 @@ _EXTRA_CLEANUP_PATHS: list[str] = []
 def _namespace() -> str:
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as fh:
         return fh.read().strip()
+
+
+def _script_cwd(script_path: Path) -> Path:
+    """Return the example directory for adjacent scripts or ``.ci/`` automation."""
+    if script_path.parent.name in {"ci", ".ci"}:
+        return script_path.parent.parent
+    return script_path.parent
 
 
 class _CancellationRequested(Exception):
@@ -464,7 +505,7 @@ def _run_script(
     cmd = [sys.executable, str(script_path)] + (extra_args or [])
     result = _run_process(
         cmd,
-        cwd=script_path.parent,
+        cwd=_script_cwd(script_path),
         cancel_event=cancel_event,
         timeout=timeout,
     )
@@ -593,7 +634,7 @@ def _run_cleanup(cleanup_path: Path) -> None:
             [sys.executable, str(cleanup_path)],
             capture_output=True,
             text=True,
-            cwd=str(cleanup_path.parent),
+            cwd=str(_script_cwd(cleanup_path)),
             timeout=120,
         )
         if result.returncode != 0:
@@ -827,6 +868,10 @@ def _print_dry_run() -> None:
             label += "  (mlflow)"
         if ex.api_key_dependent:
             label += "  (api-key)"
+        for var in ex.required_env:
+            label += f"  (${var})"
+        for resource in ex.required_resources:
+            label += f"  (requires {resource})"
         if ex.env_mutating:
             label += "  (env-mutating, runs first in its phase)"
         by_phase.setdefault(ex.phase, []).append(label)
@@ -917,10 +962,47 @@ def _check_kserve_api_key() -> tuple[bool, str]:
     )
 
 
-def _check_credentials() -> tuple[bool, str, bool, str]:
-    """Run the MLflow and kserve API key checks, printing their outcome.
+def _unset_env() -> dict[str, str]:
+    """Return {variable: reason} for required environment variables that are unset."""
+    required = sorted({var for ex in _EXAMPLES for var in ex.required_env})
+    return {
+        var: f"{var} is unset — export it before running CI (see ci/README.md)"
+        for var in required
+        if not os.environ.get(var, "").strip()
+    }
 
-    Returns (mlflow_ok, mlflow_reason, api_key_ok, api_key_reason). Shared by
+
+def _missing_resources() -> dict[str, str]:
+    """Return {resource: reason} for required resources the cluster does not serve.
+
+    Uses API discovery because notebook service accounts cannot read CRDs.
+    """
+    required = sorted(
+        {resource for ex in _EXAMPLES for resource in ex.required_resources}
+    )
+    if not required:
+        return {}
+    # Discovery exits non-zero when any aggregated API is unavailable, but
+    # still lists everything else, so stdout is used regardless.
+    r = subprocess.run(
+        ["kubectl", "api-resources", "-o", "name"], capture_output=True, text=True
+    )
+    served = set(r.stdout.split())
+    missing: dict[str, str] = {}
+    for resource in required:
+        if resource in served:
+            continue
+        reason = f"{resource} is not available in this cluster (CRD not installed)"
+        if r.returncode != 0:
+            reason += f"; API discovery reported: {r.stderr.strip()}"
+        missing[resource] = reason
+    return missing
+
+
+def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
+    """Run credential and cluster checks, printing their outcome.
+
+    Returns ({check: (ok, reason)}, {missing resource or variable: reason}). Shared by
     `_preflight` (real runs) and `--dry-run` so contributors can see what
     would be skipped before committing to a full run.
     """
@@ -938,35 +1020,61 @@ def _check_credentials() -> tuple[bool, str, bool, str]:
     else:
         print(f"  [SKIP] {api_key_reason}")
 
-    return mlflow_ok, mlflow_reason, api_key_ok, api_key_reason
+    print("Pre-flight: checking required environment variables...")
+    unset = _unset_env()
+    for var in sorted({var for ex in _EXAMPLES for var in ex.required_env}):
+        if var in unset:
+            print(f"  [SKIP] {unset[var]}")
+        else:
+            print(f"  [OK] {var} is set")
+
+    print("Pre-flight: checking required cluster resources...")
+    missing = _missing_resources()
+    for resource in sorted(
+        {resource for ex in _EXAMPLES for resource in ex.required_resources}
+    ):
+        if resource in missing:
+            print(f"  [SKIP] {missing[resource]}")
+        else:
+            print(f"  [OK] {resource} is available")
+
+    checks = {
+        "mlflow": (mlflow_ok, mlflow_reason),
+        "api_key": (api_key_ok, api_key_reason),
+    }
+    return checks, {**missing, **unset}
 
 
-def _preflight(results: dict[str, Result]) -> bool:
-    """Validate CI dependencies, MLflow credentials, and the kserve API key.
+def _skip_reason(
+    ex: Example, checks: dict[str, tuple[bool, str]], missing: dict[str, str]
+) -> str | None:
+    for name in [*ex.required_resources, *ex.required_env]:
+        if name in missing:
+            return missing[name]
+    for check, dependent in (
+        ("mlflow", ex.mlflow_dependent),
+        ("api_key", ex.api_key_dependent),
+    ):
+        ok, reason = checks[check]
+        if dependent and not ok:
+            return reason
+    return None
 
-    MLflow-dependent and API-key-dependent examples are recorded as SKIP in
-    `results` on failure. Returns True if MLflow credentials are valid.
+
+def _preflight(results: dict[str, Result]) -> None:
+    """Validate CI dependencies, credentials, and required cluster resources.
+
+    Examples whose prerequisites are unavailable are recorded as SKIP in
+    `results`.
     """
     _require_ci_dependencies()
     _ensure_pk_helpers()
 
-    mlflow_ok, mlflow_reason, api_key_ok, api_key_reason = _check_credentials()
-
-    if not mlflow_ok:
-        for ex in _EXAMPLES:
-            if ex.mlflow_dependent:
-                results[ex.name] = Result(
-                    name=ex.name, status="SKIP", error=mlflow_reason
-                )
-
-    if not api_key_ok:
-        for ex in _EXAMPLES:
-            if ex.api_key_dependent and ex.name not in results:
-                results[ex.name] = Result(
-                    name=ex.name, status="SKIP", error=api_key_reason
-                )
-
-    return mlflow_ok
+    checks, missing = _check_prerequisites()
+    for ex in _EXAMPLES:
+        reason = _skip_reason(ex, checks, missing)
+        if reason:
+            results[ex.name] = Result(name=ex.name, status="SKIP", error=reason)
 
 
 # ── Phases ────────────────────────────────────────────────────────────────────
@@ -1101,7 +1209,7 @@ def run_all(
     results: dict[str, Result] = {}
 
     if dry_run:
-        _check_credentials()
+        _check_prerequisites()
         print()
         _print_dry_run()
         return results

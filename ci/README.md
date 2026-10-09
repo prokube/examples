@@ -22,9 +22,11 @@ python ci/run_all.py --dry-run
 
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
-`INFERENCE_SERVICE_API_KEY`. Examples with unavailable prerequisites are
-reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
-options.
+`INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
+cluster and `MCP_API_KEY`, an API key with access to all MCP servers in the
+workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`).
+Examples with unavailable prerequisites are reported as skipped. Run
+`python ci/run_all.py --help` for timeout and opt-in options.
 
 If the notebook was created by hand (not via the JupyterLab UI), it needs the
 prokube PodDefault labels `access-ml-pipeline=true` and
@@ -59,10 +61,28 @@ Example(
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
     api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
+    required_env=[],                     # e.g. ["MCP_API_KEY"]; skip when any is unset
+    required_resources=[],               # e.g. ["mcpservers.toolhive.stacklok.dev"];
+                                          # skip when the cluster does not serve one
     env_mutating=False,                  # True = pip installs/upgrades packages;
                                           # runs before the rest of its phase (see below)
 )
 ```
+
+### Required cluster resources
+
+List `<plural>.<group>` resource names in `required_resources` when an example
+needs a cluster add-on and should be skipped automatically, without an opt-in
+flag, when the add-on is missing. Preflight checks them with
+`kubectl api-resources`, since notebook service accounts cannot read CRDs.
+Use an opt-in flag instead when the add-on may be present but the example is
+too expensive to run by default.
+
+### Required environment variables
+
+List credentials an example reads from the environment in `required_env`.
+Preflight skips the example when any of them is unset, and `--dry-run` shows
+them next to the example. Document new variables in [Running CI](#running-ci).
 
 ### env_mutating flag
 
@@ -110,10 +130,19 @@ in the workspace holds instead.
 
 ## apply.py and cleanup.py
 
+Put CI-only scripts in a hidden `.ci/` folder inside the example, for example
+`mcp-servers/build-custom-mcp-server/.ci/cleanup.py`. These automation-only
+directories are not needed for interactive notebook usage. `run_all.py` runs
+scripts from a `.ci/` folder with the example directory as the working
+directory, the same as scripts next to the example. The repository-level
+runner stays in `ci/run_all.py`.
+Resolve manifests relative to `__file__` so scripts also work standalone.
+
 ### cleanup.py — always add when Kubernetes resources are created
 
 Any example that creates Kubernetes resources (InferenceService, Deployment,
-Service, CRD instance, …) must have a `cleanup.py` in its directory.
+Service, CRD instance, …) must have a `cleanup.py` in its directory or its
+`.ci/` folder.
 CI runs all cleanup scripts in parallel in a `finally` block so they execute
 even on failure. This is best-effort: `_run_cleanup` gives each script a
 120s budget and does not fail CI on a non-zero exit or timeout (only a
@@ -256,6 +285,29 @@ examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
 Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
+
+### get_or_create_mcp_api_key / McpSession
+
+`get_or_create_mcp_api_key()` works like `get_or_create_api_key()`, but reads
+`MCP_API_KEY`. Add `MCP_API_KEY` to `required_env` of examples that call it.
+
+`McpSession` is a minimal, dependency-free MCP client over Streamable HTTP.
+Use it with `workspace_mcp_url(namespace)` for the federated workspace
+endpoint, which needs no API key from inside the cluster, or with
+`server_mcp_url(namespace, server)` for a server's API key route.
+`connect_when_ready()` retries until Agent Gateway lists the new server's
+tools:
+
+```python
+%run -n ../../src/pk_helpers/mcp.py
+
+session = connect_when_ready(workspace_mcp_url(namespace), tool_prefix="markdown-notes-example_")
+session.call_tool("markdown-notes-example_search_notes", {"query": "quota"})
+
+server_session = connect_when_ready(
+    server_mcp_url(namespace, "markdown-notes-example"), api_key=api_key
+)
+```
 
 ### internal_predict_url / external_predict_url
 

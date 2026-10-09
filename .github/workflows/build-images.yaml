@@ -42,6 +42,9 @@ jobs:
         - image: minimal-transformer
           context: serving/minimal-example-shadow-deployment/minimal-transformer
           dockerfile: serving/minimal-example-shadow-deployment/minimal-transformer/Dockerfile
+        - image: markdown-notes-mcp
+          context: mcp-servers/build-custom-mcp-server/markdown-notes-server
+          dockerfile: mcp-servers/build-custom-mcp-server/markdown-notes-server/Dockerfile
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
