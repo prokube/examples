@@ -16,8 +16,11 @@ for that workflow.
 
 ## Prerequisites
 
-kagent must be enabled on your prokube cluster together with MCP servers. If
-`kubectl apply` fails with the following error, kagent is not installed and you
+kagent must be enabled on your prokube cluster together with MCP servers. The
+agent uses Anthropic Claude through the `anthropic-haiku` ModelConfig, so you
+need an Anthropic API key. The terminal steps below expect the Secret and
+ModelConfig from [`basic-agent`](../basic-agent/#create-the-credentials) to
+exist. If `kubectl apply` fails with the following error, kagent is not installed and you
 need to ask your platform admin to enable it:
 
 ```text

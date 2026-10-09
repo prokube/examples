@@ -6,7 +6,10 @@ This example adds agent-to-agent delegation. It builds on
 
 ## Prerequisites
 
-kagent must be enabled on your prokube cluster together with MCP servers. If
+kagent must be enabled on your prokube cluster together with MCP servers. Both
+agents use Anthropic Claude through the `anthropic-haiku` ModelConfig, so you
+need an Anthropic API key. The terminal steps below expect `web-researcher` and
+its prerequisites from [`agent-with-mcp`](../agent-with-mcp/) to exist. If
 `kubectl apply` fails with the following error, kagent is not installed and you
 need to ask your platform admin to enable it:
 
