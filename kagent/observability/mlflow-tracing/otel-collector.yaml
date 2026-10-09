@@ -1,0 +1,142 @@
+# yamllint disable rule:document-start
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: otel-collector
+data:
+  config.yaml: |
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+      basicauth/mlflow:
+        client_auth:
+          username: ${env:MLFLOW_TRACKING_USERNAME}
+          password: ${env:MLFLOW_TRACKING_PASSWORD}
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+
+    processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 384
+        spike_limit_mib: 128
+      batch: {}
+
+    exporters:
+      otlphttp/mlflow:
+        endpoint: ${env:MLFLOW_TRACKING_URI}
+        auth:
+          authenticator: basicauth/mlflow
+        headers:
+          X-Mlflow-Experiment-Id: ${env:MLFLOW_EXPERIMENT_ID}
+
+    service:
+      extensions:
+      - health_check
+      - basicauth/mlflow
+      pipelines:
+        traces:
+          receivers:
+          - otlp
+          processors:
+          - memory_limiter
+          - batch
+          exporters:
+          - otlphttp/mlflow
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector-contrib:0.159.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - --config=/conf/config.yaml
+        env:
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        envFrom:
+        - secretRef:
+            name: mlflow-credentials
+        ports:
+        - name: otlp-grpc
+          containerPort: 4317
+          protocol: TCP
+        - name: health
+          containerPort: 13133
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - name: config
+          mountPath: /conf
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: config
+        configMap:
+          name: otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: otlp-grpc
+    protocol: TCP
