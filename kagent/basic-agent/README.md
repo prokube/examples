@@ -4,9 +4,9 @@ This example deploys a simple [kagent](https://kagent.dev/) agent without tools.
 The agent references a `ModelConfig`, so its configuration is independent of the
 model provider.
 
-The included ModelConfig uses Anthropic Claude as a concrete example. The same
-pattern works with an existing model granted by an administrator, a self-hosted
-model, or another external provider, including OpenAI-compatible models.
+The examples and notebooks use Anthropic Claude. To use OpenAI, a self-hosted
+model, or another provider, edit the manifests as described in
+[Use another model provider](#use-another-model-provider).
 
 ## Prerequisites
 
@@ -96,3 +96,38 @@ kubectl delete -f anthropic-secret.yaml
 ```
 
 Delete any API key created for external access from the prokube UI.
+
+## Use another model provider
+
+Agents only reference a ModelConfig by name, so switching the provider means
+creating a different Secret and ModelConfig and pointing the agents at it. For
+example, for OpenAI:
+
+```bash
+kubectl create secret generic openai-api-key \
+  --from-literal=OPENAI_API_KEY='<your-openai-api-key>'
+```
+
+```yaml
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: openai-model
+spec:
+  provider: OpenAI
+  model: <openai-model-name>
+  apiKeySecret: openai-api-key
+  apiKeySecretKey: OPENAI_API_KEY
+```
+
+For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
+`provider: OpenAI` and add its URL under `spec.openAI.baseUrl`. Agents with
+tools need a model that supports tool calling.
+
+Then replace `modelConfig: anthropic-haiku` with `modelConfig: openai-model` in
+`assistant.yaml` and, for the later examples, in
+[`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml) and
+[`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml). The
+notebooks always use Anthropic, so follow the terminal steps instead. See the
+kagent [supported providers](https://kagent.dev/docs/kagent/supported-providers)
+for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.

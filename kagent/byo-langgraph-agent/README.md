@@ -110,3 +110,17 @@ docker buildx build \
 
 Replace `byo.deployment.image` in `agent.yaml` with the pushed image. Add
 registry credentials to the workspace first when the image is private.
+
+## Use another model provider
+
+The workflow calls Claude through `ChatAnthropic` in
+[`agent.py`](./langgraph-researcher/agent.py). Unlike the declarative agents, it
+does not use a ModelConfig. To use another provider, for example OpenAI:
+
+1. Replace `ChatAnthropic` with `ChatOpenAI` from `langchain-openai` and set a
+   model your account can use. For an OpenAI-compatible endpoint, such as a
+   self-hosted vLLM model, also pass its `base_url`.
+2. Replace `langchain-anthropic` with `langchain-openai` in `requirements.txt`.
+3. Build and push your own image as described above.
+4. In `agent.yaml`, replace the `ANTHROPIC_API_KEY` variable with
+   `OPENAI_API_KEY` from a Secret holding your OpenAI key.
