@@ -45,8 +45,10 @@ def send_message(
 ) -> str:
     """Send one A2A message and return the agent's text answer.
 
-    Retries HTTP errors until ``timeout`` because Agent Gateway and API key
-    scopes pick up a new agent a few seconds after it is ready.
+    Retries HTTP and connection errors within ``timeout`` because Agent Gateway
+    and API key scopes pick up a new agent a few seconds after it is ready, and
+    prints each failure. A response timeout is not retried, since the agent may
+    already be working on the message.
     """
     headers = {"Content-Type": "application/json"}
     if api_key:
@@ -69,18 +71,21 @@ def send_message(
     deadline = time.monotonic() + timeout
     while True:
         request = urllib.request.Request(url, data=payload, headers=headers)
+        remaining = max(deadline - time.monotonic(), 1)
         try:
-            with urllib.request.urlopen(request, timeout=180) as resp:
+            with urllib.request.urlopen(request, timeout=remaining) as resp:
                 body = json.loads(resp.read())
             break
         except urllib.error.HTTPError as exc:
-            error = str(exc)
+            detail = exc.read(300).decode(errors="replace").strip()
+            error = f"HTTP {exc.code}: {detail}"
             if exc.code in (401, 403):
                 error += " (check that the API key has access to this agent)"
         except urllib.error.URLError as exc:
-            error = str(exc)
-        if time.monotonic() >= deadline:
+            error = str(exc.reason)
+        if time.monotonic() + 5 >= deadline:
             raise RuntimeError(f"{url} not reachable after {timeout}s: {error}")
+        print(f"{error}; retrying in 5s")
         time.sleep(5)
 
     if "error" in body:
