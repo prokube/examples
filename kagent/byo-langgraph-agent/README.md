@@ -36,7 +36,7 @@ The easiest way to try the example is
 [`langgraph-researcher.ipynb`](./langgraph-researcher.ipynb). Open it in a
 prokube Lab and run its cells. It creates the credentials, deploys the agent
 from the prebuilt image, sends it a request from the Lab and with an API key,
-and cleans up.
+and shows how to clean up.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -44,11 +44,14 @@ terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Create the credentials
 
-Create the Anthropic secret if it does not exist:
+If the `anthropic-api-key` Secret does not exist yet, create it with
+`ANTHROPIC_API_KEY` set to your API key. The label shows it on the **Secrets**
+page of the prokube UI.
 
 ```bash
 kubectl create secret generic anthropic-api-key \
-  --from-literal=ANTHROPIC_API_KEY='<your-anthropic-api-key>'
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+kubectl label secret anthropic-api-key prokube.ai/user-secret=true
 ```
 
 ## Image
@@ -90,6 +93,27 @@ Include the source URL.
 The final response should contain one concise summary and
 `Source: https://prokube.ai`.
 
+From a Lab in the workspace, send the same request without an API key:
+
+```bash
+curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/langgraph-researcher \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
+  jq -r '.result.artifacts[0].parts[0].text'
+```
+
+From outside the cluster, create a Bearer API key for `langgraph-researcher` on
+the **API Keys** page at `https://<your-prokube-domain>/pkui/ai-gateway/keys`
+and use the external route:
+
+```bash
+curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/langgraph-researcher \
+  -H 'Authorization: Bearer <API_KEY>' \
+  -H 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
+  jq -r '.result.artifacts[0].parts[0].text'
+```
+
 ## Clean up
 
 ```bash
@@ -106,7 +130,7 @@ in a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service and
 do not require a local Docker daemon:
 
 ```bash
-export IMAGE=<registry>/<project>/langgraph-researcher:0.1.0
+export IMAGE=<registry>/<project>/langgraph-researcher:<tag>
 docker login <registry>
 docker buildx build \
   --builder pk-builder \

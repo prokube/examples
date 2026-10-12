@@ -8,11 +8,8 @@ First deploy the Fetch server from the
 example. prokube then publishes the workspace's MCP tools through the
 `gateway-mcp` `RemoteMCPServer`. This platform-managed resource connects kagent
 to the workspace's internal MCP route; you do not need to create it yourself.
-
-To explore how kagent connects to external MCP servers, you can also register
-an MCP endpoint as a dedicated `RemoteMCPServer` under a different name. See
-the upstream [MCP tools guide](https://kagent.dev/docs/kagent/getting-started/first-mcp-tool/)
-for that workflow.
+See [MCP Federation and Tool Selection](https://prokube.ai/docs/1.9/agentops/agent_gateway.html#mcp-federation-and-tool-selection)
+for details.
 
 ## Prerequisites
 
@@ -34,7 +31,7 @@ The easiest way to try the example is
 [`web-researcher.ipynb`](./web-researcher.ipynb). Open it in a prokube Lab and
 run its cells. It creates the prerequisites that are missing, deploys the agent
 with the right tool name, sends it a request from the Lab and with an API key,
-and cleans up.
+and shows how to clean up.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -98,8 +95,19 @@ curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/web-researcher \
 
 ## Clean up
 
+Skip this step if you continue with [`multi-agent`](../multi-agent/), which
+uses `web-researcher`.
+
 ```bash
 kubectl delete -f web-researcher.yaml
 ```
 
 This leaves the basic agent, ModelConfig, Secret, and Fetch server unchanged.
+
+## Connect other MCP servers
+
+This example uses the platform-managed `gateway-mcp`. To explore how kagent
+connects to external MCP servers, you can also register an MCP endpoint as a
+dedicated `RemoteMCPServer` under a different name. See the upstream
+[MCP tools guide](https://kagent.dev/docs/kagent/0.x/getting-started/first-mcp-tool/)
+for that workflow.

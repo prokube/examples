@@ -24,7 +24,7 @@ ensure CRDs are installed first
 The easiest way to try the example is
 [`basic-agent.ipynb`](./basic-agent.ipynb). Open it in a prokube Lab and run its
 cells. It creates the credentials, deploys the agent, sends it a message from
-the Lab and with an API key, and cleans up.
+the Lab and with an API key, and shows how to clean up.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -32,11 +32,13 @@ terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Create the credentials
 
-Replace the placeholder in `anthropic-secret.yaml` with your API key, then
-apply it. Do not commit the key.
+With `ANTHROPIC_API_KEY` set to your API key, create the Secret. The label
+shows it on the **Secrets** page of the prokube UI.
 
 ```bash
-kubectl apply -f anthropic-secret.yaml
+kubectl create secret generic anthropic-api-key \
+  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+kubectl label secret anthropic-api-key prokube.ai/user-secret=true
 ```
 
 You can create the same Secret from the **Secrets** page in the prokube UI
@@ -89,10 +91,18 @@ curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/simple-assistant \
 
 ## Clean up
 
+Delete the agent:
+
 ```bash
 kubectl delete -f assistant.yaml
+```
+
+The later examples reuse the ModelConfig and Secret. If you do not continue with
+[`agent-with-mcp`](../agent-with-mcp/), delete them too:
+
+```bash
 kubectl delete -f anthropic-model.yaml
-kubectl delete -f anthropic-secret.yaml
+kubectl delete secret anthropic-api-key
 ```
 
 Delete any API key created for external access from the prokube UI.
@@ -121,13 +131,24 @@ spec:
 ```
 
 For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
-`provider: OpenAI` and add its URL under `spec.openAI.baseUrl`. Agents with
-tools need a model that supports tool calling.
+`provider: OpenAI` and add its URL under `spec.openAI.baseUrl`.
 
-Then replace `modelConfig: anthropic-haiku` with `modelConfig: openai-model` in
-`assistant.yaml` and, for the later examples, in
+For a model deployed through prokube LLM Serving, create an **Internal -
+OpenAI-compatible** ModelConfig on the **Agents** page and select the model
+there. It does not need a Secret. See
+[Choose or Create a Model Configuration](https://prokube.ai/docs/1.9/agentops/agents.html#_2-choose-or-create-a-model-configuration).
+
+Agents with tools, as in the later examples, need a model that supports tool
+calling. For LLM Serving models, enable automatic tool calling when you deploy
+the model. Presets that support it enable it and select the tool-call parser for
+you. See
+[Enable Tool Calling for Agents](https://prokube.ai/docs/1.9/agentops/llm_serving.html#enable-tool-calling-for-agents).
+
+Then replace `modelConfig: anthropic-haiku` with the name of your ModelConfig,
+for example `modelConfig: openai-model`, in `assistant.yaml` and, for the later
+examples, in
 [`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml) and
 [`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml). The
 notebooks always use Anthropic, so follow the terminal steps instead. See the
-kagent [supported providers](https://kagent.dev/docs/kagent/supported-providers)
+kagent [supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
 for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.
