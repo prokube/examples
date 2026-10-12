@@ -66,9 +66,17 @@ below and update `agent.yaml` with your image.
 
 ```bash
 kubectl apply -f agent.yaml
+kubectl create -f gateway-allow.yaml
 kubectl wait --for=condition=Ready \
   agents.kagent.dev/langgraph-researcher --timeout=3m
 ```
+
+[`gateway-allow.yaml`](./gateway-allow.yaml) lets Agent Gateway reach the
+agent. kagent marks BYO agent Services with an `appProtocol` that Istio does not
+treat as HTTP, so the workspace's default policies do not admit the gateway.
+Without it, the agent works in the prokube UI, but calls through the internal
+and API-key routes fail with `503`. Workspace users can create and delete this
+policy but not update it, so delete and recreate it after changes.
 
 ## Try it
 
@@ -85,7 +93,7 @@ The final response should contain one concise summary and
 ## Clean up
 
 ```bash
-kubectl delete -f agent.yaml
+kubectl delete -f gateway-allow.yaml -f agent.yaml
 kubectl delete secret anthropic-api-key
 ```
 
