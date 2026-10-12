@@ -259,8 +259,9 @@ _EXAMPLES: list[Example] = [
         required_resources=["agents.kagent.dev"],
     ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
-    # Phase 2 because it deploys fetch-example, which the Phase 1 MCP notebook
-    # deletes when it finishes.
+    # Phase 2 so that the Phase 1 MCP servers are registered before the
+    # notebooks select the Fetch tool name. Adding an MCP server prefixes the
+    # workspace's tool names, which would break the agent's toolNames.
     Example(
         name="kagent",
         steps=[
