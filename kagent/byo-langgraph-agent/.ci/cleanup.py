@@ -1,4 +1,4 @@
-"""Delete the LangGraph BYO agent and the Anthropic Secret."""
+"""Delete the LangGraph BYO agent, its gateway policy, and the Anthropic Secret."""
 
 from __future__ import annotations
 
@@ -8,7 +8,11 @@ import subprocess
 import sys
 
 _EXAMPLE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_MANIFESTS = ["agent.yaml", "../basic-agent/anthropic-secret.yaml"]
+_MANIFESTS = [
+    "gateway-allow.yaml",
+    "agent.yaml",
+    "../basic-agent/anthropic-secret.yaml",
+]
 
 
 def _namespace() -> str:
