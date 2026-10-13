@@ -8,6 +8,26 @@ The examples and notebooks use Anthropic Claude. To use OpenAI, a self-hosted
 model, or another provider, edit the manifests as described in
 [Use another model provider](#use-another-model-provider).
 
+## How it works
+
+[`anthropic-model.yaml`](./anthropic-model.yaml) is a ModelConfig: it names the
+provider and model and reads the API key from the `anthropic-api-key` Secret.
+[`assistant.yaml`](./assistant.yaml) is a declarative Agent that references the
+ModelConfig by name and sets the system prompt:
+
+```yaml
+spec:
+  type: Declarative
+  declarative:
+    modelConfig: anthropic-haiku
+    systemMessage: |
+      You are a helpful assistant. Answer clearly and concisely, and say when
+      you are uncertain.
+```
+
+kagent runs the agent in your workspace and serves it over A2A, so the prokube
+UI, Labs, and external clients all talk to it the same way.
+
 ## Prerequisites
 
 kagent must be enabled on your prokube cluster, and you need an Anthropic API

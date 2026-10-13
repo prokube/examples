@@ -4,6 +4,25 @@ This example adds agent-to-agent delegation. It builds on
 [`agent-with-mcp`](../agent-with-mcp/): the coordinator invokes the
 `web-researcher`, which uses the Fetch MCP server.
 
+## How it works
+
+The coordinator in [`research-coordinator.yaml`](./research-coordinator.yaml)
+lists `web-researcher` as a tool of type `Agent`:
+
+```yaml
+spec:
+  declarative:
+    tools:
+    - type: Agent
+      agent:
+        name: web-researcher
+```
+
+kagent offers `web-researcher` to the coordinator's model as a tool. When the
+model calls it, kagent sends the request to `web-researcher` over A2A and
+returns its answer to the coordinator. The coordinator has no MCP tools of its
+own; its system message tells it to delegate web research.
+
 ## Prerequisites
 
 kagent must be enabled on your prokube cluster together with MCP servers. Both

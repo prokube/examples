@@ -4,11 +4,31 @@ This example packages a custom
 [LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) workflow
 as a kagent BYO agent. The agent researches the prokube website and returns a
 concise summary that includes the source URL. It demonstrates how to bring a
-custom, deterministic workflow into kagent when a declarative agent does not
+custom workflow with fixed steps into kagent when a declarative agent does not
 provide enough control.
 
-Unlike the declarative agents in the earlier examples, the workflow controls
-every processing step:
+## How it works
+
+[`agent.yaml`](./agent.yaml) is an Agent of type `BYO`. Instead of a ModelConfig
+and a system message, it names a container image, and kagent runs that image in
+your workspace:
+
+```yaml
+spec:
+  type: BYO
+  byo:
+    deployment:
+      image: europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.1
+```
+
+The image serves A2A on port 8080:
+[`server.py`](./langgraph-researcher/server.py) wraps the LangGraph graph from
+[`agent.py`](./langgraph-researcher/agent.py) with kagent's
+`LangGraphAgentExecutor`. kagent and Agent Gateway then route requests to it
+like to the declarative agents.
+
+Unlike the declarative agents in the earlier examples, the graph controls every
+processing step:
 
 1. Validate that the request contains a `https://prokube.ai` URL.
 2. Fetch and extract readable page text without an LLM call.
@@ -127,15 +147,26 @@ a2a 'Research https://prokube.ai and summarize what prokube offers in one senten
 
 ```bash
 kubectl delete -f gateway-allow.yaml -f agent.yaml
+```
+
+Delete the Secret too, unless another agent in the workspace uses it:
+
+```bash
 kubectl delete secret anthropic-api-key
 ```
 
-Keep the secret if another agent in the workspace uses it.
-
 ## Build your own image
 
-After changing the workflow, run these commands from this example's directory
-in a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service:
+After changing the workflow, run the unit tests in [`tests/`](./tests/), which
+cover the URL checks and the response handling, from this example's directory:
+
+```bash
+pip install -r langgraph-researcher/requirements.txt pytest
+PYTHONPATH=langgraph-researcher pytest tests
+```
+
+Then build and push the image from the same directory in a prokube Lab
+terminal. Labs use the `pk-builder` remote BuildKit service:
 
 ```bash
 export IMAGE=<registry>/<project>/langgraph-researcher:<tag>

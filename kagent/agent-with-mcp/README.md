@@ -1,15 +1,37 @@
 # Give an agent MCP tools
 
 This example adds web access to a kagent agent through MCP. It builds on the
-[`basic-agent`](../basic-agent/) example and reuses its ModelConfig.
-
-First deploy the Fetch server from the
+[`basic-agent`](../basic-agent/) example, reuses its ModelConfig, and uses the
+Fetch server from the
 [`mcp-servers/deploy-upstream-mcp-server`](../../mcp-servers/deploy-upstream-mcp-server/)
-example. prokube then publishes the workspace's MCP tools through the
+example.
+
+## How it works
+
+prokube publishes the workspace's MCP tools to kagent through the
 `gateway-mcp` `RemoteMCPServer`. This platform-managed resource connects kagent
 to the workspace's internal MCP route; you do not need to create it yourself.
 See [MCP Federation and Tool Selection](https://prokube.ai/docs/1.9/agentops/agent_gateway.html#mcp-federation-and-tool-selection)
 for details.
+
+The agent in [`web-researcher.yaml`](./web-researcher.yaml) lists
+`gateway-mcp` under `tools`, and `toolNames` limits it to the Fetch tool:
+
+```yaml
+spec:
+  declarative:
+    tools:
+    - type: McpServer
+      mcpServer:
+        name: gateway-mcp
+        kind: RemoteMCPServer
+        apiGroup: kagent.dev
+        toolNames:
+        - fetch
+```
+
+The model decides when to call the tool. The system message tells it to fetch a
+page when a request needs one and to include the source URL in its answer.
 
 ## Prerequisites
 
@@ -39,6 +61,14 @@ prokube Lab terminal and use its current workspace namespace. From another
 terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Deploy
+
+Deploy the Fetch server unless it is already running:
+
+```bash
+kubectl apply -f ../../mcp-servers/deploy-upstream-mcp-server/fetch-server.yaml
+kubectl wait --for=condition=Ready \
+  mcpservers.toolhive.stacklok.dev/fetch-example --timeout=3m
+```
 
 Wait until kagent has discovered the workspace MCP tools:
 
