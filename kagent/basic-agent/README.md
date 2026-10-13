@@ -135,7 +135,7 @@ kubectl create secret generic openai-api-key \
 kubectl label secret openai-api-key prokube.ai/user-secret=true
 ```
 
-Create a ModelConfig that uses it:
+Save a ModelConfig that uses it as `openai-model.yaml`:
 
 ```yaml
 apiVersion: kagent.dev/v1alpha2
@@ -147,6 +147,12 @@ spec:
   model: <openai-model-name>
   apiKeySecret: openai-api-key
   apiKeySecretKey: OPENAI_API_KEY
+```
+
+Apply it:
+
+```bash
+kubectl apply -f openai-model.yaml
 ```
 
 For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
@@ -182,4 +188,5 @@ example `modelConfig: openai-model`, in:
 - [`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml)
 - [`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml)
 
-The notebooks always use Anthropic, so follow the terminal steps instead.
+Then apply each changed manifest again, for example
+`kubectl apply -f assistant.yaml`. The notebooks always use Anthropic, so follow the terminal steps instead.

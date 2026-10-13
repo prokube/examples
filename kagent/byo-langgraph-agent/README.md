@@ -166,3 +166,4 @@ does not use a ModelConfig. To use another provider, for example OpenAI:
 3. Build and push your own image as described above.
 4. In `agent.yaml`, replace the `ANTHROPIC_API_KEY` variable with
    `OPENAI_API_KEY` from a Secret holding your OpenAI key.
+5. Apply `agent.yaml` again with `kubectl apply -f agent.yaml`.
