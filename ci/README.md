@@ -359,6 +359,11 @@ route, which needs no API key from inside the cluster.
 discovers a tool and returns its name, which Agent Gateway prefixes with
 `<server>_` when the workspace has more than one MCP server.
 
+So that each notebook runs on its own, later notebooks create the resources of
+the earlier examples with `ensure_anthropic_secret()`, `ensure_model_config()`,
+`ensure_fetch_server()`, and `ensure_web_researcher()`. Each applies the
+example's own manifest and waits for it, or skips a Secret that already exists.
+
 For an agent's API-key route, the notebooks build the external URL
 `https://<domain>/svc/a2a/<namespace>/<agent>` inline. They read the domain and
 key from `PROKUBE_DOMAIN` and `A2A_API_KEY`, and the model key from
