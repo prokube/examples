@@ -22,9 +22,14 @@ python ci/run_all.py --dry-run
 
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
-`INFERENCE_SERVICE_API_KEY`. Examples with unavailable prerequisites are
-reported as skipped. Run `python ci/run_all.py --help` for timeout and opt-in
-options.
+`INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
+cluster, `MCP_API_KEY`, an API key with access to all MCP servers in the
+workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`),
+and `PROKUBE_DOMAIN`, the cluster's external host name (for example
+`my-cluster.prokube.cloud`), because they connect through the external MCP
+routes.
+Examples with unavailable prerequisites are reported as skipped. Run
+`python ci/run_all.py --help` for timeout and opt-in options.
 
 If the notebook was created by hand (not via the JupyterLab UI), it needs the
 prokube PodDefault labels `access-ml-pipeline=true` and
@@ -283,6 +288,52 @@ examples if it is unset — mark any new example that calls
 `get_or_create_api_key()` with `api_key_dependent=True`.
 
 Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
+
+### MCP helpers
+
+The MCP server examples share
+[`mcp-servers/shared/mcp_helpers.py`](../mcp-servers/shared/mcp_helpers.py),
+which is not part of `pk_helpers`. `McpSession` is a minimal, dependency-free
+MCP client over Streamable HTTP. Use it with `workspace_mcp_url(namespace)` for
+the federated workspace endpoint, which needs no API key from inside the
+cluster. `connect_when_ready()` retries until Agent Gateway lists any of the
+given tool names. On the workspace endpoint, Agent Gateway prefixes tool names
+with `<server>_` only when the workspace has more than one MCP server, so pass
+both names and derive the prefix from the listed tools in the notebook.
+
+For a server's API-key route, the notebooks build the external URL
+`https://<domain>/svc/mcp/<namespace>/<server>` inline. They read the domain and
+key from `PROKUBE_DOMAIN` and `MCP_API_KEY` and prompt for them when unset, so
+add both to `required_env`.
+
+The MCP notebooks import the helpers by adding their directory to `sys.path`:
+
+```python
+import os
+import sys
+from getpass import getpass
+
+sys.path.insert(0, "../shared")  # MCP helpers (shared by all MCP examples)
+
+import mcp_helpers
+
+session = mcp_helpers.connect_when_ready(
+    mcp_helpers.workspace_mcp_url(namespace),
+    "search_notes",
+    "markdown-notes-example_search_notes",
+)
+tools = session.list_tools()
+prefix = "markdown-notes-example_" if "markdown-notes-example_search_notes" in tools else ""
+session.call_tool(f"{prefix}search_notes", {"query": "quota"})
+
+domain = os.environ.get("PROKUBE_DOMAIN") or input("prokube domain: ")
+api_key = os.environ.get("MCP_API_KEY") or getpass("MCP API key: ")
+server_session = mcp_helpers.connect_when_ready(
+    f"https://{domain}/svc/mcp/{namespace}/markdown-notes-example",
+    "search_notes",
+    api_key=api_key,
+)
+```
 
 ### internal_predict_url / external_predict_url
 
