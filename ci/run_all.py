@@ -255,7 +255,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=1,
         cleanup="kagent/byo-langgraph-agent/.ci/cleanup.py",
-        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY"],
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY", "PROKUBE_DOMAIN"],
         required_resources=["agents.kagent.dev"],
     ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
@@ -274,7 +274,7 @@ _EXAMPLES: list[Example] = [
         ],
         phase=2,
         cleanup="kagent/.ci/cleanup.py",
-        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY"],
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY", "PROKUBE_DOMAIN"],
         required_resources=["agents.kagent.dev", "mcpservers.toolhive.stacklok.dev"],
     ),
     Example(

@@ -26,7 +26,8 @@ examples that use external authentication require
 cluster, `MCP_API_KEY`, and `PROKUBE_DOMAIN`, the cluster's external host name
 (for example `my-cluster.prokube.cloud`), because they connect through the
 external MCP routes. kagent examples require kagent in the cluster,
-`ANTHROPIC_API_KEY`, and `A2A_API_KEY`. Create `MCP_API_KEY` and `A2A_API_KEY`
+`ANTHROPIC_API_KEY`, `A2A_API_KEY`, and `PROKUBE_DOMAIN`, because they also
+connect through the external A2A routes. Create `MCP_API_KEY` and `A2A_API_KEY`
 with access to all MCP servers and all agents in the workspace at
 `https://<your-prokube-domain>/pkui/ai-gateway/keys`.
 Examples with unavailable prerequisites are reported as skipped. Run
@@ -343,22 +344,35 @@ The kagent examples share
 is not part of `pk_helpers`. `send_message()` sends one A2A message and returns
 the agent's text answer, retrying until Agent Gateway routes to a new agent.
 Use it with `workspace_a2a_url(namespace, agent)` for an agent's internal
-route, which needs no API key from inside the cluster, or with
-`agent_a2a_url(namespace, agent)` for its API-key route.
+route, which needs no API key from inside the cluster.
 `gateway_mcp_tool_name(server, tool)` waits until kagent's `gateway-mcp`
 discovers a tool and returns its name, which Agent Gateway prefixes with
 `<server>_` when the workspace has more than one MCP server.
 
+For an agent's API-key route, the notebooks build the external URL
+`https://<domain>/svc/a2a/<namespace>/<agent>` inline. They read the domain and
+key from `PROKUBE_DOMAIN` and `A2A_API_KEY`, and the model key from
+`ANTHROPIC_API_KEY`, and prompt for each when unset, so add all three to
+`required_env`.
+
 The kagent notebooks import the helpers like the MCP notebooks do:
 
 ```python
+import os
 import sys
+from getpass import getpass
 
 sys.path.insert(0, "../shared")  # kagent helpers (shared by all kagent examples)
 
 import kagent_helpers
 
-print(kagent_helpers.send_message(kagent_helpers.workspace_a2a_url(namespace, "simple-assistant"), prompt))
+internal_url = kagent_helpers.workspace_a2a_url(namespace, "simple-assistant")
+print(kagent_helpers.send_message(internal_url, prompt))
+
+domain = os.environ.get("PROKUBE_DOMAIN") or input("prokube domain: ")
+api_key = os.environ.get("A2A_API_KEY") or getpass("Agent API key: ")
+api_key_url = f"https://{domain}/svc/a2a/{namespace}/simple-assistant"
+print(kagent_helpers.send_message(api_key_url, prompt, api_key=api_key))
 ```
 
 ### internal_predict_url / external_predict_url

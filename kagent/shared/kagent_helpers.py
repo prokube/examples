@@ -18,15 +18,6 @@ def workspace_a2a_url(namespace: str, agent: str) -> str:
     return f"http://{_AGENTGATEWAY_HOST}/_platform/a2a/{namespace}/{agent}"
 
 
-def agent_a2a_url(namespace: str, agent: str) -> str:
-    """Return the in-cluster URL of an agent's API-key route.
-
-    This is the route that ``https://<domain>/svc/a2a/<namespace>/<agent>``
-    serves externally, so it enforces the same API key policy.
-    """
-    return f"http://{_AGENTGATEWAY_HOST}/svc/a2a/{namespace}/{agent}"
-
-
 def _response_text(result: dict[str, Any]) -> str:
     if result.get("status", {}).get("state") == "failed":
         raise RuntimeError(f"Agent task failed: {result['status']}")
