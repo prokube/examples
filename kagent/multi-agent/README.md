@@ -40,7 +40,9 @@ kubectl wait --for=condition=Ready \
 
 ## Try it
 
-Open **Agents** in the prokube UI, select `research-coordinator`, and ask:
+Open **Agents** in the prokube UI (see
+[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
+`research-coordinator`, and ask:
 
 ```text
 Research https://prokube.ai and summarize what prokube offers in one sentence.

@@ -45,8 +45,8 @@ terminal, add `-n <workspace>` to each `kubectl` command.
 ## Create the credentials
 
 If the `anthropic-api-key` Secret does not exist yet, create it with
-`ANTHROPIC_API_KEY` set to your API key. The label shows it on the **Secrets**
-page of the prokube UI.
+`ANTHROPIC_API_KEY` set to your API key. The label shows it under **K8s
+Secrets** in the prokube user menu.
 
 ```bash
 kubectl create secret generic anthropic-api-key \
@@ -83,7 +83,9 @@ policy but not update it, so delete and recreate it after changes.
 
 ## Try it
 
-Open **Agents** in the prokube UI, select `langgraph-researcher`, and ask:
+Open **Agents** in the prokube UI (see
+[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
+`langgraph-researcher`, and ask:
 
 ```text
 Research https://prokube.ai and summarize what prokube offers in one sentence.

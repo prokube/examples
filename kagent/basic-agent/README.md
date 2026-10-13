@@ -32,8 +32,8 @@ terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Create the credentials
 
-With `ANTHROPIC_API_KEY` set to your API key, create the Secret. The label
-shows it on the **Secrets** page of the prokube UI.
+With `ANTHROPIC_API_KEY` set to your API key, create the Secret. The label shows
+it under **K8s Secrets** in the prokube user menu.
 
 ```bash
 kubectl create secret generic anthropic-api-key \
@@ -41,8 +41,10 @@ kubectl create secret generic anthropic-api-key \
 kubectl label secret anthropic-api-key prokube.ai/user-secret=true
 ```
 
-You can create the same Secret from the **Secrets** page in the prokube UI
+You can create the same Secret under **K8s Secrets** in the prokube user menu
 instead. Use `anthropic-api-key` as its name and `ANTHROPIC_API_KEY` as the key.
+See [Kubernetes
+Secrets](https://prokube.ai/docs/1.9/platform/kubernetes.html#kubernetes-secrets).
 
 ## Deploy
 
@@ -64,7 +66,8 @@ kubectl wait --for=condition=Ready \
 
 ## Connect
 
-After the agent reaches `Ready`, open **Agents** in the prokube UI, select
+After the agent reaches `Ready`, open **Agents** in the prokube UI (see
+[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
 `simple-assistant`, and start a chat.
 
 From a Lab in the workspace, send a message through the internal Agent Gateway
@@ -114,7 +117,8 @@ kubectl delete -f anthropic-model.yaml
 kubectl delete secret anthropic-api-key
 ```
 
-Delete any API key created for external access from the prokube UI.
+Delete any API key created for external access on the [API Keys
+page](/pkui/ai-gateway/keys).
 
 ## Use another model provider
 
