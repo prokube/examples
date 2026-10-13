@@ -121,14 +121,20 @@ page](/pkui/ai-gateway/keys).
 
 ## Use another model provider
 
-Agents only reference a ModelConfig by name, so switching the provider means
-creating a different Secret and ModelConfig and pointing the agents at it. For
-example, for OpenAI:
+Agents reference a ModelConfig by name. To switch the provider, create another
+ModelConfig and point the agents at it.
+
+### OpenAI or an OpenAI-compatible endpoint
+
+Store the API key in a Secret:
 
 ```bash
 kubectl create secret generic openai-api-key \
   --from-literal=OPENAI_API_KEY='<your-openai-api-key>'
+kubectl label secret openai-api-key prokube.ai/user-secret=true
 ```
+
+Create a ModelConfig that uses it:
 
 ```yaml
 apiVersion: kagent.dev/v1alpha2
@@ -145,22 +151,36 @@ spec:
 For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
 `provider: OpenAI` and add its URL under `spec.openAI.baseUrl`.
 
-For a model deployed through prokube LLM Serving, create an **Internal -
-OpenAI-compatible** ModelConfig on the **Agents** page and select the model
-there. It does not need a Secret. See
+### A model from prokube LLM Serving
+
+Models deployed on the [LLM Serving page](/pkui/llm) in the prokube UI
+(`https://<your-prokube-domain>/pkui/llm`) need no Secret. On the **Agents**
+page, create an **Internal - OpenAI-compatible** ModelConfig and select the
+model. See
 [Choose or Create a Model Configuration](https://prokube.ai/docs/1.9/agentops/agents.html#_2-choose-or-create-a-model-configuration).
 
-Agents with tools, as in the later examples, need a model that supports tool
-calling. For LLM Serving models, enable automatic tool calling when you deploy
-the model. Presets that support it enable it and select the tool-call parser for
-you. See
+### Other providers
+
+See the kagent
+[supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
+for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.
+
+### Tool calling
+
+The agents in [`agent-with-mcp`](../agent-with-mcp/) and
+[`multi-agent`](../multi-agent/) call tools, so they need a model that supports
+tool calling. For LLM Serving models, enable automatic tool calling when you
+deploy the model. Presets that support it enable it and select the tool-call
+parser for you. See
 [Enable Tool Calling for Agents](https://prokube.ai/docs/1.9/agentops/llm_serving.html#enable-tool-calling-for-agents).
 
-Then replace `modelConfig: anthropic-haiku` with the name of your ModelConfig,
-for example `modelConfig: openai-model`, in `assistant.yaml` and, for the later
-examples, in
-[`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml) and
-[`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml). The
-notebooks always use Anthropic, so follow the terminal steps instead. See the
-kagent [supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
-for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.
+### Point the agents at your ModelConfig
+
+Replace `modelConfig: anthropic-haiku` with the name of your ModelConfig, for
+example `modelConfig: openai-model`, in:
+
+- [`assistant.yaml`](./assistant.yaml)
+- [`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml)
+- [`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml)
+
+The notebooks always use Anthropic, so follow the terminal steps instead.
