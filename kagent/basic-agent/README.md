@@ -122,7 +122,8 @@ page](/pkui/ai-gateway/keys).
 ## Use another model provider
 
 Agents reference a ModelConfig by name. To switch the provider, create another
-ModelConfig and point the agents at it.
+ModelConfig as described below, then point the agents at it as described in
+[Point the agents at your ModelConfig](#point-the-agents-at-your-modelconfig).
 
 ### OpenAI or an OpenAI-compatible endpoint
 
@@ -159,20 +160,18 @@ Models deployed on the [LLM Serving page](/pkui/llm) in the prokube UI
 ModelConfig and select the model. See
 [Choose or Create a Model Configuration](https://prokube.ai/docs/1.9/agentops/agents.html#_2-choose-or-create-a-model-configuration).
 
+The agents in [`agent-with-mcp`](../agent-with-mcp/) and
+[`multi-agent`](../multi-agent/) call tools, so enable automatic tool calling
+when you deploy the model. Presets that support it enable it and select the
+tool-call parser for you. See
+[Enable Tool Calling for Agents](https://prokube.ai/docs/1.9/agentops/llm_serving.html#enable-tool-calling-for-agents).
+
 ### Other providers
 
 See the kagent
 [supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
-for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.
-
-### Tool calling
-
-The agents in [`agent-with-mcp`](../agent-with-mcp/) and
-[`multi-agent`](../multi-agent/) call tools, so they need a model that supports
-tool calling. For LLM Serving models, enable automatic tool calling when you
-deploy the model. Presets that support it enable it and select the tool-call
-parser for you. See
-[Enable Tool Calling for Agents](https://prokube.ai/docs/1.9/agentops/llm_serving.html#enable-tool-calling-for-agents).
+for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others. The agents in
+the later examples call tools, so choose a model that supports tool calling.
 
 ### Point the agents at your ModelConfig
 
