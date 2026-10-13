@@ -63,9 +63,8 @@ kubectl wait --for=condition=Ready \
 
 ## Try it
 
-Open **Agents** in the prokube UI (see
-[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
-`web-researcher`, and ask:
+Open the [Agents page](/pkui/kagent) in the prokube UI
+(`https://<your-prokube-domain>/pkui/kagent`), select `web-researcher`, and ask:
 
 ```text
 Fetch https://prokube.ai and summarize what prokube offers in one sentence.

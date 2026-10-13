@@ -81,9 +81,9 @@ policy but not update it, so delete and recreate it after changes.
 
 ## Try it
 
-Open **Agents** in the prokube UI (see
-[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
-`langgraph-researcher`, and ask:
+Open the [Agents page](/pkui/kagent) in the prokube UI
+(`https://<your-prokube-domain>/pkui/kagent`), select `langgraph-researcher`,
+and ask:
 
 ```text
 Research https://prokube.ai and summarize what prokube offers in one sentence.

@@ -65,8 +65,8 @@ kubectl wait --for=condition=Ready \
 
 ## Connect
 
-After the agent reaches `Ready`, open **Agents** in the prokube UI (see
-[Agents](https://prokube.ai/docs/1.9/agentops/agents.html)), select
+After the agent reaches `Ready`, open the [Agents page](/pkui/kagent) in the
+prokube UI (`https://<your-prokube-domain>/pkui/kagent`), select
 `simple-assistant`, and start a chat.
 
 From a Lab in the workspace, send a message through the internal Agent Gateway
@@ -154,9 +154,9 @@ For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
 ### A model from prokube LLM Serving
 
 Models deployed on the [LLM Serving page](/pkui/llm) in the prokube UI
-(`https://<your-prokube-domain>/pkui/llm`) need no Secret. On the **Agents**
-page, create an **Internal - OpenAI-compatible** ModelConfig and select the
-model. See
+(`https://<your-prokube-domain>/pkui/llm`) need no Secret. On the
+[Agents page](/pkui/kagent), create an **Internal - OpenAI-compatible**
+ModelConfig and select the model. See
 [Choose or Create a Model Configuration](https://prokube.ai/docs/1.9/agentops/agents.html#_2-choose-or-create-a-model-configuration).
 
 ### Other providers
