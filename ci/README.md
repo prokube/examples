@@ -11,8 +11,17 @@ Run the suite from a Kubeflow notebook pod with this repository checked out:
 
 ```bash
 python -m pip install -e ".[ci]"
-python ci/run_all.py
+python ci/run_all.py --interactive
 ```
+
+`--interactive` asks for each unset environment variable listed below and
+offers to create the `mlflow-credentials` secret if it is missing or invalid.
+The answers apply to this run only and are not written to disk. An empty
+answer leaves a variable unset, so CI skips the examples that need it.
+
+Without `--interactive`, for example on a CI runner, `run_all.py` never
+prompts: export the variables before running it, and examples with missing
+prerequisites are reported as skipped.
 
 To preview the execution plan without running any examples:
 
@@ -23,11 +32,13 @@ python ci/run_all.py --dry-run
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
 `INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
-cluster, `MCP_API_KEY`, an API key with access to all MCP servers in the
-workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`),
-and `PROKUBE_DOMAIN`, the cluster's external host name (for example
-`my-cluster.prokube.cloud`), because they connect through the external MCP
-routes.
+cluster, `MCP_API_KEY`, and `PROKUBE_DOMAIN`, the cluster's external host name
+(for example `my-cluster.prokube.cloud`), because they connect through the
+external MCP routes. kagent examples require kagent in the cluster,
+`ANTHROPIC_API_KEY`, `A2A_API_KEY`, and `PROKUBE_DOMAIN`, because they also
+connect through the external A2A routes. Create `MCP_API_KEY` and `A2A_API_KEY`
+with access to all MCP servers and all agents in the workspace at
+`https://<your-prokube-domain>/pkui/ai-gateway/keys`.
 Examples with unavailable prerequisites are reported as skipped. Run
 `python ci/run_all.py --help` for timeout and opt-in options.
 
@@ -112,7 +123,7 @@ possible.
 | Phase | When to use |
 |-------|-------------|
 | 1 | Self-contained: does not depend on anything else in CI |
-| 2 | Submits a KFP pipeline and returns fast; actual run is polled in Phase 4 |
+| 2 | Submits a KFP pipeline and returns fast; actual run is polled in Phase 4. Also used for examples that must not overlap a Phase 1 example sharing their resources |
 | 3 | Requires a model already registered by the Phase 2 mlflow-mobile-price pipeline |
 
 ### Opt-in flag
@@ -275,9 +286,10 @@ from any notebook cell or script that needs an inference API key:
 API_KEY = get_or_create_api_key()
 ```
 
-CI runs headlessly and cannot answer the interactive prompt, so
-`INFERENCE_SERVICE_API_KEY` **must** be exported before running
-`ci/run_all.py`:
+The notebooks' prompt cannot be answered while CI runs them, so set
+`INFERENCE_SERVICE_API_KEY` before the run: enter it when
+`ci/run_all.py --interactive` asks for it, or export it, for example on a CI
+runner:
 
 ```bash
 export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui if available
@@ -333,6 +345,44 @@ server_session = mcp_helpers.connect_when_ready(
     "search_notes",
     api_key=api_key,
 )
+```
+
+### kagent helpers
+
+The kagent examples share
+[`kagent/shared/kagent_helpers.py`](../kagent/shared/kagent_helpers.py), which
+is not part of `pk_helpers`. `send_message()` sends one A2A message and returns
+the agent's text answer, retrying until Agent Gateway routes to a new agent.
+Use it with `workspace_a2a_url(namespace, agent)` for an agent's internal
+route, which needs no API key from inside the cluster.
+`gateway_mcp_tool_name(server, tool)` waits until kagent's `gateway-mcp`
+discovers a tool and returns its name, which Agent Gateway prefixes with
+`<server>_` when the workspace has more than one MCP server.
+
+For an agent's API-key route, the notebooks build the external URL
+`https://<domain>/svc/a2a/<namespace>/<agent>` inline. They read the domain and
+key from `PROKUBE_DOMAIN` and `A2A_API_KEY`, and the model key from
+`ANTHROPIC_API_KEY`, and prompt for each when unset, so add all three to
+`required_env`.
+
+The kagent notebooks import the helpers like the MCP notebooks do:
+
+```python
+import os
+import sys
+from getpass import getpass
+
+sys.path.insert(0, "../shared")  # kagent helpers (shared by all kagent examples)
+
+import kagent_helpers
+
+internal_url = kagent_helpers.workspace_a2a_url(namespace, "simple-assistant")
+print(kagent_helpers.send_message(internal_url, prompt))
+
+domain = os.environ.get("PROKUBE_DOMAIN") or input("prokube domain: ")
+api_key = os.environ.get("A2A_API_KEY") or getpass("Agent API key: ")
+api_key_url = f"https://{domain}/svc/a2a/{namespace}/simple-assistant"
+print(kagent_helpers.send_message(api_key_url, prompt, api_key=api_key))
 ```
 
 ### internal_predict_url / external_predict_url

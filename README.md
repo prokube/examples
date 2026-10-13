@@ -10,6 +10,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── ci               # CI orchestrator (run_all.py) and contributor conventions
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
+├── kagent           # AI agent examples with kagent
 ├── mlflow           # MLflow experiment tracking examples
 ├── mcp-servers      # MCP server examples with ToolHive
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
