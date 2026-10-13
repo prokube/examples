@@ -48,7 +48,7 @@ Secrets** in the prokube user menu.
 
 ```bash
 kubectl create secret generic anthropic-api-key \
-  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+  --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY to your API key}"
 kubectl label secret anthropic-api-key prokube.ai/user-secret=true
 ```
 
