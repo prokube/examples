@@ -286,9 +286,10 @@ from any notebook cell or script that needs an inference API key:
 API_KEY = get_or_create_api_key()
 ```
 
-CI runs headlessly and cannot answer the interactive prompt, so
-`INFERENCE_SERVICE_API_KEY` **must** be exported before running
-`ci/run_all.py`:
+The notebooks' prompt cannot be answered while CI runs them, so set
+`INFERENCE_SERVICE_API_KEY` before the run: enter it when
+`ci/run_all.py --interactive` asks for it, or export it, for example on a CI
+runner:
 
 ```bash
 export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui if available
