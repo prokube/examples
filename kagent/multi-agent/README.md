@@ -53,22 +53,31 @@ page through MCP.
 From a Lab in the workspace, send the same request without an API key:
 
 ```bash
-curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/research-coordinator \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/research-coordinator
+
+a2a() {
+  curl -sS "$A2A_URL" "${@:2}" \
+    -H 'Content-Type: application/json' \
+    --data "$(jq -n --arg text "$1" '{jsonrpc: "2.0", id: "1", method: "message/send",
+      params: {message: {role: "user", messageId: "message-1", parts: [{kind: "text", text: $text}]}}}')" \
+    | jq -r '.result.artifacts[0].parts[0].text'
+}
+
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.'
 ```
 
+`a2a` sends one A2A `message/send` request with the given text and prints the
+agent's answer. It passes further arguments to `curl`, so add `-v` to debug a
+request.
+
 From outside the cluster, create a Bearer API key for `research-coordinator` on
-the **API Keys** page at `https://<your-prokube-domain>/pkui/ai-gateway/keys`
-and use the external route:
+the [API Keys page](/pkui/ai-gateway/keys) in the prokube UI
+(`https://<your-prokube-domain>/pkui/ai-gateway/keys`). Then point `a2a` at the
+agent's external route and pass the key:
 
 ```bash
-curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/research-coordinator \
-  -H 'Authorization: Bearer <API_KEY>' \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=https://<your-prokube-domain>/svc/a2a/<workspace>/research-coordinator
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.' -H 'Authorization: Bearer <API_KEY>'
 ```
 
 ## Clean up
