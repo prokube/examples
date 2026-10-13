@@ -231,19 +231,20 @@ variables set only in the notebook are not available to them.
 require_mlflow_secret()
 ```
 
-### get_or_create_api_key
+### Model-serving API key
 
-Returns a model-serving API key: the `INFERENCE_SERVICE_API_KEY` env var if
-an admin has injected one into the pod, otherwise an interactive prompt
-(ask your cluster admin, or use pkui if available on your platform). Call it
-from any notebook cell or script that needs an inference API key:
+There is no helper for the model-serving API key. Notebooks and scripts read
+it inline, so users see where it comes from: the `INFERENCE_SERVICE_API_KEY`
+env var if it is set, otherwise an interactive prompt:
 
 ```python
-%run -n ../src/pk_helpers/api_key.py
-API_KEY = get_or_create_api_key()
+import os
+from getpass import getpass
+
+API_KEY = os.environ.get("INFERENCE_SERVICE_API_KEY") or getpass("Model-serving API key: ")
 ```
 
-CI runs headlessly and cannot answer the interactive prompt, so
+CI runs headlessly and cannot answer the prompt, so
 `INFERENCE_SERVICE_API_KEY` **must** be exported before running
 `ci/run_all.py`:
 
@@ -252,8 +253,8 @@ export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui 
 ```
 
 CI validates this in the preflight check and skips `api_key_dependent`
-examples if it is unset — mark any new example that calls
-`get_or_create_api_key()` with `api_key_dependent=True`.
+examples if it is unset — mark any new example that reads the key with
+`api_key_dependent=True`.
 
 Agent Gateway serving routes require `aiGateway.controller.enabled=true`.
 
