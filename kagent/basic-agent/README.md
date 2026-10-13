@@ -23,8 +23,7 @@ ensure CRDs are installed first
 
 The easiest way to try the example is
 [`basic-agent.ipynb`](./basic-agent.ipynb). Open it in a prokube Lab and run its
-cells. It creates the credentials, deploys the agent, sends it a message from
-the Lab and with an API key, and shows how to clean up.
+cells.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another

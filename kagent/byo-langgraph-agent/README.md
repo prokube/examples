@@ -34,9 +34,7 @@ ensure CRDs are installed first
 
 The easiest way to try the example is
 [`langgraph-researcher.ipynb`](./langgraph-researcher.ipynb). Open it in a
-prokube Lab and run its cells. It creates the credentials, deploys the agent
-from the prebuilt image, sends it a request from the Lab and with an API key,
-and shows how to clean up.
+prokube Lab and run its cells.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -137,8 +135,7 @@ Keep the secret if another agent in the workspace uses it.
 ## Build your own image
 
 After changing the workflow, run these commands from this example's directory
-in a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service and
-do not require a local Docker daemon:
+in a prokube Lab terminal. Labs use the `pk-builder` remote BuildKit service:
 
 ```bash
 export IMAGE=<registry>/<project>/langgraph-researcher:<tag>
@@ -151,8 +148,10 @@ docker buildx build \
   langgraph-researcher
 ```
 
-Replace `byo.deployment.image` in `agent.yaml` with the pushed image. Add
-registry credentials to the workspace first when the image is private.
+Replace `byo.deployment.image` in `agent.yaml` with the pushed image. When the
+image is private, first add pull credentials for its registry under **Registry
+Credentials** in the prokube user menu. See
+[Registry Credentials](https://prokube.ai/docs/1.9/platform/kubernetes.html#registry-credentials).
 
 ## Use another model provider
 

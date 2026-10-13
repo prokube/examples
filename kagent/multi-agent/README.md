@@ -22,9 +22,7 @@ ensure CRDs are installed first
 
 The easiest way to try the example is
 [`research-coordinator.ipynb`](./research-coordinator.ipynb). Open it in a
-prokube Lab and run its cells. It creates the prerequisites that are missing,
-including `web-researcher`, deploys the coordinator, sends it a request from the
-Lab and with an API key, and shows how to clean up.
+prokube Lab and run its cells.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
