@@ -14,7 +14,6 @@ dependencies = []
 ci = ["papermill", "kfp"]
 
 [project.scripts]
-pk-get-api-key = "pk_helpers.api_key:main"
 pk-setup-mlflow-credentials = "pk_helpers.mlflow_credentials:main"
 
 [tool.hatch.build.targets.wheel]

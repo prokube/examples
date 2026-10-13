@@ -15,7 +15,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
-└── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
+└── src/pk_helpers   # installable prokube helpers (MLflow credential setup, KServe URLs)
 ```
 
 The scripts in `src/pk_helpers` provide platform-specific utilities used by

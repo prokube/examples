@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from getpass import getpass
 
 _HERE = os.path.dirname(__file__)
 
@@ -144,13 +145,6 @@ def _isvc_url(name: str, namespace: str) -> str:
     ).strip()
 
 
-def _get_api_key() -> str:
-    _ensure_pk_helpers()
-    from pk_helpers import get_or_create_api_key
-
-    return get_or_create_api_key()
-
-
 def _smoke_test(uri: str, name: str, protocol: str, api_key: str) -> None:
     """POST one inference request; raise on non-2xx or missing predictions."""
     from pk_helpers import external_predict_url
@@ -203,7 +197,8 @@ def deploy(timeout: int = 600) -> tuple[str, str, str]:
     """Deploy both ISVCs, wait for readiness, and return (v1_uri, v2_uri, api_key)."""
     ns = _namespace()
     username = _mlflow_username(ns)
-    api_key = _get_api_key()  # fail fast, before mutating the cluster
+    _ensure_pk_helpers()  # fail fast, before mutating the cluster
+    api_key = os.environ.get("INFERENCE_SERVICE_API_KEY") or getpass("Model-serving API key: ")
 
     print("Applying ServiceAccount...")
     _apply_yaml(_SA_YAML, ns, username)
