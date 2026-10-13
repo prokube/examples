@@ -189,4 +189,6 @@ example `modelConfig: openai-model`, in:
 - [`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml)
 
 Then apply each changed manifest again, for example
-`kubectl apply -f assistant.yaml`. The notebooks always use Anthropic, so follow the terminal steps instead.
+`kubectl apply -f assistant.yaml`.
+
+The notebooks always use Anthropic, so follow the terminal steps instead.
