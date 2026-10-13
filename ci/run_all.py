@@ -300,6 +300,13 @@ def _namespace() -> str:
         return fh.read().strip()
 
 
+def _script_cwd(script_path: Path) -> Path:
+    """Return the example directory for adjacent scripts or ``.ci/`` automation."""
+    if script_path.parent.name in {"ci", ".ci"}:
+        return script_path.parent.parent
+    return script_path.parent
+
+
 class _CancellationRequested(Exception):
     pass
 
@@ -470,7 +477,7 @@ def _run_script(
     cmd = [sys.executable, str(script_path)] + (extra_args or [])
     result = _run_process(
         cmd,
-        cwd=script_path.parent,
+        cwd=_script_cwd(script_path),
         cancel_event=cancel_event,
         timeout=timeout,
     )
@@ -599,7 +606,7 @@ def _run_cleanup(cleanup_path: Path) -> None:
             [sys.executable, str(cleanup_path)],
             capture_output=True,
             text=True,
-            cwd=str(cleanup_path.parent),
+            cwd=str(_script_cwd(cleanup_path)),
             timeout=120,
         )
         if result.returncode != 0:
