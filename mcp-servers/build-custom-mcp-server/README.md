@@ -199,7 +199,9 @@ docker buildx build \
 ```
 
 Replace `spec.image` in `markdown-notes.yaml` with the pushed image. When the
-image is private, first add pull credentials for its registry to the workspace.
+image is private, first add pull credentials for its registry under **Registry
+Credentials** in the prokube user menu. See
+[Registry Credentials](https://prokube.ai/docs/1.9/platform/kubernetes.html#registry-credentials).
 
 ## Clean up
 
