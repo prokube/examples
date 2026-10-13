@@ -336,6 +336,31 @@ server_session = mcp_helpers.connect_when_ready(
 )
 ```
 
+### kagent helpers
+
+The kagent examples share
+[`kagent/shared/kagent_helpers.py`](../kagent/shared/kagent_helpers.py), which
+is not part of `pk_helpers`. `send_message()` sends one A2A message and returns
+the agent's text answer, retrying until Agent Gateway routes to a new agent.
+Use it with `workspace_a2a_url(namespace, agent)` for an agent's internal
+route, which needs no API key from inside the cluster, or with
+`agent_a2a_url(namespace, agent)` for its API-key route.
+`gateway_mcp_tool_name(server, tool)` waits until kagent's `gateway-mcp`
+discovers a tool and returns its name, which Agent Gateway prefixes with
+`<server>_` when the workspace has more than one MCP server.
+
+The kagent notebooks import the helpers like the MCP notebooks do:
+
+```python
+import sys
+
+sys.path.insert(0, "../shared")  # kagent helpers (shared by all kagent examples)
+
+import kagent_helpers
+
+print(kagent_helpers.send_message(kagent_helpers.workspace_a2a_url(namespace, "simple-assistant"), prompt))
+```
+
 ### internal_predict_url / external_predict_url
 
 The helpers detect the cluster generation by checking whether the
