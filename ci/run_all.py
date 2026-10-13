@@ -216,6 +216,34 @@ _EXAMPLES: list[Example] = [
         phase=1,
         opt_in="include_pytorch",
     ),
+    Example(
+        name="mcp-servers/deploy-upstream-mcp-server",
+        steps=[
+            Step(
+                "notebook",
+                "mcp-servers/deploy-upstream-mcp-server/fetch-server.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/deploy-upstream-mcp-server/.ci/cleanup.py",
+        required_env=["MCP_API_KEY", "PROKUBE_DOMAIN"],
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
+    ),
+    Example(
+        name="mcp-servers/build-custom-mcp-server",
+        steps=[
+            Step(
+                "notebook",
+                "mcp-servers/build-custom-mcp-server/markdown-notes.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="mcp-servers/build-custom-mcp-server/.ci/cleanup.py",
+        required_env=["MCP_API_KEY", "PROKUBE_DOMAIN"],
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
     Example(
         name="mlflow/mobile-price-classification",
