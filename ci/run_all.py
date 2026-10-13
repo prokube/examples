@@ -13,6 +13,7 @@ import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from getpass import getpass
 from pathlib import Path
 from typing import Callable, Literal
 
@@ -1031,6 +1032,52 @@ def _missing_resources() -> dict[str, str]:
     return missing
 
 
+_ENV_HINTS = {
+    "PROKUBE_DOMAIN": "cluster host name, for example my-cluster.prokube.cloud",
+    "INFERENCE_SERVICE_API_KEY": "API key with access to the workspace's model servers",
+    "MCP_API_KEY": "API key with access to all MCP servers in the workspace",
+    "A2A_API_KEY": "API key with access to all agents in the workspace",
+    "ANTHROPIC_API_KEY": "Anthropic API key from the Anthropic Console",
+}
+
+
+def _prompt_for_prerequisites() -> None:
+    """Ask for unset credentials and offer to create the MLflow secret.
+
+    Answers only go into this process's environment, which the examples
+    inherit. An empty answer leaves a variable unset, so preflight skips the
+    examples that need it.
+    """
+    names = {var for ex in _EXAMPLES for var in ex.required_env}
+    if any(ex.api_key_dependent for ex in _EXAMPLES):
+        names.add("INFERENCE_SERVICE_API_KEY")
+    # The domain comes first so that the API Keys page can be shown with it.
+    for name in sorted(names, key=lambda n: (n != "PROKUBE_DOMAIN", n)):
+        if os.environ.get(name, "").strip():
+            print(f"{name} is already set")
+            continue
+        prompt = f"{name} ({_ENV_HINTS.get(name, 'leave empty to skip')}): "
+        value = (input(prompt) if name == "PROKUBE_DOMAIN" else getpass(prompt)).strip()
+        if value:
+            os.environ[name] = value
+        if name == "PROKUBE_DOMAIN":
+            domain = os.environ.get(name, "<your-prokube-domain>")
+            print(f"Create API keys at https://{domain}/pkui/ai-gateway/keys")
+
+    ok, reason = _check_mlflow_credentials()
+    if ok:
+        print("MLflow credentials are valid")
+        return
+    print(f"MLflow: {reason}")
+    answer = input("Create or replace the mlflow-credentials secret now? [y/N] ")
+    if answer.strip().lower() == "y":
+        _ensure_pk_helpers()
+        from pk_helpers import setup_mlflow_credentials
+
+        setup_mlflow_credentials(rerun=True)
+    print()
+
+
 def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
     """Run credential and cluster checks, printing their outcome.
 
@@ -1406,7 +1453,19 @@ if __name__ == "__main__":
             "at once."
         ),
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help=(
+            "Prompt for unset credentials, such as PROKUBE_DOMAIN and the API keys, "
+            "and offer to create the mlflow-credentials secret before the run. "
+            "Without it, examples with missing prerequisites are skipped."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.interactive:
+        _prompt_for_prerequisites()
 
     results = run_all(
         timeout_notebook=args.timeout_notebook,

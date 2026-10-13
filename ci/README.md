@@ -11,8 +11,17 @@ Run the suite from a Kubeflow notebook pod with this repository checked out:
 
 ```bash
 python -m pip install -e ".[ci]"
-python ci/run_all.py
+python ci/run_all.py --interactive
 ```
+
+`--interactive` asks for each unset environment variable listed below and
+offers to create the `mlflow-credentials` secret if it is missing or invalid.
+The answers apply to this run only and are not written to disk. An empty
+answer leaves a variable unset, so CI skips the examples that need it.
+
+Without `--interactive`, for example on a CI runner, `run_all.py` never
+prompts: export the variables before running it, and examples with missing
+prerequisites are reported as skipped.
 
 To preview the execution plan without running any examples:
 
