@@ -59,10 +59,28 @@ Example(
     opt_in="include_foo",                # omit if always enabled
     mlflow_dependent=False,              # True = skip when MLflow creds absent
     api_key_dependent=False,             # True = skip when INFERENCE_SERVICE_API_KEY is unset
+    required_env=[],                     # e.g. ["MCP_API_KEY", "PROKUBE_DOMAIN"]; skip when any is unset
+    required_resources=[],               # e.g. ["mcpservers.toolhive.stacklok.dev"];
+                                          # skip when the cluster does not serve one
     env_mutating=False,                  # True = pip installs/upgrades packages;
                                           # runs before the rest of its phase (see below)
 )
 ```
+
+### Required cluster resources
+
+List `<plural>.<group>` resource names in `required_resources` when an example
+needs a cluster add-on and should be skipped automatically, without an opt-in
+flag, when the add-on is missing. Preflight checks them with
+`kubectl api-resources`, since notebook service accounts cannot read CRDs.
+Use an opt-in flag instead when the add-on may be present but the example is
+too expensive to run by default.
+
+### Required environment variables
+
+List credentials an example reads from the environment in `required_env`.
+Preflight skips the example when any of them is unset, and `--dry-run` shows
+them next to the example. Document new variables in [Running CI](#running-ci).
 
 ### env_mutating flag
 
