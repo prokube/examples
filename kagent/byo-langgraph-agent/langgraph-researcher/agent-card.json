@@ -1,6 +1,6 @@
 {
   "name": "langgraph-researcher",
-  "description": "A deterministic LangGraph website research workflow",
+  "description": "A LangGraph website research workflow with fixed steps",
   "url": "http://localhost:8080",
   "version": "0.1.0",
   "capabilities": {
