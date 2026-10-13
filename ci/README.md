@@ -11,8 +11,17 @@ Run the suite from a Kubeflow notebook pod with this repository checked out:
 
 ```bash
 python -m pip install -e ".[ci]"
-python ci/run_all.py
+python ci/run_all.py --interactive
 ```
+
+`--interactive` asks for each unset environment variable listed below and
+offers to create the `mlflow-credentials` secret if it is missing or invalid.
+The answers apply to this run only and are not written to disk. An empty
+answer leaves a variable unset, so CI skips the examples that need it.
+
+Without `--interactive`, for example on a CI runner, `run_all.py` never
+prompts: export the variables before running it, and examples with missing
+prerequisites are reported as skipped.
 
 To preview the execution plan without running any examples:
 
@@ -277,9 +286,10 @@ from any notebook cell or script that needs an inference API key:
 API_KEY = get_or_create_api_key()
 ```
 
-CI runs headlessly and cannot answer the interactive prompt, so
-`INFERENCE_SERVICE_API_KEY` **must** be exported before running
-`ci/run_all.py`:
+The notebooks' prompt cannot be answered while CI runs them, so set
+`INFERENCE_SERVICE_API_KEY` before the run: enter it when
+`ci/run_all.py --interactive` asks for it, or export it, for example on a CI
+runner:
 
 ```bash
 export INFERENCE_SERVICE_API_KEY=<your-api-key>   # ask your admin, or use pkui if available
