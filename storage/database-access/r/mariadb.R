@@ -1,3 +1,8 @@
+# Writes the Iris dataset to MariaDB or MySQL and reads it back.
+# Needs an existing MariaDB or MySQL database that is reachable from this lab.
+# Ask your administrator for the connection details, see
+# https://prokube.ai/docs/1.9/platform/databases.html#before-you-connect
+
 library(DBI)
 library(odbc)
 library(rstudioapi)
