@@ -3,6 +3,8 @@
 These examples show how to write and read the Iris dataset from prokube.ai's integrated S3 object storage.
 You only need to set the bucket name in the example.
 
+See [File Storage](https://prokube.ai/docs/1.9/platform/file_storage.html) in the platform documentation for the bucket browser, `s3://` paths, and access from external clients.
+
 ## Python
 
 Open `python/s3_access.ipynb` in a pk notebook.
