@@ -89,8 +89,9 @@ kubectl wait -n "$NAMESPACE" --for=condition=Ready \
 
 ### From a Lab
 
-Labs reach the workspace's MCP endpoint through the internal Agent Gateway URL
-without an API key. This is the same endpoint the prokube UI shows: it
+Labs and other workloads in the same namespace as the MCP server reach the
+workspace's MCP endpoint through the internal Agent Gateway URL without an API
+key. This is the same endpoint the prokube UI shows: it
 aggregates all MCP servers in the workspace.
 
 Open an MCP session and keep its ID:
