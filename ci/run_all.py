@@ -244,7 +244,39 @@ _EXAMPLES: list[Example] = [
         required_env=["MCP_API_KEY", "PROKUBE_DOMAIN"],
         required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
+    Example(
+        name="kagent/byo-langgraph-agent",
+        steps=[
+            Step(
+                "notebook",
+                "kagent/byo-langgraph-agent/langgraph-researcher.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        cleanup="kagent/byo-langgraph-agent/.ci/cleanup.py",
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY", "PROKUBE_DOMAIN"],
+        required_resources=["agents.kagent.dev"],
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
+    # Phase 2 so that the Phase 1 MCP servers are registered before the
+    # notebooks select the Fetch tool name. Adding an MCP server prefixes the
+    # workspace's tool names, which would break the agent's toolNames.
+    Example(
+        name="kagent",
+        steps=[
+            Step("notebook", f"kagent/{path}", extract_run_ids=False)
+            for path in (
+                "basic-agent/basic-agent.ipynb",
+                "agent-with-mcp/web-researcher.ipynb",
+                "multi-agent/research-coordinator.ipynb",
+            )
+        ],
+        phase=2,
+        cleanup="kagent/.ci/cleanup.py",
+        required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY", "PROKUBE_DOMAIN"],
+        required_resources=["agents.kagent.dev", "mcpservers.toolhive.stacklok.dev"],
+    ),
     Example(
         name="mlflow/mobile-price-classification",
         steps=[
@@ -1374,7 +1406,24 @@ if __name__ == "__main__":
             "at once."
         ),
     )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help=(
+            "Prompt for unset credentials, such as PROKUBE_DOMAIN and the API keys, "
+            "and offer to create the mlflow-credentials secret before the run. "
+            "Without it, examples with missing prerequisites are skipped."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.interactive:
+        from interactive import prompt_for_prerequisites
+
+        env_names = {var for ex in _EXAMPLES for var in ex.required_env}
+        if any(ex.api_key_dependent for ex in _EXAMPLES):
+            env_names.add("INFERENCE_SERVICE_API_KEY")
+        prompt_for_prerequisites(env_names, _check_mlflow_credentials)
 
     results = run_all(
         timeout_notebook=args.timeout_notebook,
