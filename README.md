@@ -55,6 +55,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 | Example | Min platform version | Notes |
 |---|---|---|
 | `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
+| `sandboxes` | not released yet | Requires sandboxes (Agent Substrate); `mcp-server` also needs MCP servers |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## CI
