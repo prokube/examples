@@ -10,9 +10,10 @@ framework, owns the sandbox.
 
 Sandboxes must be enabled on your prokube cluster, and the Lab needs sandbox
 access: when you create it, enable **Allow access to sandboxes** under
-**Configurations**. You also need an OpenAI-compatible model endpoint with
-tool calling, for example a model from [LLM Serving](/pkui/llm) or an external
-provider.
+**Configurations**. For a real agent you need an OpenAI-compatible model
+endpoint with tool calling, for example a model from [LLM Serving](/pkui/llm)
+or an external provider. Without one, the notebook uses
+[`mock_model.py`](./mock_model.py), a stand-in that makes fixed tool calls.
 
 ## How it works
 
