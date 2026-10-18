@@ -15,26 +15,18 @@ access: when you create it, enable **Allow access to sandboxes** under
 - The key is in the Secret `anthropic-api-key` with the label
   `prokube.ai/sandbox-credential=true`. Sandboxes can use labelled Secrets of
   their own workspace at egress, and no others.
-- The notebook replaces the sandbox's network rules with three:
-
-  - `https` for `api.anthropic.com`: the egress gateway terminates TLS and
-    sets the `x-api-key` header to the key from the Secret
-    (`sandboxes.secret_uri("anthropic-api-key", "ANTHROPIC_API_KEY")`). The
-    presets' images trust the gateway's CA (`NODE_EXTRA_CA_CERTS`).
-  - `tlsPassthrough` for `github.com` and `registry.npmjs.org`, to clone the
-    repository and install Claude Code.
-  - Nothing else is reachable.
-
+- The notebook replaces the sandbox's network rules. For `api.anthropic.com`,
+  an `https` rule makes the egress gateway terminate TLS and set the
+  `x-api-key` header to the key from the Secret; the presets' images trust
+  the gateway's CA. `github.com` and `registry.npmjs.org` pass through
+  unchanged. Nothing else is reachable.
 - Claude Code is not part of the sandbox image. The notebook installs it into
-  `/workspace` with npm and runs it there with a placeholder key:
+  `/workspace` with npm and runs one task with a placeholder key in a clone
+  of [pypa/sampleproject](https://github.com/pypa/sampleproject):
 
   ```bash
   claude -p "<task>" --output-format json --permission-mode acceptEdits
   ```
-
-  It edits the files in `/workspace/sampleproject`, a clone of
-  [pypa/sampleproject](https://github.com/pypa/sampleproject), and prints its
-  answer as JSON.
 
 ## Run the notebook
 
