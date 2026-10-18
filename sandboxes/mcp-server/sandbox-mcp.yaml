@@ -1,0 +1,42 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: sandbox
+spec:
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:henrik-2026-10-18-mcp1
+  args: [sandbox, mcp, --port, "8080", --host, 0.0.0.0]
+  transport: streamable-http
+  mcpPort: 8080
+  proxyPort: 8080
+  # The workspace's identity for sandboxes; it needs no login.
+  serviceAccount: default-editor
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  podTemplateSpec:
+    metadata:
+      labels:
+        access-sandboxes: "true"
+    spec:
+      imagePullSecrets:
+      - name: regcred-prokube
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      containers:
+      - name: mcp
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop:
+            - ALL
