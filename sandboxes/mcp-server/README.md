@@ -9,7 +9,14 @@ laptop.
 
 ## Prerequisites
 
-MCP servers and sandboxes must be enabled on your prokube cluster.
+MCP servers and sandboxes must be enabled on your prokube cluster. If
+`kubectl apply` fails with the following error, ToolHive is not installed and
+you need to ask your platform admin to enable MCP servers:
+
+```text
+no matches for kind "MCPServer" in version "toolhive.stacklok.dev/v1beta1"
+ensure CRDs are installed first
+```
 
 ## How it works
 
@@ -17,32 +24,20 @@ MCP servers and sandboxes must be enabled on your prokube cluster.
   ToolHive `MCPServer` that serves streamable HTTP. Like every MCP server in
   the workspace, it appears on the **MCP** page of the prokube UI and behind
   Agent Gateway.
-- The server runs as the workspace's ServiceAccount `default-editor`, and the
-  label `access-sandboxes: "true"` gives it a token for sandboxes. Every
-  caller therefore acts as the workspace, on the workspace's sandboxes only.
-  Who may call the server is decided by Agent Gateway, as for every MCP
-  server: workloads in the workspace through the internal route, external
-  clients with an API key for `sandbox`.
-- Each tool is one SDK call. Errors come back as text the agent can act on;
-  for example, an unknown preset lists the available ones.
+- The server runs as the workspace's ServiceAccount `default-editor`, so every
+  caller acts as the workspace, on its sandboxes only, and Agent Gateway
+  decides who may call it, as for every MCP server.
 
 ## Run the notebook
 
 Open [`sandbox-mcp.ipynb`](./sandbox-mcp.ipynb) in a prokube Lab and run its
-cells. A [Pydantic AI](https://ai.pydantic.dev/) agent creates a sandbox,
-writes and tests a small function in it and deletes it, all through the
-server. It uses an OpenAI-compatible model endpoint if you configure one, and
-otherwise [`mock_model.py`](./mock_model.py), a stand-in that makes fixed
-tool calls.
+cells: a [Pydantic AI](https://ai.pydantic.dev/) agent creates, uses and
+deletes a sandbox, all through the server.
 
 ## Use it on a laptop
 
-Locally, `pk sandbox mcp` speaks stdio and uses your login:
-
-```bash
-pip install 'prokube-sdk[cli] @ git+https://github.com/prokube/prokube-sdk@sandboxv3/main'
-pk login https://<your-prokube-domain> --workspace <workspace>
-```
+Locally, `pk sandbox mcp` speaks stdio and uses your login; install the `pk`
+CLI and log in as described in the [sandbox examples](../README.md).
 
 Claude Code:
 
