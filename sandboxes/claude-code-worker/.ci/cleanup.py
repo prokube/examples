@@ -1,35 +1,18 @@
-"""Delete the claude-code sandbox and the Anthropic Secret."""
+"""Delete the claude-code sandbox."""
 
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 
 from prokube.sandbox import SandboxClient
 
 _SANDBOX = "claude-code"
-_SECRET = "anthropic-api-key"
-
-
-def _namespace() -> str:
-    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as fh:
-        return fh.read().strip()
 
 
 def cleanup(dry_run: bool = False) -> None:
-    cmd = [
-        "kubectl",
-        "delete",
-        "-n",
-        _namespace(),
-        "secret",
-        _SECRET,
-        "--ignore-not-found",
-    ]
     if dry_run:
         print(f"[dry-run] delete sandbox {_SANDBOX}")
-        print(f"[dry-run] {' '.join(cmd)}")
         return
     with SandboxClient() as sandboxes:
         try:
@@ -37,11 +20,6 @@ def cleanup(dry_run: bool = False) -> None:
             print(f"deleted sandbox {_SANDBOX}")
         except Exception as error:  # e.g. NotFoundError
             print(f"WARNING: {error}", file=sys.stderr)
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"WARNING: {result.stderr.strip()}", file=sys.stderr)
-    else:
-        print(result.stdout.strip() or f"deleted (or not found): {_SECRET}")
 
 
 if __name__ == "__main__":
