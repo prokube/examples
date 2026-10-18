@@ -9,12 +9,8 @@ session.
 
 Sandboxes must be enabled on your prokube cluster. On your laptop you need
 [opencode](https://opencode.ai/docs/#install), an SSH key
-(`ssh-keygen -t ed25519` if you have none) and the `pk` CLI with a login:
-
-```bash
-pip install 'prokube-sdk[cli] @ git+https://github.com/prokube/prokube-sdk@sandboxv3/main'
-pk login https://<your-prokube-domain> --workspace <workspace>
-```
+(`ssh-keygen -t ed25519` if you have none) and the `pk` CLI with a login,
+as described in the [sandbox examples](../README.md).
 
 ## Start the server
 
@@ -51,14 +47,8 @@ pk sandbox forward opencode 4096
 opencode attach http://localhost:4096
 ```
 
-If port 4096 is taken on your laptop, for example by a local opencode
-server, add `--local-port 14096` to `pk sandbox forward` and attach to that
-port.
-
-The server needs no password of its own. It listens on 127.0.0.1 in the
-sandbox, so only the SSH tunnel reaches it. `pk sandbox forward` opens that
-tunnel with your login, through prokube, which lets only editors of the
-workspace through, and binds the port on your laptop to localhost only.
+The server needs no password: it listens on 127.0.0.1 in the sandbox, and
+only your SSH tunnel through prokube, opened with your login, reaches it.
 
 ## Suspend and resume
 
@@ -69,9 +59,9 @@ pk sandbox resume opencode
 
 Suspending closes the tunnel. The `-memory` presets snapshot the sandbox's
 memory, so the opencode server and its sessions survive: after resume, start
-`pk sandbox forward` again and keep working. With a preset that only keeps volumes, such as
-`pk-default-small`, the sandbox restarts from `/workspace` and you start the
-server again.
+`pk sandbox forward` again and keep working. With a preset that only keeps
+volumes, such as `pk-default-small`, the sandbox restarts from `/workspace`
+and you start the server again.
 
 ## Clean up
 
