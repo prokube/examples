@@ -40,7 +40,9 @@ def _next_step(messages, info: AgentInfo) -> ModelResponse:
     name, args = SCRIPT[len(results)]
     # Agent Gateway prefixes the tool names when the workspace has several MCP servers.
     tool = next(
-        t.name for t in info.function_tools if t.name in (name, f"sandbox_{name}")
+        t.name
+        for t in info.function_tools
+        if t.name in (name, f"sandbox-example_{name}")
     )
     return ModelResponse(parts=[ToolCallPart(tool, args)])
 

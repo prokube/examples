@@ -1,7 +1,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: sandbox
+  name: sandbox-example
 spec:
   image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:henrik-2026-10-18-mcp1
   args: [sandbox, mcp, --port, "8080", --host, 0.0.0.0]
