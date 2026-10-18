@@ -14,32 +14,23 @@ access: when you create it, enable **Allow access to sandboxes** under
 ## Run the notebook
 
 Open [`parallel-sandboxes.ipynb`](./parallel-sandboxes.ipynb) in a prokube
-Lab and run its cells. On a laptop, run
-`pk login https://<your-prokube-domain> --workspace <workspace>` first. The
-notebook prints how long creating and starting the sandboxes took, for
-example:
+Lab and run its cells; on a laptop, log in first as described in the
+[sandbox examples](../README.md). It prints, for example:
 
 ```text
 20 sandboxes created, used and deleted in 2.1 s
-create: median 0.19 s, max 0.20 s
-start and test: median 0.37 s, max 0.40 s
-failed: ['parallel-3', 'parallel-7', 'parallel-11', 'parallel-15', 'parallel-19']
+failed: [3, 7, 11, 15, 19]
 ```
 
 ## Capacity
 
 A suspended sandbox takes no room, so creating many is cheap. A running
-sandbox reserves its preset's CPU and memory (`pk preset list` shows the
-size) on a worker of the sandbox pool, which all workspaces share. The
-default pool has two workers with 4 CPUs and 8 GiB each, room for eight
-running `small` sandboxes at a time.
-
-When the pool is full, starting one more fails with
-`no worker has room for the actor`. That is why the notebook runs at most
-`RUNNING` sandboxes at the same time; set it to what is free on your cluster.
-Admins see the pool's workers and the running sandboxes of all workspaces on
-the **Sandbox Administration** page of the prokube UI, and change the pool's
-size in the platform configuration.
+sandbox reserves its preset's CPU and memory in the sandbox worker pool,
+which all workspaces share. When the pool is full, starting one more fails
+with `no worker has room for the actor`, so the notebook runs at most
+`RUNNING` sandboxes at the same time; set it to what is free on your
+cluster. See [Capacity](https://prokube.ai/docs/development/admin/sandboxes.html#capacity)
+in the admin documentation.
 
 ## Clean up
 
