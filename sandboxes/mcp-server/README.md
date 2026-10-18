@@ -31,7 +31,9 @@ MCP servers and sandboxes must be enabled on your prokube cluster.
 Open [`sandbox-mcp.ipynb`](./sandbox-mcp.ipynb) in a prokube Lab and run its
 cells. A [Pydantic AI](https://ai.pydantic.dev/) agent creates a sandbox,
 writes and tests a small function in it and deletes it, all through the
-server.
+server. It uses an OpenAI-compatible model endpoint if you configure one, and
+otherwise [`mock_model.py`](./mock_model.py), a stand-in that makes fixed
+tool calls.
 
 ## Use it on a laptop
 
