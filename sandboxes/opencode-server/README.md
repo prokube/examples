@@ -51,6 +51,10 @@ pk sandbox forward opencode 4096
 opencode attach http://localhost:4096
 ```
 
+If port 4096 is taken on your laptop, for example by a local opencode
+server, add `--local-port 14096` to `pk sandbox forward` and attach to that
+port.
+
 The server needs no password of its own. It listens on 127.0.0.1 in the
 sandbox, so only the SSH tunnel reaches it. `pk sandbox forward` opens that
 tunnel with your login, through prokube, which lets only editors of the
@@ -63,9 +67,9 @@ pk sandbox suspend opencode
 pk sandbox resume opencode
 ```
 
-The `-memory` presets snapshot the sandbox's memory, so the opencode server
-and its sessions survive suspend and resume. Start `pk sandbox forward` again
-and keep working. With a preset that only keeps volumes, such as
+Suspending closes the tunnel. The `-memory` presets snapshot the sandbox's
+memory, so the opencode server and its sessions survive: after resume, start
+`pk sandbox forward` again and keep working. With a preset that only keeps volumes, such as
 `pk-default-small`, the sandbox restarts from `/workspace` and you start the
 server again.
 
