@@ -3,7 +3,7 @@ kind: MCPServer
 metadata:
   name: sandbox-example
 spec:
-  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:henrik-2026-10-18-mcp1
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:sandboxv3-295ccfc
   args: [sandbox, mcp, --port, "8080", --host, 0.0.0.0]
   transport: streamable-http
   mcpPort: 8080
