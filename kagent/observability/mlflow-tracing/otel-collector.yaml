@@ -63,6 +63,8 @@ spec:
       app.kubernetes.io/name: otel-collector
   template:
     metadata:
+      annotations:
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
       labels:
         app.kubernetes.io/name: otel-collector
     spec:

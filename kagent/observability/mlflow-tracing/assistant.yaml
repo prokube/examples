@@ -1,0 +1,23 @@
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: tracing-assistant
+spec:
+  type: Declarative
+  description: A simple assistant with opt-in MLflow tracing
+  declarative:
+    runtime: python
+    modelConfig: anthropic-haiku
+    stream: true
+    systemMessage: |
+      You are a helpful assistant. Answer clearly and concisely, and say when
+      you are uncertain.
+    a2aConfig: {}
+    deployment:
+      env:
+      - name: OTEL_TRACING_ENABLED
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        value: http://otel-collector:4317
+      - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+        value: grpc
