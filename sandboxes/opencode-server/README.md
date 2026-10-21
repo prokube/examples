@@ -22,12 +22,12 @@ pk sandbox create opencode --preset pk-default-small-memory --connect
 
 opencode is part of the sandbox image. In the sandbox, log in to your model
 provider once, then start the server in tmux so it keeps running after you
-log out:
+log out. opencode's server needs a password; pick one:
 
 ```bash
 opencode auth login
 mkdir -p /workspace/project && cd /workspace/project
-tmux new -d -s opencode 'opencode serve --port 4096'
+tmux new -d -s opencode 'OPENCODE_PASSWORD=<password> opencode serve --port 4096'
 exit
 ```
 
@@ -45,11 +45,11 @@ pk sandbox forward opencode 4096
 ```
 
 ```bash
-opencode --server http://localhost:4096
+OPENCODE_PASSWORD=<password> opencode --server http://localhost:4096
 ```
 
-The server needs no password: it listens on 127.0.0.1 in the sandbox, and
-only your SSH tunnel through prokube, opened with your login, reaches it.
+The server listens on 127.0.0.1 in the sandbox, so only your SSH tunnel
+through prokube, opened with your login, reaches it.
 
 ## Suspend and resume
 
