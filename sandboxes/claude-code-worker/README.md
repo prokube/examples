@@ -15,10 +15,11 @@ access: when you create it, enable **Allow access to sandboxes** under
 - The key is in the Secret `anthropic-api-key` with the label
   `prokube.ai/sandbox-credential=true`. Sandboxes can use labelled Secrets of
   their own workspace at egress, and no others.
-- The notebook replaces the sandbox's network rules. For `api.anthropic.com`,
-  the egress gateway terminates TLS and sets the `x-api-key` header to the key
-  from the Secret; the presets' images trust the gateway's CA. `github.com`
-  and `registry.npmjs.org` pass through unchanged. Nothing else is reachable.
+- The notebook creates the sandbox with its own network rules instead of the
+  preset's. For `api.anthropic.com`, the egress gateway terminates TLS and sets
+  the `x-api-key` header to the key from the Secret; the presets' images trust
+  the gateway's CA. `github.com` and `registry.npmjs.org` pass through
+  unchanged. Nothing else is reachable.
 - Claude Code is not part of the sandbox image. The notebook installs it into
   `/workspace` with npm and runs one task with a placeholder key in a clone
   of [pypa/sampleproject](https://github.com/pypa/sampleproject).
