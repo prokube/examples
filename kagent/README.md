@@ -9,15 +9,14 @@ These examples introduce [kagent](https://kagent.dev/) one step at a time:
 4. [`byo-langgraph-agent`](./byo-langgraph-agent/) runs a custom LangGraph
    workflow as a kagent BYO agent.
 
-Complete the first three examples in order. The BYO example is standalone.
+Running the first three examples in order is recommended for a better
+understanding, because each builds on the one before. Each notebook still runs
+on its own and creates whatever the earlier examples would have; the terminal
+steps in the READMEs expect the earlier examples' resources. The BYO example is
+standalone.
 
 Each example has a notebook to run in a prokube Lab. Its README also covers the
 same steps in a terminal and connecting from outside the cluster.
-
-## Observability
-
-[`observability/mlflow-tracing`](./observability/mlflow-tracing/) shows how to
-send kagent traces from a workspace to an MLflow experiment.
 
 ## Terms
 

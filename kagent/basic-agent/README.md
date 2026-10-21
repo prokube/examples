@@ -8,6 +8,26 @@ The examples and notebooks use Anthropic Claude. To use OpenAI, a self-hosted
 model, or another provider, edit the manifests as described in
 [Use another model provider](#use-another-model-provider).
 
+## How it works
+
+[`anthropic-model.yaml`](./anthropic-model.yaml) is a ModelConfig: it names the
+provider and model and reads the API key from the `anthropic-api-key` Secret.
+[`assistant.yaml`](./assistant.yaml) is a declarative Agent that references the
+ModelConfig by name and sets the system prompt:
+
+```yaml
+spec:
+  type: Declarative
+  declarative:
+    modelConfig: anthropic-haiku
+    systemMessage: |
+      You are a helpful assistant. Answer clearly and concisely, and say when
+      you are uncertain.
+```
+
+kagent runs the agent in your workspace and serves it over A2A, so the prokube
+UI, Labs, and external clients all talk to it the same way.
+
 ## Prerequisites
 
 kagent must be enabled on your prokube cluster, and you need an Anthropic API
@@ -23,8 +43,7 @@ ensure CRDs are installed first
 
 The easiest way to try the example is
 [`basic-agent.ipynb`](./basic-agent.ipynb). Open it in a prokube Lab and run its
-cells. It creates the credentials, deploys the agent, sends it a message from
-the Lab and with an API key, and shows how to clean up.
+cells.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -32,17 +51,19 @@ terminal, add `-n <workspace>` to each `kubectl` command.
 
 ## Create the credentials
 
-With `ANTHROPIC_API_KEY` set to your API key, create the Secret. The label
-shows it on the **Secrets** page of the prokube UI.
+With `ANTHROPIC_API_KEY` set to your API key, create the Secret. The label shows
+it under **K8s Secrets** in the prokube user menu.
 
 ```bash
 kubectl create secret generic anthropic-api-key \
-  --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+  --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY to your API key}"
 kubectl label secret anthropic-api-key prokube.ai/user-secret=true
 ```
 
-You can create the same Secret from the **Secrets** page in the prokube UI
+You can create the same Secret under **K8s Secrets** in the prokube user menu
 instead. Use `anthropic-api-key` as its name and `ANTHROPIC_API_KEY` as the key.
+See [Kubernetes
+Secrets](https://prokube.ai/docs/1.9/platform/kubernetes.html#kubernetes-secrets).
 
 ## Deploy
 
@@ -64,29 +85,39 @@ kubectl wait --for=condition=Ready \
 
 ## Connect
 
-After the agent reaches `Ready`, open **Agents** in the prokube UI, select
+After the agent reaches `Ready`, open the [Agents page](/pkui/kagent) in the
+prokube UI (`https://<your-prokube-domain>/pkui/kagent`), select
 `simple-assistant`, and start a chat.
 
 From a Lab in the workspace, send a message through the internal Agent Gateway
 route without an API key:
 
 ```bash
-curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/simple-assistant \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What can you help me with?"}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/simple-assistant
+
+a2a() {
+  curl -sS "$A2A_URL" "${@:2}" \
+    -H 'Content-Type: application/json' \
+    --data "$(jq -n --arg text "$1" '{jsonrpc: "2.0", id: "1", method: "message/send",
+      params: {message: {role: "user", messageId: "message-1", parts: [{kind: "text", text: $text}]}}}')" \
+    | jq -r '.result.artifacts[0].parts[0].text'
+}
+
+a2a 'What can you help me with?'
 ```
 
-From outside the cluster, create a Bearer API key for `simple-assistant` on
-the **API Keys** page at `https://<your-prokube-domain>/pkui/ai-gateway/keys`.
-Then use its external route:
+`a2a` sends one A2A `message/send` request with the given text and prints the
+agent's answer. It passes further arguments to `curl`, so add `-v` to debug a
+request.
+
+From outside the cluster, create a Bearer API key for `simple-assistant` on the
+[API Keys page](/pkui/ai-gateway/keys) in the prokube UI
+(`https://<your-prokube-domain>/pkui/ai-gateway/keys`). Then point `a2a` at the
+agent's external route and pass the key:
 
 ```bash
-curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/simple-assistant \
-  -H 'Authorization: Bearer <API_KEY>' \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What can you help me with?"}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=https://<your-prokube-domain>/svc/a2a/<workspace>/simple-assistant
+a2a 'What can you help me with?' -H 'Authorization: Bearer <API_KEY>'
 ```
 
 ## Clean up
@@ -105,18 +136,26 @@ kubectl delete -f anthropic-model.yaml
 kubectl delete secret anthropic-api-key
 ```
 
-Delete any API key created for external access from the prokube UI.
+Delete any API key created for external access on the [API Keys
+page](/pkui/ai-gateway/keys).
 
 ## Use another model provider
 
-Agents only reference a ModelConfig by name, so switching the provider means
-creating a different Secret and ModelConfig and pointing the agents at it. For
-example, for OpenAI:
+Agents reference a ModelConfig by name. To switch the provider, create another
+ModelConfig as described below, then point the agents at it as described in
+[Point the agents at your ModelConfig](#point-the-agents-at-your-modelconfig).
+
+### OpenAI or an OpenAI-compatible endpoint
+
+Store the API key in a Secret:
 
 ```bash
 kubectl create secret generic openai-api-key \
   --from-literal=OPENAI_API_KEY='<your-openai-api-key>'
+kubectl label secret openai-api-key prokube.ai/user-secret=true
 ```
+
+Save a ModelConfig that uses it as `openai-model.yaml`:
 
 ```yaml
 apiVersion: kagent.dev/v1alpha2
@@ -130,25 +169,46 @@ spec:
   apiKeySecretKey: OPENAI_API_KEY
 ```
 
+Apply it:
+
+```bash
+kubectl apply -f openai-model.yaml
+```
+
 For an OpenAI-compatible endpoint, such as a self-hosted vLLM model, keep
 `provider: OpenAI` and add its URL under `spec.openAI.baseUrl`.
 
-For a model deployed through prokube LLM Serving, create an **Internal -
-OpenAI-compatible** ModelConfig on the **Agents** page and select the model
-there. It does not need a Secret. See
+### A model from prokube LLM Serving
+
+Models deployed on the [LLM Serving page](/pkui/llm) in the prokube UI
+(`https://<your-prokube-domain>/pkui/llm`) need no Secret. On the
+[Agents page](/pkui/kagent), create an **Internal - OpenAI-compatible**
+ModelConfig and select the model. See
 [Choose or Create a Model Configuration](https://prokube.ai/docs/1.9/agentops/agents.html#_2-choose-or-create-a-model-configuration).
 
-Agents with tools, as in the later examples, need a model that supports tool
-calling. For LLM Serving models, enable automatic tool calling when you deploy
-the model. Presets that support it enable it and select the tool-call parser for
-you. See
+The agents in [`agent-with-mcp`](../agent-with-mcp/) and
+[`multi-agent`](../multi-agent/) call tools, so enable automatic tool calling
+when you deploy the model. Presets that support it enable it and select the
+tool-call parser for you. See
 [Enable Tool Calling for Agents](https://prokube.ai/docs/1.9/agentops/llm_serving.html#enable-tool-calling-for-agents).
 
-Then replace `modelConfig: anthropic-haiku` with the name of your ModelConfig,
-for example `modelConfig: openai-model`, in `assistant.yaml` and, for the later
-examples, in
-[`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml) and
-[`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml). The
-notebooks always use Anthropic, so follow the terminal steps instead. See the
-kagent [supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
-for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others.
+### Other providers
+
+See the kagent
+[supported providers](https://kagent.dev/docs/kagent/0.x/supported-providers/)
+for Azure OpenAI, Gemini, Vertex AI, Bedrock, Ollama, and others. The agents in
+the later examples call tools, so choose a model that supports tool calling.
+
+### Point the agents at your ModelConfig
+
+Replace `modelConfig: anthropic-haiku` with the name of your ModelConfig, for
+example `modelConfig: openai-model`, in:
+
+- [`assistant.yaml`](./assistant.yaml)
+- [`web-researcher.yaml`](../agent-with-mcp/web-researcher.yaml)
+- [`research-coordinator.yaml`](../multi-agent/research-coordinator.yaml)
+
+Then apply each changed manifest again, for example
+`kubectl apply -f assistant.yaml`.
+
+The notebooks always use Anthropic, so follow the terminal steps instead.

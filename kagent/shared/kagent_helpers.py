@@ -1,30 +1,34 @@
-"""Talk to kagent agents through Agent Gateway and inspect workspace MCP tools."""
+"""Talk to kagent agents through Agent Gateway and create the examples' prerequisites."""
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 import urllib.error
 import urllib.request
 import uuid
+from getpass import getpass
+from pathlib import Path
 from typing import Any
 
 _AGENTGATEWAY_HOST = "agentgateway-proxy.agentgateway-system.svc.cluster.local"
+
+_KAGENT_DIR = Path(__file__).resolve().parent.parent
+_MODEL_CONFIG = _KAGENT_DIR / "basic-agent" / "anthropic-model.yaml"
+_FETCH_SERVER = (
+    _KAGENT_DIR.parent
+    / "mcp-servers"
+    / "deploy-upstream-mcp-server"
+    / "fetch-server.yaml"
+)
+_WEB_RESEARCHER = _KAGENT_DIR / "agent-with-mcp" / "web-researcher.yaml"
 
 
 def workspace_a2a_url(namespace: str, agent: str) -> str:
     """Return the internal A2A URL of an agent (no API key from inside the cluster)."""
     return f"http://{_AGENTGATEWAY_HOST}/_platform/a2a/{namespace}/{agent}"
-
-
-def agent_a2a_url(namespace: str, agent: str) -> str:
-    """Return the in-cluster URL of an agent's API-key route.
-
-    This is the route that ``https://<domain>/svc/a2a/<namespace>/<agent>``
-    serves externally, so it enforces the same API key policy.
-    """
-    return f"http://{_AGENTGATEWAY_HOST}/svc/a2a/{namespace}/{agent}"
 
 
 def _response_text(result: dict[str, Any]) -> str:
@@ -129,3 +133,98 @@ def gateway_mcp_tool_name(server: str, tool: str, timeout: int = 180) -> str:
                 f"after {timeout}s ({error})"
             )
         time.sleep(5)
+
+
+def _kubectl(*args: str, input: str | None = None) -> str:
+    """Run kubectl and return its output.
+
+    Jupyter does not show a subprocess's output, so callers print it.
+    """
+    result = subprocess.run(
+        ["kubectl", *args], input=input, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        # Only the verb, so that a --from-literal secret value is never shown.
+        raise RuntimeError(f"kubectl {args[0]} failed: {result.stderr.strip()}")
+    return result.stdout
+
+
+def ensure_anthropic_secret() -> None:
+    """Create the ``anthropic-api-key`` Secret unless it exists.
+
+    Prompts for the key unless ``ANTHROPIC_API_KEY`` is set.
+    """
+    if _kubectl(
+        "get", "secret", "anthropic-api-key", "-o", "name", "--ignore-not-found"
+    ):
+        print("Using the existing anthropic-api-key Secret.")
+        return
+    api_key = (
+        os.environ.get("ANTHROPIC_API_KEY") or getpass("Anthropic API key: ")
+    ).strip()
+    if not api_key:
+        raise ValueError(
+            "No Anthropic API key entered. Run the cell again and paste your key."
+        )
+    print(
+        _kubectl(
+            "create",
+            "secret",
+            "generic",
+            "anthropic-api-key",
+            f"--from-literal=ANTHROPIC_API_KEY={api_key}",
+        ),
+        end="",
+    )
+    # The label lists the Secret under K8s Secrets in the prokube user menu.
+    print(
+        _kubectl("label", "secret", "anthropic-api-key", "prokube.ai/user-secret=true"),
+        end="",
+    )
+
+
+def ensure_model_config() -> None:
+    """Apply the ``anthropic-haiku`` ModelConfig from basic-agent and wait until kagent accepts it."""
+    print(_kubectl("apply", "-f", str(_MODEL_CONFIG)), end="")
+    print(
+        _kubectl(
+            "wait",
+            "--for=condition=Accepted",
+            "modelconfigs.kagent.dev/anthropic-haiku",
+            "--timeout=2m",
+        ),
+        end="",
+    )
+
+
+def ensure_fetch_server() -> None:
+    """Apply the Fetch MCP server from mcp-servers/deploy-upstream-mcp-server and wait until it is ready."""
+    print(_kubectl("apply", "-f", str(_FETCH_SERVER)), end="")
+    print(
+        _kubectl(
+            "wait",
+            "--for=condition=Ready",
+            "mcpservers.toolhive.stacklok.dev/fetch-example",
+            "--timeout=3m",
+        ),
+        end="",
+    )
+
+
+def ensure_web_researcher() -> None:
+    """Apply ``web-researcher`` from agent-with-mcp and wait until it is ready.
+
+    Writes the Fetch tool name that ``gateway-mcp`` uses into the manifest first.
+    """
+    fetch_tool = gateway_mcp_tool_name("fetch-example", "fetch")
+    manifest = _WEB_RESEARCHER.read_text().replace("- fetch\n", f"- {fetch_tool}\n")
+    print(_kubectl("apply", "-f", "-", input=manifest), end="")
+    print(
+        _kubectl(
+            "wait",
+            "--for=condition=Ready",
+            "agents.kagent.dev/web-researcher",
+            "--timeout=3m",
+        ),
+        end="",
+    )

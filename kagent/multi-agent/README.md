@@ -4,14 +4,36 @@ This example adds agent-to-agent delegation. It builds on
 [`agent-with-mcp`](../agent-with-mcp/): the coordinator invokes the
 `web-researcher`, which uses the Fetch MCP server.
 
+## How it works
+
+The coordinator in [`research-coordinator.yaml`](./research-coordinator.yaml)
+lists `web-researcher` as a tool of type `Agent`:
+
+```yaml
+spec:
+  declarative:
+    tools:
+    - type: Agent
+      agent:
+        name: web-researcher
+```
+
+kagent offers `web-researcher` to the coordinator's model as a tool. When the
+model calls it, kagent sends the request to `web-researcher` over A2A and
+returns its answer to the coordinator. The coordinator has no MCP tools of its
+own; its system message tells it to delegate web research.
+
 ## Prerequisites
 
 kagent must be enabled on your prokube cluster together with MCP servers. Both
 agents use Anthropic Claude through the `anthropic-haiku` ModelConfig, so you
 need an Anthropic API key. The terminal steps below expect `web-researcher` and
-its prerequisites from [`agent-with-mcp`](../agent-with-mcp/) to exist. If
-`kubectl apply` fails with the following error, kagent is not installed and you
-need to ask your platform admin to enable it:
+its prerequisites from [`agent-with-mcp`](../agent-with-mcp/) to exist. To use
+another model provider, see
+[Point the agents at your ModelConfig](../basic-agent/#point-the-agents-at-your-modelconfig).
+
+If `kubectl apply` fails with the following error, kagent is not installed and
+you need to ask your platform admin to enable it:
 
 ```text
 no matches for kind "Agent" in version "kagent.dev/v1alpha2"
@@ -22,9 +44,7 @@ ensure CRDs are installed first
 
 The easiest way to try the example is
 [`research-coordinator.ipynb`](./research-coordinator.ipynb). Open it in a
-prokube Lab and run its cells. It creates the prerequisites that are missing,
-including `web-researcher`, deploys the coordinator, sends it a request from the
-Lab and with an API key, and shows how to clean up.
+prokube Lab and run its cells.
 
 If you prefer a terminal, follow the steps below instead. They run from a
 prokube Lab terminal and use its current workspace namespace. From another
@@ -40,7 +60,9 @@ kubectl wait --for=condition=Ready \
 
 ## Try it
 
-Open **Agents** in the prokube UI, select `research-coordinator`, and ask:
+Open the [Agents page](/pkui/kagent) in the prokube UI
+(`https://<your-prokube-domain>/pkui/kagent`), select `research-coordinator`,
+and ask:
 
 ```text
 Research https://prokube.ai and summarize what prokube offers in one sentence.
@@ -53,22 +75,31 @@ page through MCP.
 From a Lab in the workspace, send the same request without an API key:
 
 ```bash
-curl -sS http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/research-coordinator \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/research-coordinator
+
+a2a() {
+  curl -sS "$A2A_URL" "${@:2}" \
+    -H 'Content-Type: application/json' \
+    --data "$(jq -n --arg text "$1" '{jsonrpc: "2.0", id: "1", method: "message/send",
+      params: {message: {role: "user", messageId: "message-1", parts: [{kind: "text", text: $text}]}}}')" \
+    | jq -r '.result.artifacts[0].parts[0].text'
+}
+
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.'
 ```
 
+`a2a` sends one A2A `message/send` request with the given text and prints the
+agent's answer. It passes further arguments to `curl`, so add `-v` to debug a
+request.
+
 From outside the cluster, create a Bearer API key for `research-coordinator` on
-the **API Keys** page at `https://<your-prokube-domain>/pkui/ai-gateway/keys`
-and use the external route:
+the [API Keys page](/pkui/ai-gateway/keys) in the prokube UI
+(`https://<your-prokube-domain>/pkui/ai-gateway/keys`). Then point `a2a` at the
+agent's external route and pass the key:
 
 ```bash
-curl -sS https://<your-prokube-domain>/svc/a2a/<workspace>/research-coordinator \
-  -H 'Authorization: Bearer <API_KEY>' \
-  -H 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL."}],"messageId":"message-1"}}}' |
-  jq -r '.result.artifacts[0].parts[0].text'
+export A2A_URL=https://<your-prokube-domain>/svc/a2a/<workspace>/research-coordinator
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.' -H 'Authorization: Bearer <API_KEY>'
 ```
 
 ## Clean up

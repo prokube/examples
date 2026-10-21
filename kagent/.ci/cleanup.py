@@ -13,9 +13,9 @@ _MANIFESTS = [
     "agent-with-mcp/web-researcher.yaml",
     "basic-agent/assistant.yaml",
     "basic-agent/anthropic-model.yaml",
-    "basic-agent/anthropic-secret.yaml",
     "../mcp-servers/deploy-upstream-mcp-server/fetch-server.yaml",
 ]
+_SECRET = "anthropic-api-key"
 
 
 def _namespace() -> str:
@@ -25,9 +25,12 @@ def _namespace() -> str:
 
 def cleanup(dry_run: bool = False) -> None:
     ns = _namespace()
-    for manifest in _MANIFESTS:
-        path = os.path.normpath(os.path.join(_KAGENT_DIR, manifest))
-        cmd = ["kubectl", "delete", "-n", ns, "-f", path, "--ignore-not-found"]
+    targets = [
+        ["-f", os.path.normpath(os.path.join(_KAGENT_DIR, m))] for m in _MANIFESTS
+    ]
+    targets.append(["secret", _SECRET])
+    for target in targets:
+        cmd = ["kubectl", "delete", "-n", ns, *target, "--ignore-not-found"]
         if dry_run:
             print(f"[dry-run] {' '.join(cmd)}")
             continue
@@ -35,7 +38,7 @@ def cleanup(dry_run: bool = False) -> None:
         if result.returncode != 0:
             print(f"WARNING: {result.stderr.strip()}", file=sys.stderr)
         else:
-            print(result.stdout.strip() or f"deleted (or not found): {manifest}")
+            print(result.stdout.strip() or f"deleted (or not found): {target[-1]}")
 
 
 if __name__ == "__main__":
