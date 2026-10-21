@@ -37,14 +37,15 @@ the sandbox, inject them at egress as in
 
 ## Attach from your laptop
 
-Forward the port and attach in a second terminal:
+Forward the port and connect opencode 2, the version in the sandbox, in a
+second terminal:
 
 ```bash
 pk sandbox forward opencode 4096
 ```
 
 ```bash
-opencode attach http://localhost:4096
+opencode --server http://localhost:4096
 ```
 
 The server needs no password: it listens on 127.0.0.1 in the sandbox, and
