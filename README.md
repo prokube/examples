@@ -15,6 +15,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
 ├── pipelines        # Kubeflow Pipelines examples
 ├── rstudio          # RStudio examples
+├── sandboxes        # agent sandbox examples (SDK, MCP, Claude Code, opencode)
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
 └── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
 ```
@@ -54,6 +55,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 | Example | Min platform version | Notes |
 |---|---|---|
 | `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
+| `sandboxes` | not released yet | Requires sandboxes (Agent Substrate); `mcp-server` also needs MCP servers |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## CI
