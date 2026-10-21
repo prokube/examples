@@ -2,8 +2,8 @@
 
 `pk sandbox mcp` is the prokube SDK's [MCP](https://modelcontextprotocol.io/)
 server for sandboxes. It gives any MCP client the tools `list`, `create`,
-`run`, `read_file`, `write_file`, `suspend`, `resume` and `delete`, so an
-agent can use sandboxes without tool code of your own. This example deploys it
+`run`, `read_file`, `write_file`, `suspend`, `resume`, `revert` and `delete`,
+so an agent can use sandboxes without tool code of your own. This example deploys it
 in a workspace for agents there, and adds it to Claude Code and opencode on a
 laptop.
 
