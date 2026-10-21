@@ -83,6 +83,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: status.podIP
+        - name: MLFLOW_EXPERIMENT_ID
+          value: "<experiment-id>"
         envFrom:
         - secretRef:
             name: mlflow-credentials

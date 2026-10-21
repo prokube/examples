@@ -18,9 +18,8 @@ standalone.
 Each example has a notebook to run in a prokube Lab. Its README also covers the
 same steps in a terminal and connecting from outside the cluster.
 
-For optional Python Agent tracing, see
-[`mlflow-tracing`](./observability/mlflow-tracing/): explicitly opt in an Agent
-and deploy a workspace-local collector that exports to your MLflow experiment.
+To send an agent's traces to MLflow, see
+[`observability/mlflow-tracing`](./observability/mlflow-tracing/).
 
 ## Terms
 
