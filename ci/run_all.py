@@ -277,6 +277,24 @@ _EXAMPLES: list[Example] = [
         required_env=["ANTHROPIC_API_KEY", "A2A_API_KEY", "PROKUBE_DOMAIN"],
         required_resources=["agents.kagent.dev", "mcpservers.toolhive.stacklok.dev"],
     ),
+    # Phase 2 so that it does not race the Phase 1 BYO example to create the
+    # shared anthropic-api-key Secret.
+    Example(
+        name="kagent/observability/mlflow-tracing",
+        steps=[
+            Step(
+                "notebook",
+                "kagent/observability/mlflow-tracing/mlflow-tracing.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=2,
+        opt_in="include_mlflow_tracing",
+        cleanup="kagent/observability/mlflow-tracing/.ci/cleanup.py",
+        mlflow_dependent=True,
+        required_env=["ANTHROPIC_API_KEY"],
+        required_resources=["agents.kagent.dev"],
+    ),
     Example(
         name="mlflow/mobile-price-classification",
         steps=[
@@ -1234,6 +1252,7 @@ def run_all(
     include_keda: bool = False,
     include_pytorch: bool = False,
     include_shadow: bool = False,
+    include_mlflow_tracing: bool = False,
     dry_run: bool = False,
     max_workers: int = 8,
 ) -> dict[str, Result]:
@@ -1252,6 +1271,7 @@ def run_all(
         "include_keda": include_keda,
         "include_pytorch": include_pytorch,
         "include_shadow": include_shadow,
+        "include_mlflow_tracing": include_mlflow_tracing,
     }
     cleanup_scripts = [root / ex.cleanup for ex in _EXAMPLES if ex.cleanup] + [
         root / p for p in _EXTRA_CLEANUP_PATHS
@@ -1392,6 +1412,14 @@ if __name__ == "__main__":
         help="Include pytorch_lightning examples (opt-in; requires pytorch in the notebook image)",
     )
     parser.add_argument(
+        "--include-mlflow-tracing",
+        action="store_true",
+        help=(
+            "Include the kagent MLflow tracing example (opt-in; requires an MLflow "
+            "that accepts OTLP traces with PATs, see its README)"
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print plan without executing anything",
@@ -1431,6 +1459,7 @@ if __name__ == "__main__":
         include_keda=args.include_keda,
         include_shadow=args.include_shadow,
         include_pytorch=args.include_pytorch,
+        include_mlflow_tracing=args.include_mlflow_tracing,
         dry_run=args.dry_run,
         max_workers=args.max_workers,
     )
