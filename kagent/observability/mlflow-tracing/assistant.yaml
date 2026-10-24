@@ -15,9 +15,18 @@ spec:
     a2aConfig: {}
     deployment:
       env:
+      # Turn tracing on for this agent only.
       - name: OTEL_TRACING_ENABLED
         value: "true"
+      # Send the traces to the collector from otel-collector.yaml. Port 4317
+      # gives the simplified trace; use port 4319 to see every span.
       - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
         value: http://otel-collector:4317
       - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
         value: grpc
+      # The A2A library that receives the agent's messages records each of its
+      # internal steps (message handlers, event queues) as a separate span.
+      # That is roughly half of all spans in a trace and says nothing about
+      # what the agent did, so turn it off.
+      - name: OTEL_INSTRUMENTATION_A2A_SDK_ENABLED
+        value: "false"
