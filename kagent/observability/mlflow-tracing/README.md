@@ -21,13 +21,63 @@ spec:
         value: http://otel-collector:4317
       - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
         value: grpc
+      - name: OTEL_INSTRUMENTATION_A2A_SDK_ENABLED
+        value: "false"
 ```
+
+The last entry stops the A2A library, which receives the agent's messages,
+from recording each of its internal steps as a span. Those spans make up
+roughly half of a trace and show nothing about what the agent did.
 
 [`otel-collector.yaml`](./otel-collector.yaml) deploys an
 [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) that
 forwards the traces to MLflow at `<MLFLOW_TRACKING_URI>/v1/traces`. It
 authenticates with the `mlflow-credentials` Secret and selects the experiment
 through its `MLFLOW_EXPERIMENT_ID` variable.
+
+### Why the collector simplifies the trace
+
+kagent records each message at several layers: the HTTP request, the agent
+runner, the model client library, and every outgoing HTTP call. Each layer
+adds its own spans, so a single message produces dozens of them, and the few
+steps you care about are hard to find.
+
+The collector keeps those steps and removes the rest before the trace reaches
+MLflow. A trace then looks like this:
+
+```text
+invoke_agent tracing_assistant          the agent handling your message
+└── chat claude-haiku-4-5-20251001      one model call: prompt, answer, tokens
+    └── generate_content ...            tool calls the model requested
+```
+
+Each model call appears once with its token counts, so MLflow's token totals
+stay correct. The comments in `otel-collector.yaml` explain each rule.
+
+This view has limits:
+
+- The agent span does not show your question and the final answer, because
+  kagent 0.10 does not record them there. Open the `chat` span to see them.
+- Tool calls appear below the model call that requested them, not next to it.
+- The HTTP status of the request is removed together with the HTTP spans.
+- If one agent calls another, the called agent's spans are no longer attached
+  to that call. Use the diagnostic port below for such setups.
+
+The rules match the span names of the kagent 0.10 Python runtime. If traces
+look wrong after a kagent upgrade, compare them with a diagnostic trace and
+adjust the rules.
+
+### See every span
+
+To troubleshoot an agent, point it at port 4319 instead:
+
+```yaml
+- name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  value: http://otel-collector:4319
+```
+
+The collector forwards these traces to MLflow unchanged. Changing the endpoint
+restarts the agent. Switch back to port 4317 when you are done.
 
 The collector has no persistent queue. If it is unavailable, the agent keeps
 answering, but the traces from that time are lost.
@@ -101,6 +151,10 @@ kubectl apply -f otel-collector.yaml
 kubectl rollout status deployment/otel-collector --timeout=2m
 ```
 
+The collector reads its configuration only at startup. If you change it later,
+apply the file again and run
+`kubectl rollout restart deployment/otel-collector`.
+
 Create the agent:
 
 ```bash
@@ -114,7 +168,8 @@ kubectl wait --for=condition=Ready \
 After the agent reaches `Ready`, open the [Agents page](/pkui/kagent) in the
 prokube UI (`https://<your-prokube-domain>/pkui/kagent`), select
 `tracing-assistant`, and send a message. Then open your experiment in MLflow.
-The newest trace shows the agent and LLM spans of the request.
+The newest trace starts with the `invoke_agent tracing_assistant` span and
+contains a `chat` span for the model call.
 
 If no trace appears, check the collector logs:
 
@@ -127,7 +182,7 @@ EDIT permission on the experiment.
 
 ## Enable tracing for an existing agent
 
-Add the three `OTEL_*` entries from [`assistant.yaml`](./assistant.yaml) under
+Add the four `OTEL_*` entries from [`assistant.yaml`](./assistant.yaml) under
 `spec.declarative.deployment.env` of the agent and keep its other entries. Edit
 the Agent itself, for example with `kubectl edit agents.kagent.dev/<agent>` or
 the YAML editor on the [Agents page](/pkui/kagent), not the Deployment that
