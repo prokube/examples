@@ -16,10 +16,19 @@ data:
           password: ${env:MLFLOW_TRACKING_PASSWORD}
 
     receivers:
+      # Normal endpoint: traces sent here are simplified (see the "semantic"
+      # processors below) before they reach MLflow.
       otlp:
         protocols:
           grpc:
             endpoint: ${env:MY_POD_IP}:4317
+      # Diagnostic endpoint: traces sent here reach MLflow unchanged, with
+      # every HTTP call and internal step. Point an agent here only while you
+      # troubleshoot it.
+      otlp/diagnostic:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4319
 
     processors:
       memory_limiter:
@@ -27,6 +36,46 @@ data:
         limit_mib: 384
         spike_limit_mib: 128
       batch: {}
+
+      # kagent records every request at several layers: the HTTP server, the
+      # agent runner, the model client library, and each outgoing HTTP call.
+      # In MLflow, the few steps you care about (the agent, its model calls,
+      # and its tool calls) end up buried in dozens of technical spans.
+      #
+      # The two processors below keep those steps and remove the rest, so a
+      # trace reads like this:
+      #
+      #   invoke_agent tracing_assistant        the agent handling one message
+      #   └── chat claude-haiku-4-5-20251001    one model call, with its tokens
+      #       └── generate_content ...          (tool calls appear below here)
+      #
+      # The rules match span names of the kagent 0.10 Python runtime. Check
+      # them when you upgrade kagent.
+      transform/semantic:
+        error_mode: ignore
+        trace_statements:
+        - context: span
+          statements:
+          # Make the agent span the top of the trace. Its parents are the HTTP
+          # request and the runner, which the filter below removes.
+          - set(span.parent_span_id, SpanID(0x0000000000000000)) where IsMatch(span.name, "^invoke_agent ")
+          # Rename the model call from "call_llm" to "chat <model>".
+          - set(span.name, Concat(["chat", span.attributes["gen_ai.request.model"]], " ")) where span.name == "call_llm" and span.attributes["gen_ai.request.model"] != nil
+          # The runner wraps each model call a second time. Tool calls hang
+          # below that wrapper, so it has to stay, but without the model name
+          # and token counts MLflow no longer shows it as a second model call.
+          - delete_matching_keys(span.attributes, "^gen_ai\\.(usage\\..*|operation\\.name|request\\.model)$") where IsMatch(span.name, "^generate_content ")
+      filter/semantic:
+        error_mode: ignore
+        traces:
+          span:
+          # The runner's span for the whole request. The agent span replaces it.
+          - span.name == "invocation"
+          # The model client library's copy of each model call.
+          - IsMatch(span.name, "^(anthropic|openai)\\.(chat|completion)$")
+          # HTTP traffic: the incoming request ("POST /") and the calls to the
+          # model provider and to tools.
+          - IsMatch(span.name, "^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)( |$)")
 
     exporters:
       otlphttp/mlflow:
@@ -44,6 +93,16 @@ data:
         traces:
           receivers:
           - otlp
+          processors:
+          - memory_limiter
+          - transform/semantic
+          - filter/semantic
+          - batch
+          exporters:
+          - otlphttp/mlflow
+        traces/diagnostic:
+          receivers:
+          - otlp/diagnostic
           processors:
           - memory_limiter
           - batch
@@ -91,6 +150,9 @@ spec:
         ports:
         - name: otlp-grpc
           containerPort: 4317
+          protocol: TCP
+        - name: otlp-diag
+          containerPort: 4319
           protocol: TCP
         - name: health
           containerPort: 13133
@@ -143,4 +205,8 @@ spec:
   - name: otlp-grpc
     port: 4317
     targetPort: otlp-grpc
+    protocol: TCP
+  - name: otlp-grpc-diagnostic
+    port: 4319
+    targetPort: otlp-diag
     protocol: TCP
