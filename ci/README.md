@@ -38,7 +38,10 @@ external MCP routes. kagent examples require kagent in the cluster,
 `ANTHROPIC_API_KEY`, `A2A_API_KEY`, and `PROKUBE_DOMAIN`, because they also
 connect through the external A2A routes. Create `MCP_API_KEY` and `A2A_API_KEY`
 with access to all MCP servers and all agents in the workspace at
-`https://<your-prokube-domain>/pkui/ai-gateway/keys`.
+`https://<your-prokube-domain>/pkui/ai-gateway/keys`. The kagent MLflow
+tracing example runs only with `--include-mlflow-tracing`, because it needs an
+MLflow that accepts OTLP traces, and also requires `mlflow-credentials` and
+`ANTHROPIC_API_KEY`.
 Examples with unavailable prerequisites are reported as skipped. Run
 `python ci/run_all.py --help` for timeout and opt-in options.
 

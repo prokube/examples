@@ -18,6 +18,9 @@ standalone.
 Each example has a notebook to run in a prokube Lab. Its README also covers the
 same steps in a terminal and connecting from outside the cluster.
 
+To send an agent's traces to MLflow, see
+[`observability/mlflow-tracing`](./observability/mlflow-tracing/).
+
 ## Terms
 
 - **Agent**: a kagent resource that runs an LLM-based agent in your workspace.
