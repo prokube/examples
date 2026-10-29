@@ -1,0 +1,9 @@
+a2a-sdk[http-server]==0.3.26
+beautifulsoup4==4.15.0
+httpx==0.28.1
+kagent-langgraph==0.9.12
+langchain-anthropic==1.7.0
+langgraph==1.2.11
+openai==2.46.0
+opentelemetry-instrumentation-fastapi==0.59b0
+opentelemetry-instrumentation-httpx==0.59b0

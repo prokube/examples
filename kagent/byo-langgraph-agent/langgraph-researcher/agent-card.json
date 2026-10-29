@@ -1,0 +1,12 @@
+{
+  "name": "langgraph-researcher",
+  "description": "A LangGraph website research workflow with fixed steps",
+  "url": "http://localhost:8080",
+  "version": "0.1.0",
+  "capabilities": {
+    "streaming": true
+  },
+  "defaultInputModes": ["text"],
+  "defaultOutputModes": ["text"],
+  "skills": []
+}

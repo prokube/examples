@@ -1,0 +1,200 @@
+# Build a LangGraph BYO agent
+
+This example packages a custom
+[LangGraph](https://docs.langchain.com/oss/python/langgraph/overview) workflow
+as a kagent BYO agent. The agent researches the prokube website and returns a
+concise summary that includes the source URL. It demonstrates how to bring a
+custom workflow with fixed steps into kagent when a declarative agent does not
+provide enough control.
+
+## How it works
+
+[`agent.yaml`](./agent.yaml) is an Agent of type `BYO`. Instead of a ModelConfig
+and a system message, it names a container image, and kagent runs that image in
+your workspace:
+
+```yaml
+spec:
+  type: BYO
+  byo:
+    deployment:
+      image: europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.1
+```
+
+The image serves A2A on port 8080:
+[`server.py`](./langgraph-researcher/server.py) wraps the LangGraph graph from
+[`agent.py`](./langgraph-researcher/agent.py) with kagent's
+`LangGraphAgentExecutor`. kagent and Agent Gateway then route requests to it
+like to the declarative agents.
+
+Unlike the declarative agents in the earlier examples, the graph controls every
+processing step:
+
+1. Validate that the request contains a `https://prokube.ai` URL.
+2. Fetch and extract readable page text without an LLM call.
+3. Ask Claude for a one-sentence summary with a source URL.
+4. Validate the response and revise it once only when necessary.
+
+The URL allowlist and redirect checks make the deliberately small fetcher safe
+to expose as an example. Extend the allowlist only together with equivalent
+network controls.
+
+## Prerequisites
+
+kagent must be enabled on your prokube cluster, and you need an Anthropic API
+key. If `kubectl apply` fails with the following error, kagent is not installed
+and you need to ask your platform admin to enable it:
+
+```text
+no matches for kind "Agent" in version "kagent.dev/v1alpha2"
+ensure CRDs are installed first
+```
+
+## Run the notebook
+
+The easiest way to try the example is
+[`langgraph-researcher.ipynb`](./langgraph-researcher.ipynb). Open it in a
+prokube Lab and run its cells.
+
+If you prefer a terminal, follow the steps below instead. They run from a
+prokube Lab terminal and use its current workspace namespace. From another
+terminal, add `-n <workspace>` to each `kubectl` command.
+
+## Create the credentials
+
+If the `anthropic-api-key` Secret does not exist yet, create it with
+`ANTHROPIC_API_KEY` set to your API key. The label shows it under **K8s
+Secrets** in the prokube user menu.
+
+```bash
+kubectl create secret generic anthropic-api-key \
+  --from-literal=ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY to your API key}"
+kubectl label secret anthropic-api-key prokube.ai/user-secret=true
+```
+
+## Image
+
+`agent.yaml` uses a prebuilt image, so you can deploy the example as is:
+
+```text
+europe-west3-docker.pkg.dev/prokube/releases/langgraph-researcher:v1.0.1
+```
+
+If you change the workflow, follow [Build your own image](#build-your-own-image)
+below and update `agent.yaml` with your image.
+
+## Deploy
+
+```bash
+kubectl apply -f agent.yaml
+kubectl create -f gateway-allow.yaml
+kubectl wait --for=condition=Ready \
+  agents.kagent.dev/langgraph-researcher --timeout=3m
+```
+
+[`gateway-allow.yaml`](./gateway-allow.yaml) lets Agent Gateway reach the
+agent. kagent marks BYO agent Services with an `appProtocol` that Istio does not
+treat as HTTP, so the workspace's default policies do not admit the gateway.
+Without it, the agent works in the prokube UI, but calls through the internal
+and API-key routes fail with `503`. Workspace users can create and delete this
+policy but not update it, so delete and recreate it after changes.
+
+## Try it
+
+Open the [Agents page](/pkui/kagent) in the prokube UI
+(`https://<your-prokube-domain>/pkui/kagent`), select `langgraph-researcher`,
+and ask:
+
+```text
+Research https://prokube.ai and summarize what prokube offers in one sentence.
+Include the source URL.
+```
+
+The final response should contain one concise summary and
+`Source: https://prokube.ai`.
+
+From a Lab in the workspace, send the same request without an API key:
+
+```bash
+export A2A_URL=http://agentgateway-proxy.agentgateway-system.svc.cluster.local/_platform/a2a/$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)/langgraph-researcher
+
+a2a() {
+  curl -sS "$A2A_URL" "${@:2}" \
+    -H 'Content-Type: application/json' \
+    --data "$(jq -n --arg text "$1" '{jsonrpc: "2.0", id: "1", method: "message/send",
+      params: {message: {role: "user", messageId: "message-1", parts: [{kind: "text", text: $text}]}}}')" \
+    | jq -r '.result.artifacts[0].parts[0].text'
+}
+
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.'
+```
+
+`a2a` sends one A2A `message/send` request with the given text and prints the
+agent's answer. It passes further arguments to `curl`, so add `-v` to debug a
+request.
+
+From outside the cluster, create a Bearer API key for `langgraph-researcher` on
+the [API Keys page](/pkui/ai-gateway/keys) in the prokube UI
+(`https://<your-prokube-domain>/pkui/ai-gateway/keys`). Then point `a2a` at the
+agent's external route and pass the key:
+
+```bash
+export A2A_URL=https://<your-prokube-domain>/svc/a2a/<workspace>/langgraph-researcher
+a2a 'Research https://prokube.ai and summarize what prokube offers in one sentence. Include the source URL.' -H 'Authorization: Bearer <API_KEY>'
+```
+
+## Clean up
+
+```bash
+kubectl delete -f gateway-allow.yaml -f agent.yaml
+```
+
+Delete the Secret too, unless another agent in the workspace uses it:
+
+```bash
+kubectl delete secret anthropic-api-key
+```
+
+## Build your own image
+
+After changing the workflow, run the unit tests in [`tests/`](./tests/), which
+cover the URL checks and the response handling, from this example's directory:
+
+```bash
+pip install -r langgraph-researcher/requirements.txt pytest
+PYTHONPATH=langgraph-researcher pytest tests
+```
+
+Then build and push the image from the same directory in a prokube Lab
+terminal. Labs use the `pk-builder` remote BuildKit service:
+
+```bash
+export IMAGE=<registry>/<project>/langgraph-researcher:<tag>
+docker login <registry>
+docker buildx build \
+  --builder pk-builder \
+  --platform linux/amd64 \
+  --push \
+  -t "$IMAGE" \
+  langgraph-researcher
+```
+
+Replace `byo.deployment.image` in `agent.yaml` with the pushed image. When the
+image is private, first add pull credentials for its registry under **Registry
+Credentials** in the prokube user menu. See
+[Registry Credentials](https://prokube.ai/docs/1.9/platform/kubernetes.html#registry-credentials).
+
+## Use another model provider
+
+The workflow calls Claude through `ChatAnthropic` in
+[`agent.py`](./langgraph-researcher/agent.py). Unlike the declarative agents, it
+does not use a ModelConfig. To use another provider, for example OpenAI:
+
+1. Replace `ChatAnthropic` with `ChatOpenAI` from `langchain-openai` and set a
+   model your account can use. For an OpenAI-compatible endpoint, such as a
+   self-hosted vLLM model, also pass its `base_url`.
+2. Replace `langchain-anthropic` with `langchain-openai` in `requirements.txt`.
+3. Build and push your own image as described above.
+4. In `agent.yaml`, replace the `ANTHROPIC_API_KEY` variable with
+   `OPENAI_API_KEY` from a Secret holding your OpenAI key.
+5. Apply `agent.yaml` again with `kubectl apply -f agent.yaml`.

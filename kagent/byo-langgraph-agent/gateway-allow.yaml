@@ -1,0 +1,21 @@
+# Lets Agent Gateway reach the agent. BYO agent Services use an appProtocol
+# that Istio does not treat as HTTP, so the workspace's path-based policies do
+# not admit the gateway. Remove once prokube creates this policy itself.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: langgraph-researcher-gateway-allow
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app: kagent
+      kagent: langgraph-researcher
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/agentgateway-system/sa/agentgateway-proxy
+    to:
+    - operation:
+        ports: ["8080"]
