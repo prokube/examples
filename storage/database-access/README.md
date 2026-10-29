@@ -18,7 +18,6 @@ Ask your administrator which databases are available and for the connection deta
 - PostgreSQL: `python/postgresql.ipynb`, `r/postgresql.R`
 - MariaDB/MySQL: `python/mariadb.ipynb`, `r/mariadb.R`
 - Microsoft SQL Server: `python/sqlserver.ipynb`, `r/sqlserver.R`
-- DuckDB: `python/duckdb.ipynb`
 
 Edit only the connection values at the top of the example you want to run:
 
@@ -30,10 +29,6 @@ Edit only the connection values at the top of the example you want to run:
 The examples prompt for the password.
 
 The examples replace the `iris_example` and `iris_example_cursor` tables if they already exist in the target database.
-
-## DuckDB
-
-The DuckDB example does not need a database server. `duckdb.connect()` opens a temporary in-memory database inside the notebook process, and the data is stored as a Parquet file in your S3 bucket. DuckDB is not included in the pk notebook image, so the notebook installs it.
 
 ## Drivers
 
