@@ -31,8 +31,9 @@ reachable.
   sandbox reaches the same hosts.
 
 The same setup can be clicked together in the UI: create the agent with
-**Run code**, then add the hosts and the credential under **Overview** >
-**Network & credentials**.
+**Run code** and add the hosts and the credential under **Network and
+credentials**. Agents have no shell of their own, so code always runs in these
+sandboxes.
 
 ## Deploy
 

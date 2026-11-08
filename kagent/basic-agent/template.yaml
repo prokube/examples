@@ -1,0 +1,11 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: simple-assistant
+spec:
+  description: A simple general-purpose assistant
+  modelConfig:
+    name: MODEL_CONFIG
+  systemPrompt: |
+    You are a helpful assistant. Answer clearly and concisely, and say when
+    you are uncertain.
