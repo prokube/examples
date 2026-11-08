@@ -1,0 +1,15 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: SandboxTemplate
+metadata:
+  name: github-agent-code
+spec:
+  workload:
+    image: docker.io/library/python@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
+  substrate:
+    workerPoolRef:
+      name: default
+      namespace: ate-workers
+    snapshotPolicy:
+      location: s3://ate-snapshots/kagent/
+  egressPolicyRefs:
+  - name: github-agent-network

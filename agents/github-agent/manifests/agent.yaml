@@ -1,0 +1,12 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: github-agent
+spec:
+  template:
+    ref:
+      name: github-agent
+  harnessRef:
+    name: default
+  egressPolicyRefs:
+  - name: github-agent-network

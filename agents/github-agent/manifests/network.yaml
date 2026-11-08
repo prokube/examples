@@ -1,0 +1,17 @@
+# Hosts the agent and its code sandboxes may reach. For api.github.com the
+# egress gateway sets the Authorization header from the Secret github-token.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: github-agent-network
+spec:
+  destinations:
+  - origin: https://api.github.com
+    authentication:
+      header: Authorization
+      prefix: "Bearer "
+      secretKeyRef:
+        name: github-token
+        key: token
+  - origin: https://pypi.org
+  - origin: https://files.pythonhosted.org
