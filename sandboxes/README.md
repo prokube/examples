@@ -20,5 +20,5 @@ laptop, install the SDK with its CLI and log in once:
 
 ```bash
 pip install 'prokube-sdk[cli] @ git+https://github.com/prokube/prokube-sdk@sandboxv3/main'
-pk login https://<your-prokube-domain> --workspace <workspace>
+pk auth login https://<your-prokube-domain> --workspace <workspace>
 ```
