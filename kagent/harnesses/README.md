@@ -48,6 +48,16 @@ sed 's/OPENAI_MODEL_CONFIG/openai-gpt/' coder-codex.yaml | kubectl apply -f -
 kubectl wait --for=condition=Ready agent.api.kagent.dev/coder-codex --timeout=5m
 ```
 
+Or with an OpenAI model an administrator granted through AI Gateway: copy its
+model configuration with the Responses format.
+
+```bash
+kubectl get modelconfig <granted-model> -o json \
+  | jq '.metadata = {name: "codex-model"} | .spec.openAI.apiFormat = "responses"' \
+  | kubectl apply -f -
+sed 's/OPENAI_MODEL_CONFIG/codex-model/' coder-codex.yaml | kubectl apply -f -
+```
+
 ## Try it
 
 Open `coder-claude` on the **Agents** page and ask:
@@ -68,5 +78,6 @@ The chat shows each shell command. The answer is 102334155, PyPI answers, and
 kubectl delete -f coder-claude.yaml -f coder-codex.yaml -f network.yaml
 kubectl delete -f claude-harness.yaml -f codex-harness.yaml
 kubectl delete -f openai-model.yaml --ignore-not-found
+kubectl delete modelconfig codex-model --ignore-not-found
 kubectl delete secret openai-api-key --ignore-not-found
 ```
