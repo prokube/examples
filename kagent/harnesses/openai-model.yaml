@@ -1,0 +1,11 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: ModelConfig
+metadata:
+  name: openai-gpt
+spec:
+  provider: OpenAI
+  model: gpt-5-codex
+  apiKeySecret: openai-api-key
+  apiKeySecretKey: OPENAI_API_KEY
+  openAI:
+    apiFormat: responses

@@ -1,0 +1,9 @@
+# Hosts the coding agents' shells may reach, besides their model.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: coder-network
+spec:
+  destinations:
+  - origin: https://pypi.org
+  - origin: https://files.pythonhosted.org
