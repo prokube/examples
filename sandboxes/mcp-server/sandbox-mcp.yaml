@@ -3,7 +3,7 @@ kind: MCPServer
 metadata:
   name: sandbox-example
 spec:
-  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:sandboxv3-295ccfc
+  image: europe-west3-docker.pkg.dev/prokube-internal/prokube-customer/prokube-cli:main-1df2df2
   args: [sandbox, mcp, --port, "8080", --host, 0.0.0.0]
   transport: streamable-http
   mcpPort: 8080
@@ -20,7 +20,7 @@ spec:
   podTemplateSpec:
     metadata:
       labels:
-        access-sandboxes: "true"
+        sandbox.prokube.ai/access: "true"
     spec:
       imagePullSecrets:
       - name: regcred-prokube
