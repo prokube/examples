@@ -7,8 +7,8 @@ answer and the diff. The Anthropic API key never enters the sandbox.
 ## Prerequisites
 
 Sandboxes must be enabled on your prokube cluster, and the Lab needs sandbox
-access: when you create it, enable **Allow access to sandboxes** under
-**Configurations**. You also need an Anthropic API key.
+access, see the [sandbox examples](../README.md). You also need an Anthropic
+API key.
 
 ## How it works
 
@@ -27,14 +27,13 @@ access: when you create it, enable **Allow access to sandboxes** under
 ## Run the notebook
 
 Open [`claude-code-worker.ipynb`](./claude-code-worker.ipynb) in a prokube Lab
-and run its cells. To run it on a laptop, log in first as described in the
-[sandbox examples](../README.md), with your kubeconfig pointing at the
-workspace for the Secret.
+and run its cells. On a laptop, your kubeconfig must point at the workspace,
+since the notebook creates the Secret with `kubectl`.
 
 ## Clean up
 
-The notebook's last cell deletes the sandbox; run it if the notebook stopped
-before. Delete the Secret when no other example uses it:
+The last cell deletes the sandbox. Delete the Secret when no other example
+uses it:
 
 ```bash
 kubectl delete secret anthropic-api-key
