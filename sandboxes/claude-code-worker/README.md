@@ -8,7 +8,8 @@ answer and the diff. The Anthropic API key never enters the sandbox.
 
 Sandboxes must be enabled on your prokube cluster, and the Lab needs sandbox
 access, see the [sandbox examples](../README.md). You also need an Anthropic
-API key.
+API key in the Secret `anthropic-api-key`; the notebook walks you through
+creating it.
 
 ## How it works
 
