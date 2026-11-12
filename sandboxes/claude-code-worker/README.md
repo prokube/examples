@@ -25,7 +25,7 @@ API key.
   of [pypa/sampleproject](https://github.com/pypa/sampleproject): add a
   function and a test, then run the tests.
 - The sandbox is the security boundary, so Claude Code runs without
-  permission prompts (`--permission-mode bypassPermissions`) and may run any
+  permission prompts (`--dangerously-skip-permissions`) and may run any
   command in it.
 
 ## Run the notebook
