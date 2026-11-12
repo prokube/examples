@@ -22,7 +22,11 @@ API key.
   unchanged. Nothing else is reachable.
 - Claude Code is not part of the sandbox image. The notebook installs it into
   `/workspace` with npm and runs one task with a placeholder key in a clone
-  of [pypa/sampleproject](https://github.com/pypa/sampleproject).
+  of [pypa/sampleproject](https://github.com/pypa/sampleproject): add a
+  function and a test, then run the tests.
+- The sandbox is the security boundary, so Claude Code runs without
+  permission prompts (`--permission-mode bypassPermissions`) and may run any
+  command in it.
 
 ## Run the notebook
 
