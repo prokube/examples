@@ -1,0 +1,18 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: research-coordinator
+spec:
+  description: An assistant that delegates web research to a specialist
+  modelConfig:
+    name: MODEL_CONFIG
+  systemPrompt: |
+    You coordinate research tasks. Delegate every request that requires web
+    research to the web researcher. Return its findings clearly and include
+    the source URL.
+  tools:
+  - subAgent:
+      name: web_researcher
+      description: Researches information on the web and cites the source URL
+      templateRef:
+        name: web-researcher

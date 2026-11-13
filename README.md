@@ -10,6 +10,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── ci               # CI orchestrator (run_all.py) and contributor conventions
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
+├── kagent           # kagent 1.0 agents (MCP tools, sub-agents, A2A, sandboxes, tracing)
 ├── mlflow           # MLflow experiment tracking examples
 ├── mcp-servers      # MCP server examples with ToolHive
 ├── notebooks        # Jupyter notebook examples (Dask, MNIST VAE, etc.)
@@ -57,6 +58,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 
 | Example | Min platform version | Notes |
 |---|---|---|
+| `kagent` | not released yet | Requires kagent 1.0 on Agent Substrate; `agent-with-mcp` and `multi-agent` also need MCP servers |
 | `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
 | `sandboxes` | not released yet | Requires sandboxes (Agent Substrate); `mcp-server` also needs MCP servers |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |

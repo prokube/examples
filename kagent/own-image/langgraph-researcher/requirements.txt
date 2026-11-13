@@ -1,0 +1,11 @@
+# kagent-* must match the platform's kagent version.
+kagent-core==1.0.0rc3
+kagent-langgraph==1.0.0rc3
+kagent-proto @ git+https://github.com/kagent-dev/kagent@3548b7aaf4d91ec86b0565df2bd8a9950e9a276d#subdirectory=python/packages/kagent-proto
+a2a-sdk[grpc]==1.1.5
+grpcio-health-checking==1.74.0
+langgraph==1.2.18
+langchain-anthropic==1.7.10
+langchain-openai==1.7.4
+beautifulsoup4==4.15.0
+httpx==0.28.1

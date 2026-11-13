@@ -1,0 +1,11 @@
+# The only hosts the agent and its code sandboxes may reach, besides the
+# agent's model and MCP servers.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: analyst-network
+spec:
+  destinations:
+  - origin: https://pypi.org
+  - origin: https://files.pythonhosted.org
+  - origin: https://api.open-meteo.com
