@@ -21,7 +21,7 @@ SDK and `pk` need no login. On a laptop, install the SDK with its CLI and log
 in once:
 
 ```bash
-pip install 'prokube-sdk[cli] @ git+https://github.com/prokube/prokube-sdk@main'
+pip install 'prokube-sdk[cli] @ git+https://github.com/prokube/prokube-sdk@v1.0.0'
 pk auth login https://<your-prokube-domain> --workspace <workspace>
 ```
 
