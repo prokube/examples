@@ -20,6 +20,13 @@ To preview the execution plan without running any examples:
 python ci/run_all.py --dry-run
 ```
 
+To run some examples only, with their cleanup, pass `--only` with a directory
+or example name; it is repeatable, and opt-in flags still apply:
+
+```bash
+python ci/run_all.py --only sandboxes --include-sandboxes
+```
+
 MLflow examples require the `mlflow-credentials` Kubernetes secret. Serving
 examples that use external authentication require
 `INFERENCE_SERVICE_API_KEY`. MCP server examples require ToolHive in the
@@ -28,6 +35,10 @@ workspace (create it at `https://<your-prokube-domain>/pkui/ai-gateway/keys`),
 and `PROKUBE_DOMAIN`, the cluster's external host name (for example
 `my-cluster.prokube.cloud`), because they connect through the external MCP
 routes.
+Sandbox examples run with `--include-sandboxes` in a notebook with sandbox
+access (**Allow access to sandboxes** under **Configurations**);
+`--include-claude-code` also needs the Secret `anthropic-api-key` described in
+`sandboxes/claude-code-worker/claude-code-worker.ipynb`.
 Examples with unavailable prerequisites are reported as skipped. Run
 `python ci/run_all.py --help` for timeout and opt-in options.
 
