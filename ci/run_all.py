@@ -244,6 +244,63 @@ _EXAMPLES: list[Example] = [
         required_env=["MCP_API_KEY", "PROKUBE_DOMAIN"],
         required_resources=["mcpservers.toolhive.stacklok.dev"],
     ),
+    Example(
+        name="sandboxes/parallel-sandboxes",
+        steps=[
+            Step(
+                "notebook",
+                "sandboxes/parallel-sandboxes/parallel-sandboxes.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        opt_in="include_sandboxes",
+        cleanup="sandboxes/parallel-sandboxes/.ci/cleanup.py",
+        env_mutating=True,
+    ),
+    Example(
+        name="sandboxes/langgraph-data-analysis",
+        steps=[
+            Step(
+                "notebook",
+                "sandboxes/langgraph-data-analysis/langgraph-data-analysis.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        opt_in="include_sandboxes",
+        cleanup="sandboxes/langgraph-data-analysis/.ci/cleanup.py",
+        env_mutating=True,
+    ),
+    Example(
+        name="sandboxes/mcp-server",
+        steps=[
+            Step(
+                "notebook",
+                "sandboxes/mcp-server/sandbox-mcp.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        opt_in="include_sandboxes",
+        cleanup="sandboxes/mcp-server/.ci/cleanup.py",
+        required_resources=["mcpservers.toolhive.stacklok.dev"],
+        env_mutating=True,
+    ),
+    Example(
+        name="sandboxes/claude-code-worker",
+        steps=[
+            Step(
+                "notebook",
+                "sandboxes/claude-code-worker/claude-code-worker.ipynb",
+                extract_run_ids=False,
+            )
+        ],
+        phase=1,
+        opt_in="include_claude_code",
+        cleanup="sandboxes/claude-code-worker/.ci/cleanup.py",
+        env_mutating=True,
+    ),
     # ── Phase 2: pipeline submissions (return fast; KFP runs polled in Phase 4)
     Example(
         name="mlflow/mobile-price-classification",
@@ -318,6 +375,16 @@ _EXAMPLES: list[Example] = [
 # would delete a same-named Katib Experiment a user started manually in the
 # shared namespace.
 _EXTRA_CLEANUP_PATHS: list[str] = []
+
+
+def _select_examples(prefixes: list[str]) -> list[Example]:
+    """Return the examples whose name is, or lies under, one of `prefixes`."""
+    paths = [prefix.rstrip("/") for prefix in prefixes]
+    return [
+        ex
+        for ex in _EXAMPLES
+        if any(ex.name == path or ex.name.startswith(path + "/") for path in paths)
+    ]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -664,6 +731,7 @@ class _Context:
     poll_results: dict[str, str]
     poll_errors: dict[str, str]
     cancel_event: threading.Event
+    examples: list[Example] = field(default_factory=lambda: _EXAMPLES)
     running: set[str] = field(default_factory=set)
     running_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -858,9 +926,9 @@ def _print_report(
     print()
 
 
-def _print_dry_run() -> None:
+def _print_dry_run(examples: list[Example] = _EXAMPLES) -> None:
     by_phase: dict[int, list[str]] = {}
-    for ex in _EXAMPLES:
+    for ex in examples:
         label = ex.name
         if ex.opt_in:
             label += f"  (--{ex.opt_in.replace('_', '-')})"
@@ -962,9 +1030,9 @@ def _check_kserve_api_key() -> tuple[bool, str]:
     )
 
 
-def _unset_env() -> dict[str, str]:
+def _unset_env(examples: list[Example] = _EXAMPLES) -> dict[str, str]:
     """Return {variable: reason} for required environment variables that are unset."""
-    required = sorted({var for ex in _EXAMPLES for var in ex.required_env})
+    required = sorted({var for ex in examples for var in ex.required_env})
     return {
         var: f"{var} is unset — export it before running CI (see ci/README.md)"
         for var in required
@@ -972,13 +1040,13 @@ def _unset_env() -> dict[str, str]:
     }
 
 
-def _missing_resources() -> dict[str, str]:
+def _missing_resources(examples: list[Example] = _EXAMPLES) -> dict[str, str]:
     """Return {resource: reason} for required resources the cluster does not serve.
 
     Uses API discovery because notebook service accounts cannot read CRDs.
     """
     required = sorted(
-        {resource for ex in _EXAMPLES for resource in ex.required_resources}
+        {resource for ex in examples for resource in ex.required_resources}
     )
     if not required:
         return {}
@@ -999,40 +1067,51 @@ def _missing_resources() -> dict[str, str]:
     return missing
 
 
-def _check_prerequisites() -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
+def _check_prerequisites(
+    examples: list[Example] = _EXAMPLES,
+) -> tuple[dict[str, tuple[bool, str]], dict[str, str]]:
     """Run credential and cluster checks, printing their outcome.
 
     Returns ({check: (ok, reason)}, {missing resource or variable: reason}). Shared by
     `_preflight` (real runs) and `--dry-run` so contributors can see what
     would be skipped before committing to a full run.
     """
-    print("Pre-flight: checking MLflow credentials...")
-    mlflow_ok, mlflow_reason = _check_mlflow_credentials()
-    if mlflow_ok:
-        print("  [OK] MLflow credentials valid")
-    else:
-        print(f"  [SKIP] {mlflow_reason}")
+    # Unchecked prerequisites count as met: no selected example depends on them.
+    mlflow_ok, mlflow_reason = True, ""
+    if any(ex.mlflow_dependent for ex in examples):
+        print("Pre-flight: checking MLflow credentials...")
+        mlflow_ok, mlflow_reason = _check_mlflow_credentials()
+        if mlflow_ok:
+            print("  [OK] MLflow credentials valid")
+        else:
+            print(f"  [SKIP] {mlflow_reason}")
 
-    print("Pre-flight: checking kserve API key...")
-    api_key_ok, api_key_reason = _check_kserve_api_key()
-    if api_key_ok:
-        print("  [OK] INFERENCE_SERVICE_API_KEY is set")
-    else:
-        print(f"  [SKIP] {api_key_reason}")
+    api_key_ok, api_key_reason = True, ""
+    if any(ex.api_key_dependent for ex in examples):
+        print("Pre-flight: checking kserve API key...")
+        api_key_ok, api_key_reason = _check_kserve_api_key()
+        if api_key_ok:
+            print("  [OK] INFERENCE_SERVICE_API_KEY is set")
+        else:
+            print(f"  [SKIP] {api_key_reason}")
 
-    print("Pre-flight: checking required environment variables...")
-    unset = _unset_env()
-    for var in sorted({var for ex in _EXAMPLES for var in ex.required_env}):
+    unset = _unset_env(examples)
+    required_env = sorted({var for ex in examples for var in ex.required_env})
+    if required_env:
+        print("Pre-flight: checking required environment variables...")
+    for var in required_env:
         if var in unset:
             print(f"  [SKIP] {unset[var]}")
         else:
             print(f"  [OK] {var} is set")
 
-    print("Pre-flight: checking required cluster resources...")
-    missing = _missing_resources()
-    for resource in sorted(
-        {resource for ex in _EXAMPLES for resource in ex.required_resources}
-    ):
+    missing = _missing_resources(examples)
+    required_resources = sorted(
+        {resource for ex in examples for resource in ex.required_resources}
+    )
+    if required_resources:
+        print("Pre-flight: checking required cluster resources...")
+    for resource in required_resources:
         if resource in missing:
             print(f"  [SKIP] {missing[resource]}")
         else:
@@ -1061,7 +1140,9 @@ def _skip_reason(
     return None
 
 
-def _preflight(results: dict[str, Result]) -> None:
+def _preflight(
+    results: dict[str, Result], examples: list[Example] = _EXAMPLES
+) -> None:
     """Validate CI dependencies, credentials, and required cluster resources.
 
     Examples whose prerequisites are unavailable are recorded as SKIP in
@@ -1070,8 +1151,8 @@ def _preflight(results: dict[str, Result]) -> None:
     _require_ci_dependencies()
     _ensure_pk_helpers()
 
-    checks, missing = _check_prerequisites()
-    for ex in _EXAMPLES:
+    checks, missing = _check_prerequisites(examples)
+    for ex in examples:
         reason = _skip_reason(ex, checks, missing)
         if reason:
             results[ex.name] = Result(name=ex.name, status="SKIP", error=reason)
@@ -1092,7 +1173,7 @@ def _run_phase(
     submitted (used to run env_mutating examples in their own sub-step).
     """
     futures: dict[str, Future] = {}
-    for ex in _EXAMPLES:
+    for ex in ctx.examples:
         if ex.phase != phase:
             continue
         if predicate is not None and not predicate(ex):
@@ -1202,26 +1283,32 @@ def run_all(
     include_keda: bool = False,
     include_pytorch: bool = False,
     include_shadow: bool = False,
+    include_sandboxes: bool = False,
+    include_claude_code: bool = False,
     dry_run: bool = False,
     max_workers: int = 8,
+    only: list[str] | None = None,
 ) -> dict[str, Result]:
     root = _REPO_ROOT
     results: dict[str, Result] = {}
+    examples = _select_examples(only) if only else _EXAMPLES
 
     if dry_run:
-        _check_prerequisites()
+        _check_prerequisites(examples)
         print()
-        _print_dry_run()
+        _print_dry_run(examples)
         return results
 
-    _preflight(results)
+    _preflight(results, examples)
 
     opts = {
         "include_keda": include_keda,
         "include_pytorch": include_pytorch,
         "include_shadow": include_shadow,
+        "include_sandboxes": include_sandboxes,
+        "include_claude_code": include_claude_code,
     }
-    cleanup_scripts = [root / ex.cleanup for ex in _EXAMPLES if ex.cleanup] + [
+    cleanup_scripts = [root / ex.cleanup for ex in examples if ex.cleanup] + [
         root / p for p in _EXTRA_CLEANUP_PATHS
     ]
     poll_results: dict[str, str] = {}
@@ -1251,6 +1338,7 @@ def run_all(
                 poll_results=poll_results,
                 poll_errors=poll_errors,
                 cancel_event=cancel_event,
+                examples=examples,
             )
             threading.Thread(
                 target=_heartbeat_loop, args=(ctx, heartbeat_stop), daemon=True
@@ -1275,6 +1363,8 @@ def run_all(
             print("\nPhase 3: deploying MLflow KServe InferenceServices...")
             if mobile_price_ok:
                 phase3_futures = _run_phase(ctx, 3, opts)
+            elif not any(ex.phase == 3 for ex in examples):
+                phase3_futures = {}
             else:
                 skipped = "mlflow/mobile-price-classification" not in phase2_futures
                 reason = (
@@ -1283,7 +1373,7 @@ def run_all(
                     else "prerequisite mlflow/mobile-price-classification notebook or KFP pipeline did not succeed"
                 )
                 print(f"  [SKIP] {reason}")
-                for ex in _EXAMPLES:
+                for ex in examples:
                     if ex.phase == 3:
                         ctx.results[ex.name] = Result(
                             name=ex.name, status="SKIP", error=reason
@@ -1360,6 +1450,31 @@ if __name__ == "__main__":
         help="Include pytorch_lightning examples (opt-in; requires pytorch in the notebook image)",
     )
     parser.add_argument(
+        "--include-sandboxes",
+        action="store_true",
+        help=(
+            "Include the sandbox examples except Claude Code (opt-in; requires "
+            "sandboxes in the cluster and a Lab with sandbox access)"
+        ),
+    )
+    parser.add_argument(
+        "--include-claude-code",
+        action="store_true",
+        help=(
+            "Include sandboxes/claude-code-worker (opt-in; as --include-sandboxes, "
+            "plus the Secret anthropic-api-key; calls the Anthropic API)"
+        ),
+    )
+    parser.add_argument(
+        "--only",
+        action="append",
+        metavar="PREFIX",
+        help=(
+            "Run only the examples under PREFIX, e.g. sandboxes or "
+            "sandboxes/mcp-server; repeatable. Opt-in flags still apply."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print plan without executing anything",
@@ -1375,6 +1490,9 @@ if __name__ == "__main__":
         ),
     )
     args = parser.parse_args()
+    for prefix in args.only or []:
+        if not _select_examples([prefix]):
+            parser.error(f"--only {prefix} matches no example")
 
     results = run_all(
         timeout_notebook=args.timeout_notebook,
@@ -1382,8 +1500,11 @@ if __name__ == "__main__":
         include_keda=args.include_keda,
         include_shadow=args.include_shadow,
         include_pytorch=args.include_pytorch,
+        include_sandboxes=args.include_sandboxes,
+        include_claude_code=args.include_claude_code,
         dry_run=args.dry_run,
         max_workers=args.max_workers,
+        only=args.only,
     )
 
     failed = sum(1 for r in results.values() if r.status == "FAIL")
