@@ -1,7 +1,7 @@
 """A stand-in for a real model, so the notebook runs without one.
 
-It makes the tool calls in SCRIPT in order, then answers with the last line
-of the first one's output.
+It makes the tool calls in SCRIPT in order, then answers with the result line
+of the first one's output, or with all of it when there is none.
 """
 
 from langchain_core.language_models import BaseChatModel
@@ -41,5 +41,10 @@ class ScriptedModel(BaseChatModel):
             call = {"name": name, "args": args, "id": f"call-{len(messages)}"}
             reply = AIMessage("", tool_calls=[call])
         else:
-            reply = AIMessage(results[0].content.splitlines()[-1])
+            output = results[0].content
+            answer = next(
+                (line for line in output.splitlines() if " grew fastest: " in line),
+                output.strip(),
+            )
+            reply = AIMessage(answer)
         return ChatResult(generations=[ChatGeneration(message=reply)])

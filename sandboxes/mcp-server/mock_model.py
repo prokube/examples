@@ -38,7 +38,8 @@ def _next_step(messages, info: AgentInfo) -> ModelResponse:
         part
         for message in messages
         for part in message.parts
-        if isinstance(part, ToolReturnPart)
+        # A failed call comes back as a ToolReturnPart too; repeat its step, as a model would.
+        if isinstance(part, ToolReturnPart) and part.outcome == "success"
     ]
     if len(results) == len(script):
         if script is DELETE:
