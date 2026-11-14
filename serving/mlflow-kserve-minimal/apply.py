@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+from getpass import getpass
 
 _ISVC_NAME = "mobile-price-svm"
 _YAML_TEMPLATE = os.path.join(os.path.dirname(__file__), "InferenceService.yaml")
@@ -175,10 +176,8 @@ def test(uri: str, api_key: str) -> None:
 
 def deploy_and_test(timeout: int = 600) -> str:
     """Deploy the ISVC, wait for readiness, run smoke test, return the URL."""
-    _ensure_pk_helpers()
-    from pk_helpers import get_or_create_api_key
-
-    api_key = get_or_create_api_key()  # fail fast, before mutating the cluster
+    _ensure_pk_helpers()  # fail fast, before mutating the cluster
+    api_key = os.environ.get("INFERENCE_SERVICE_API_KEY") or getpass("Model-serving API key: ")
 
     uri = deploy(timeout=timeout)
     test(uri, api_key)

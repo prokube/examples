@@ -17,7 +17,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── rstudio          # RStudio examples
 ├── sandboxes        # agent sandbox examples (SDK, MCP, Claude Code, opencode)
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
-├── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
+├── src/pk_helpers   # installable prokube helpers (MLflow credential setup, KServe URLs)
 └── storage          # object storage and database access examples
 ```
 
