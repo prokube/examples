@@ -5,8 +5,9 @@ comes from the workflow, and A2A error replies are not retried. A task that
 waits for a tool approval is returned as such; the workflow answers it with a
 second call.
 
-A2A_URL is https://<domain>/svc/a2a/<workspace>, A2A_API_KEY a prokube API key
-with access to the Agents.
+In a notebook, A2A_URL is https://<domain>/svc/a2a/<workspace> and A2A_API_KEY
+a prokube API key with access to the Agents. A worker deployed in the
+workspace uses the gateway inside the cluster with its own token instead.
 """
 
 import json
@@ -18,6 +19,16 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
 HITL = "https://kagent.dev/extensions/hitl/v1"
+GATEWAY = "http://agentgateway-proxy.agentgateway-system.svc.cluster.local"
+
+
+def _endpoint() -> tuple[str, str]:
+    """A2A base URL and bearer token."""
+    if os.environ.get("A2A_API_KEY"):
+        return os.environ["A2A_URL"], os.environ["A2A_API_KEY"]
+    from prokube.workflows import worker_token  # pylint: disable=import-outside-toplevel
+
+    return f"{GATEWAY}/usr/a2a/{os.environ['TEMPORAL_NAMESPACE']}", worker_token()
 
 
 @dataclass
@@ -70,14 +81,15 @@ def _message(msg: A2AMessage) -> dict:
 
 @activity.defn
 async def send_a2a_message(msg: A2AMessage) -> A2AResult:
-    url = f"{os.environ['A2A_URL']}/{msg.agent}"
+    base, token = _endpoint()
+    url = f"{base}/{msg.agent}"
     body = {"jsonrpc": "2.0", "id": msg.message_id, "method": "SendStreamingMessage",
             "params": {"message": _message(msg)}}
     artifacts: dict[str, str] = {}
     state, task_id, context_id, status = "", "", "", {}
     async with httpx.AsyncClient(timeout=httpx.Timeout(900, connect=10, read=120)) as client:
         headers = {
-            "Authorization": f"Bearer {os.environ['A2A_API_KEY']}",
+            "Authorization": f"Bearer {token}",
             "A2A-Version": "1.0",
             "A2A-Extensions": HITL,
             "Accept": "text/event-stream",
