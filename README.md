@@ -18,7 +18,8 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 ├── sandboxes        # agent sandbox examples (SDK, MCP, Claude Code, opencode)
 ├── serving          # model serving examples (KServe, vLLM, shadow deployments)
 ├── src/pk_helpers   # installable prokube helpers (credential setup, API key, KServe URLs)
-└── storage          # object storage and database access examples
+├── storage          # object storage and database access examples
+└── workflows        # agent workflows with Temporal (A2A, approvals)
 ```
 
 The scripts in `src/pk_helpers` provide platform-specific utilities used by
@@ -59,6 +60,7 @@ Some examples require a minimum prokube platform version. If an example is not l
 |---|---|---|
 | `mcp-servers` | v1.9.0 | Requires MCP servers / ToolHive support |
 | `sandboxes` | not released yet | Requires sandboxes (Agent Substrate); `mcp-server` also needs MCP servers |
+| `workflows` | not released yet | Requires workflows (Temporal) and an Agent |
 | `serving/minimal-s3-model` | v1.7.0 | Requires s3creds secret with KServe support |
 
 ## CI
