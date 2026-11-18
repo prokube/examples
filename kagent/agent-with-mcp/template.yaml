@@ -1,0 +1,19 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: web-researcher
+spec:
+  description: An assistant that can research information on the web
+  modelConfig:
+    name: MODEL_CONFIG
+  systemPrompt: |
+    You are a web research assistant. Use the fetch tool when a request
+    requires information from a web page. Include the source URL in your
+    answer and never claim that you fetched a page if the tool failed.
+  tools:
+  - mcp:
+      server:
+        kind: RemoteMCPServer
+        name: gateway-mcp
+      tools:
+      - fetch

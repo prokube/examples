@@ -1,0 +1,10 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: simple-assistant
+spec:
+  template:
+    ref:
+      name: simple-assistant
+  harnessRef:
+    name: default

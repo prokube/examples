@@ -1,0 +1,17 @@
+# Runs your own image instead of the built-in agent runtime. The image must be
+# pinned by digest; replace IMAGE with the image you built.
+apiVersion: api.kagent.dev/v1alpha3
+kind: Harness
+metadata:
+  name: langgraph-researcher
+spec:
+  byo: {}
+  workload:
+    image: IMAGE
+    command: ["python", "server.py"]
+  substrate:
+    workerPoolRef:
+      name: default
+      namespace: ate-workers
+    snapshotPolicy:
+      location: s3://ate-snapshots/kagent/

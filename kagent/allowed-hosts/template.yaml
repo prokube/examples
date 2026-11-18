@@ -1,0 +1,27 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: analyst
+spec:
+  description: Answers questions by running Python in a sandbox
+  modelConfig:
+    name: MODEL_CONFIG
+  systemPrompt: |
+    You answer questions by writing Python and running it in a sandbox.
+    Always use the sandbox template "analyst-code" in your own namespace and
+    delete the sandbox when you are done. Run code with the command
+    ["python3", "-c", "<code>"]; your own file tools do not reach the sandbox.
+    Report the program's output, not your own estimate.
+  tools:
+  - mcp:
+      server:
+        kind: RemoteMCPServer
+        name: kagent-api
+      tools:
+      - create_sandbox
+      - delete_sandbox
+      - get_sandbox
+      - get_sandbox_process
+      - list_sandbox_templates
+      - read_sandbox_outputs
+      - start_sandbox_process

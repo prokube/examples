@@ -1,0 +1,12 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: langgraph-researcher
+spec:
+  template:
+    ref:
+      name: langgraph-researcher
+  harnessRef:
+    name: langgraph-researcher
+  egressPolicyRefs:
+  - name: langgraph-researcher-network

@@ -1,0 +1,8 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: AgentTemplate
+metadata:
+  name: langgraph-researcher
+spec:
+  description: Fetches a web page and summarizes it in one sentence
+  modelConfig:
+    name: MODEL_CONFIG

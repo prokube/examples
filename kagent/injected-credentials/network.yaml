@@ -1,0 +1,18 @@
+# For httpbin.org the egress gateway sets the Authorization header from
+# the Secret demo-api-login. The agent and its code never see the password.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: analyst-network
+spec:
+  destinations:
+  - origin: https://pypi.org
+  - origin: https://files.pythonhosted.org
+  - origin: https://api.open-meteo.com
+  - origin: https://httpbin.org
+    authentication:
+      header: Authorization
+      prefix: "Basic "
+      secretKeyRef:
+        name: demo-api-login
+        key: credentials

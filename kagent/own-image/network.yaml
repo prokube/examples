@@ -1,0 +1,8 @@
+# The only host the workflow may fetch, besides the agent's model.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: langgraph-researcher-network
+spec:
+  destinations:
+  - origin: https://prokube.ai

@@ -1,0 +1,12 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: Harness
+metadata:
+  name: claude
+spec:
+  claude: {}
+  substrate:
+    workerPoolRef:
+      name: default
+      namespace: ate-workers
+    snapshotPolicy:
+      location: s3://ate-snapshots/kagent/

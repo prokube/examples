@@ -1,0 +1,17 @@
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: coder-codex
+spec:
+  template:
+    inline:
+      description: A coding assistant with its own shell
+      modelConfig:
+        name: OPENAI_MODEL_CONFIG
+      systemPrompt: |
+        You are a coding assistant. Use your shell to run code and check
+        your answers.
+  harnessRef:
+    name: codex
+  egressPolicyRefs:
+  - name: coder-network
