@@ -26,6 +26,16 @@ the run as well.
   starts a run and lets you answer the approvals. The run also shows under
   **Workflows** in the prokube UI, where you can answer them instead.
 
+## Deploy the worker
+
+In the notebook, the worker runs only while the notebook does. To keep it
+running, deploy the image `agent-approval-worker` (built from the
+[`Dockerfile`](./Dockerfile)) in the prokube UI under **Workflows**,
+**Workers**, **Deploy worker**. It listens on the task queue `agent-approval`,
+signs in with the workspace's worker identity and calls the Agent through the
+gateway inside the cluster, so it needs neither your login nor an API key.
+Runs started from the notebook, the CLI or the UI then all use it.
+
 ## Run the notebook
 
 Open [`agent-approval.ipynb`](./agent-approval.ipynb) in a prokube Lab, set

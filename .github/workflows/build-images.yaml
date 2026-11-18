@@ -45,6 +45,9 @@ jobs:
         - image: markdown-notes-mcp
           context: mcp-servers/build-custom-mcp-server/markdown-notes-server
           dockerfile: mcp-servers/build-custom-mcp-server/markdown-notes-server/Dockerfile
+        - image: agent-approval-worker
+          context: workflows/agent-approval
+          dockerfile: workflows/agent-approval/Dockerfile
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
