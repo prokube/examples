@@ -1,0 +1,87 @@
+# Single-instance Redis used as the Feast online store. Apply it in your
+# workspace namespace after creating the password secret:
+#
+#   kubectl create secret generic feast-redis \
+#     --from-literal=password="$(openssl rand -hex 24)"
+#   kubectl apply -f redis.yaml
+#
+# The online store only holds data that `feast materialize` can rebuild, so
+# this Redis has no replication or backups.
+apiVersion: v1
+kind: Service
+metadata:
+  name: feast-redis
+  labels:
+    app: feast-redis
+spec:
+  selector:
+    app: feast-redis
+  ports:
+    - name: tcp-redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: feast-redis
+  labels:
+    app: feast-redis
+spec:
+  serviceName: feast-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feast-redis
+  template:
+    metadata:
+      labels:
+        app: feast-redis
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: redis
+          # Replace with a mirrored image if your cluster cannot pull from Docker Hub.
+          image: redis:7.4-alpine
+          args:
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --appendonly
+            - "yes"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: feast-redis
+                  key: password
+          ports:
+            - name: tcp-redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

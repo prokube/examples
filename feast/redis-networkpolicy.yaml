@@ -1,0 +1,21 @@
+# Only needed when your workspace has an egress profile assigned. Egress
+# profiles restrict outbound traffic of all pods in the workspace, including
+# traffic to other pods in the same namespace. This policy lets the workspace's
+# pods reach the feast-redis pod on the Redis port and nothing else.
+#
+#   kubectl apply -f redis-networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: feast-redis-clients
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: feast-redis
+      ports:
+        - protocol: TCP
+          port: 6379

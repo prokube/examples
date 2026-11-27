@@ -1,71 +1,108 @@
 # Feast Feature Store Example
 
-A complete example of using [Feast](https://docs.feast.dev/) on prokube for
-feature management in ML workflows.
+An end-to-end example of using [Feast](https://docs.feast.dev/) on prokube to
+manage features for training and real-time inference.
 
 **Scenario:** An online retailer wants to predict whether a customer will
-return their next order. The notebook walks through defining customer features,
-training a return-risk model, and serving predictions in real time.
+return their next order. The notebook defines customer features, trains a
+return-risk model, and serves predictions from online features.
 
-## Quick Start
+Feast runs as a Python library in your Lab. prokube does not need a Feast
+server or operator, and no administrator action is required.
 
-1. Feast must be enabled on your cluster (ask your admin)
-2. Clone this repository to your notebook server
-3. Open `feast_example.ipynb` from the `feast/` directory and run all cells
+## Quick start
 
-The notebook's **Infrastructure setup** cell handles everything automatically:
-Redis, secrets, FeatureStore CR, and (for remote mode) NetworkPolicies.
+1. Open a JupyterLab Lab in your workspace. The `examples` repository is
+   usually cloned into your home directory already.
+2. Open `feast/feast_example.ipynb` and run all cells.
 
-## Registry modes
+The setup cell installs Feast, starts Redis in your workspace, and checks that
+the notebook can reach it.
 
-There are two registry modes. Select one in the notebook when prompted:
+## What the example creates
 
-| | Local | Remote |
+| Resource | Where | Purpose |
 |---|---|---|
-| **Registry** | SQLite SQL on `/tmp` (ephemeral) | gRPC server on operator PVC (persistent, shared) |
-| **Good for** | Single user, quick iteration | Teams sharing definitions across clients |
+| Secret `feast-redis` | Workspace namespace | Random Redis password |
+| StatefulSet and Service `feast-redis`, PVC `data-feast-redis-0` | Workspace namespace | Redis, the online store (`redis.yaml`) |
+| `feast-example/registry.db` | Bucket `<workspace>-data` | Feast registry: the feature definitions |
+| `feast-example/data/customer_orders.parquet` | Bucket `<workspace>-data` | Offline store: historical feature data |
+
+Redis holds only data that `materialize()` can rebuild from the Parquet files,
+so it runs as a single pod without replication or backups. For production,
+ask your administrator for a managed Redis or PostgreSQL instance.
 
 ## Files
 
 ```
 feast/
-  feast_example.ipynb              End-to-end notebook (works with both modes)
-  redis-cr.yaml                    Redis instance CR (OpsTree operator)
-  registry/
-    local/
-      feast-cr.yaml                FeatureStore CR — local SQLite SQL registry
-      feature_store.yaml           Feast SDK config template
-      README.md                    Local mode details and trade-offs
-    remote/
-      feast-cr.yaml                FeatureStore CR — remote gRPC registry server
-      feature_store.yaml           Feast SDK config template
-      network-policies.yaml        CNI-layer NetworkPolicies for isolation
-      README.md                    Remote mode details and trade-offs
+  feast_example.ipynb        End-to-end notebook
+  feature_store.yaml         Feast configuration; reads its locations from environment variables
+  redis.yaml                 Redis StatefulSet and Service for the online store
+  redis-networkpolicy.yaml   Allows workspace pods to reach Redis when an egress profile is assigned
 ```
 
-## Architecture
+## Workspaces with an egress profile
 
-Feast has three stores:
+An egress profile restricts outbound traffic of every pod in the workspace,
+including traffic to other pods in the same workspace. If the setup cell
+reports that Redis is not reachable, apply the included NetworkPolicy and
+re-run the cell:
 
-| Store | Purpose | Backend |
-|-------|---------|---------|
-| **Registry** | Feature definitions (entities, feature views, sources). Written on `feast apply`. | Local: SQLite SQL file. Remote: gRPC server on operator PVC. |
-| **Online store** | Latest feature value per entity. Read on every inference — latency critical. | Redis (your `Redis` CR) |
-| **Offline store** | Historical feature records for point-in-time joins during training. | Parquet on PVC |
-
+```bash
+kubectl apply -f redis-networkpolicy.yaml
 ```
-                    ┌──────────────────────────────────────┐
-                    │           Your Namespace             │
-                    │                                      │
-                    │  Redis CR (redis-feast)              │
-                    │                                      │
-  store.apply() ───▶  Registry                             │
-  (notebook)        │   local:  sqlite:////tmp/registry.db │
-                    │   remote: gRPC → operator PVC        │
-                    │                                      │
-  materialize ──────▶  Redis online store                  │
-                    │                                      │
-  historical  ──────▶  Parquet on PVC (offline store)      │
-  features          │                                      │
-                    └──────────────────────────────────────┘
+
+## Use the features from another workload
+
+A pipeline step, inference service, or other pod in the same workspace can
+read the features with the same `feature_store.yaml`. Give its container
+these environment variables:
+
+```yaml
+env:
+  - name: FEAST_REGISTRY_PATH
+    value: s3://<workspace>-data/feast-example/registry.db
+  - name: REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: feast-redis
+        key: password
+  - name: FEAST_REDIS_CONNECTION_STRING
+    value: feast-redis:6379,password=$(REDIS_PASSWORD)
+  - name: AWS_ENDPOINT_URL
+    value: <same value as in your Lab: echo $AWS_ENDPOINT_URL>
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: s3creds
+        key: AWS_ACCESS_KEY_ID
+  - name: AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: s3creds
+        key: AWS_SECRET_ACCESS_KEY
+```
+
+Then read online features by feature service name:
+
+```python
+from feast import FeatureStore
+
+store = FeatureStore(repo_path="/path/to/feast")  # directory with feature_store.yaml
+features = store.get_online_features(
+    features=store.get_feature_service("customer_risk_service"),
+    entity_rows=[{"customer_id": 42}],
+).to_dict()
+```
+
+## Clean up
+
+Run from the `feast/` directory in a Lab terminal:
+
+```bash
+kubectl delete -f redis.yaml --ignore-not-found
+kubectl delete pvc data-feast-redis-0 --ignore-not-found
+kubectl delete secret feast-redis --ignore-not-found
+rclone delete minio:<workspace>-data/feast-example
 ```
