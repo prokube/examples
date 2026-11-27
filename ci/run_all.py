@@ -130,6 +130,13 @@ _EXAMPLES: list[Example] = [
         env_mutating=True,
     ),
     Example(
+        name="feast",
+        steps=[Step("notebook", "feast/feast_example.ipynb")],
+        phase=1,
+        cleanup="feast/.ci/cleanup.py",
+        env_mutating=True,
+    ),
+    Example(
         name="notebooks/mobile-price-classification",
         steps=[
             Step(

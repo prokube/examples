@@ -1,0 +1,14 @@
+# Feast reads ${VAR} references from the environment. The notebook sets both
+# variables; set them yourself to use this file from another workload.
+#
+#   FEAST_REGISTRY_PATH            s3://<workspace>-data/feast-example/registry.db
+#   FEAST_REDIS_CONNECTION_STRING  feast-redis:6379,password=<password>
+project: retail_features
+provider: local
+registry: ${FEAST_REGISTRY_PATH}
+offline_store:
+  type: file
+online_store:
+  type: redis
+  connection_string: ${FEAST_REDIS_CONNECTION_STRING}
+entity_key_serialization_version: 3

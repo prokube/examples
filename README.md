@@ -8,6 +8,7 @@ For full platform documentation, see [docs.prokube.ai](https://docs.prokube.ai/)
 .
 ├── .github          # workflows to build images
 ├── ci               # CI orchestrator (run_all.py) and contributor conventions
+├── feast            # Feast feature store example (training and online serving)
 ├── hparam-tuning    # hyperparameter tuning examples (Katib)
 ├── images           # custom container images used by examples
 ├── mlflow           # MLflow experiment tracking examples
